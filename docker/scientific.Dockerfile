@@ -15,9 +15,11 @@ RUN pip install --no-cache-dir \
     scipy>=1.14 \
     scikit-learn>=1.5
 
-RUN useradd -m -s /bin/bash evaluser
+RUN useradd -m -s /bin/bash evaluser \
+    && mkdir -p /sandbox \
+    && chown evaluser:evaluser /sandbox
 
-COPY src/nl_code/code_execution/worker.py /sandbox/code_eval_worker.py
+COPY --chown=evaluser:evaluser src/nl_code/code_execution/worker.py /sandbox/code_eval_worker.py
 
 USER evaluser
 WORKDIR /sandbox

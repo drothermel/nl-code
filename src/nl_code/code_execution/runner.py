@@ -467,8 +467,16 @@ def _parse_function_call_results(
             detail=(f"expected {len(input_values)} results, got {len(raw_results)}"),
         )
     results: list[ExecutionResult] = []
-    for iv, raw in zip(input_values, raw_results, strict=True):
-        results.append(_execution_result_from_payload(iv, cast(dict[str, Any], raw)))
+    for i, (iv, raw) in enumerate(zip(input_values, raw_results, strict=True)):
+        if not isinstance(raw, dict):
+            raise CodeExecutionInfrastructureError(
+                stage="worker_payload_invalid_per_input",
+                execution_mode=execution_mode,
+                detail=f"result at index {i} is {type(raw).__name__}, expected dict",
+            )
+        results.append(
+            _execution_result_from_payload(iv, cast(dict[str, Any], raw))
+        )
     return results
 
 
@@ -693,6 +701,13 @@ def _run_batch_chunk(
             execution_mode=execution_mode,
             detail=(f"expected {len(items)} batch results, got {len(raw_results)}"),
         )
+    for i, entry in enumerate(raw_results):
+        if not isinstance(entry, dict):
+            raise CodeExecutionInfrastructureError(
+                stage="worker_payload_invalid_per_input",
+                execution_mode=execution_mode,
+                detail=f"batch result at index {i} is {type(entry).__name__}, expected dict",
+            )
     return raw_results
 
 

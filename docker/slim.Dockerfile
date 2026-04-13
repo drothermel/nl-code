@@ -9,9 +9,11 @@ LABEL org.opencontainers.image.title="nl-code/code-eval"
 LABEL org.opencontainers.image.description="Python code evaluation sandbox (slim)"
 LABEL org.opencontainers.image.version="v1"
 
-RUN useradd -m -s /bin/bash evaluser
+RUN useradd -m -s /bin/bash evaluser \
+    && mkdir -p /sandbox \
+    && chown evaluser:evaluser /sandbox
 
-COPY src/nl_code/code_execution/worker.py /sandbox/code_eval_worker.py
+COPY --chown=evaluser:evaluser src/nl_code/code_execution/worker.py /sandbox/code_eval_worker.py
 
 USER evaluser
 WORKDIR /sandbox

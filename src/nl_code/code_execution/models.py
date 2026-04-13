@@ -106,6 +106,7 @@ class UnittestTestDetail(BaseModel):
     tests_passed: int
     tests_failed: int
     tests_errored: int
+    tests_skipped: int = 0
     failures: list[str] = Field(default_factory=list)
     errors: list[str] = Field(default_factory=list)
     passed: bool

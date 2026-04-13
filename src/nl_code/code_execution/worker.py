@@ -79,18 +79,20 @@ def _stdout_limit_bytes() -> int:
     return int(os.getenv("NL_CODE_EVAL_MAX_STDOUT_BYTES", "1048576"))
 
 
-def _set_resource_limits() -> None:
+def _set_resource_limits(*, skip_cpu: bool = False) -> None:
     cpu_seconds = int(os.getenv("NL_CODE_EVAL_CPU_SECONDS", "2"))
     memory_bytes = int(os.getenv("NL_CODE_EVAL_MEMORY_BYTES", "268435456"))
     file_bytes = int(os.getenv("NL_CODE_EVAL_FILE_BYTES", "1048576"))
     process_count = int(os.getenv("NL_CODE_EVAL_NPROC", "64"))
 
     limits: list[tuple[int, int, int]] = [
-        (resource.RLIMIT_CPU, cpu_seconds, cpu_seconds),
         (resource.RLIMIT_AS, memory_bytes, memory_bytes),
         (resource.RLIMIT_FSIZE, file_bytes, file_bytes),
         (resource.RLIMIT_NPROC, process_count, process_count),
     ]
+    if not skip_cpu:
+        limits.insert(0, (resource.RLIMIT_CPU, cpu_seconds, cpu_seconds))
+
     for limit_name, soft, hard in limits:
         _current_soft, current_hard = resource.getrlimit(limit_name)
         if current_hard == resource.RLIM_INFINITY:
@@ -119,8 +121,8 @@ def _set_batch_cpu_limit(total_seconds: int) -> None:
         target = min(total_seconds, current_hard)
     try:
         resource.setrlimit(resource.RLIMIT_CPU, (target, target))
-    except (OSError, ValueError):
-        pass
+    except (OSError, ValueError) as exc:
+        logger.debug("Unable to apply batch CPU limit %s: %s", target, exc)
 
 
 # ---------------------------------------------------------------------------
@@ -203,7 +205,7 @@ def _error_payload(
     compile_success: bool | None = None,
     compile_error: str | None = None,
 ) -> dict[str, Any]:
-    if compile_error is None and error is not None:
+    if compile_error is None and compile_success is False and error is not None:
         compile_error = str(error)
     return {
         "return_value": None,
@@ -499,7 +501,13 @@ def _handle_unittest(req: dict[str, Any]) -> dict[str, Any]:
 
             failures = [f"{tc}: {msg}" for tc, msg in result.failures]
             errors = [f"{tc}: {msg}" for tc, msg in result.errors]
-            tests_passed = result.testsRun - len(result.failures) - len(result.errors)
+            tests_skipped = len(result.skipped)
+            tests_passed = (
+                result.testsRun
+                - len(result.failures)
+                - len(result.errors)
+                - tests_skipped
+            )
 
             per_test_class.append(
                 {
@@ -508,12 +516,13 @@ def _handle_unittest(req: dict[str, Any]) -> dict[str, Any]:
                     "tests_passed": tests_passed,
                     "tests_failed": len(result.failures),
                     "tests_errored": len(result.errors),
+                    "tests_skipped": tests_skipped,
                     "failures": failures,
                     "errors": errors,
                     "passed": (
                         len(result.failures) == 0
                         and len(result.errors) == 0
-                        and result.testsRun > 0
+                        and tests_passed > 0
                     ),
                 }
             )
@@ -550,8 +559,8 @@ def _alarm_handler(signum: int, frame: Any) -> None:
 
 
 def _cleanup_tmp() -> None:
-    """Clear /tmp contents between batch items."""
-    tmp = "/tmp"
+    """Clear temp directory contents between batch items."""
+    tmp = tempfile.gettempdir()
     try:
         entries = os.listdir(tmp)
     except OSError:
@@ -634,26 +643,9 @@ def main(*, set_limits: bool = True) -> int:
             _set_resource_limits()
 
         if mode == "batch":
-            # Batch mode sets its own CPU limit
+            # Set non-CPU limits; batch handler sets CPU limit itself
             if set_limits and not skip:
-                # Set non-CPU limits; batch handler sets CPU limit itself
-                memory_bytes = int(os.getenv("NL_CODE_EVAL_MEMORY_BYTES", "268435456"))
-                file_bytes = int(os.getenv("NL_CODE_EVAL_FILE_BYTES", "1048576"))
-                process_count = int(os.getenv("NL_CODE_EVAL_NPROC", "64"))
-                for limit_name, val in [
-                    (resource.RLIMIT_AS, memory_bytes),
-                    (resource.RLIMIT_FSIZE, file_bytes),
-                    (resource.RLIMIT_NPROC, process_count),
-                ]:
-                    _current_soft, current_hard = resource.getrlimit(limit_name)
-                    if current_hard == resource.RLIM_INFINITY:
-                        target = val
-                    else:
-                        target = min(val, current_hard)
-                    try:
-                        resource.setrlimit(limit_name, (target, target))
-                    except (OSError, ValueError):
-                        pass
+                _set_resource_limits(skip_cpu=True)
             payload = _handle_batch(req)
         elif mode == "function_call":
             payload = _handle_function_call(req)
