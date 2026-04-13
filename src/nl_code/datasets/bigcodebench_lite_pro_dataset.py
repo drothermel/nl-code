@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, ClassVar
 
 from pydantic import BaseModel
 
@@ -14,6 +14,9 @@ def _parse_task_number(raw_id: str) -> str:
 
 
 class BigCodeBenchLiteProDataset(Dataset):
+    dataset_key: ClassVar[str] = "bigcodebench-lite-pro"
+    raw_model_type: ClassVar[type[BaseModel]] = RawBigCodeBenchLiteProTask
+    source_revision: ClassVar[str] = "f70ee47b5701ae8b240c64bd4d4077e46b4c9278"
     dataset_id: CodeDataset = CodeDataset.BIGCODEBENCH_LITE_PRO
     split: str = "train"
 

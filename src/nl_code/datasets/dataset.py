@@ -1,9 +1,18 @@
 import logging
-from typing import Any, Self
+import os
+
+from contextlib import contextmanager
+from typing import Any, ClassVar, Generator, Self
 
 from datasets import load_dataset
 from pydantic import BaseModel, Field, ValidationError
 
+from nl_code.datasets.cache import (
+    ParsedDatasetSnapshot,
+    build_manifest,
+    read_snapshot,
+    write_snapshot,
+)
 from nl_code.datasets.task import CodeDataset, Task
 
 logger = logging.getLogger(__name__)
@@ -16,7 +25,37 @@ class FlawedSample(BaseModel):
     raw_input: dict[str, Any]
 
 
+class DatasetCacheMissError(FileNotFoundError):
+    """Raised when a parsed dataset cache entry is unavailable."""
+
+
+@contextmanager
+def _hf_offline_mode(enabled: bool) -> Generator[None, None, None]:
+    if not enabled:
+        yield
+        return
+
+    original_values = {
+        "HF_HUB_OFFLINE": os.environ.get("HF_HUB_OFFLINE"),
+        "HF_DATASETS_OFFLINE": os.environ.get("HF_DATASETS_OFFLINE"),
+    }
+    os.environ["HF_HUB_OFFLINE"] = "1"
+    os.environ["HF_DATASETS_OFFLINE"] = "1"
+    try:
+        yield
+    finally:
+        for key, value in original_values.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+
+
 class Dataset(BaseModel):
+    dataset_key: ClassVar[str]
+    raw_model_type: ClassVar[type[BaseModel]]
+    source_revision: ClassVar[str | None] = None
+
     dataset_id: CodeDataset
     split: str = "test"
     raw_samples: dict[str, BaseModel] = Field(default_factory=dict)
@@ -32,9 +71,60 @@ class Dataset(BaseModel):
     def _to_task(self, task_id: str, raw: BaseModel) -> Task:
         raise NotImplementedError
 
-    def load(self, hf_id: str | None = None) -> Self:
+    def load(self, hf_id: str | None = None, *, force_reparse: bool = False) -> Self:
+        if not force_reparse:
+            if hf_id is not None:
+                raise ValueError("hf_id can only be used when force_reparse=True")
+            snapshot = read_snapshot(self.dataset_id, self.split)
+            if snapshot is None:
+                raise DatasetCacheMissError(
+                    "Parsed dataset cache not found for "
+                    f"{self.dataset_id.value} (split={self.split}). "
+                    f"Rebuild it with `uv run python -m nl_code.datasets.cache_cli rebuild {self.dataset_key}`."
+                )
+            self._restore_from_snapshot(snapshot)
+            return self
+
+        return self.rebuild_cache(hf_id=hf_id)
+
+    def rebuild_cache(self, *, hf_id: str | None = None, offline: bool = False) -> Self:
         effective_id = hf_id or self.dataset_id.value
-        rows = load_dataset(effective_id, split=self.split)
+        revision = self._source_revision_for(hf_id)
+        with _hf_offline_mode(offline):
+            rows = load_dataset(effective_id, split=self.split, revision=revision)
+        self._build_from_rows(rows, effective_id=effective_id)
+        snapshot = ParsedDatasetSnapshot(
+            manifest=build_manifest(
+                dataset_id=self.dataset_id,
+                split=self.split,
+                source_revision=revision,
+                raw_sample_count=len(self.raw_samples),
+                flawed_count=len(self.flawed_raw_samples),
+                task_count=len(self.tasks),
+            ),
+            raw_samples={
+                task_id: raw.model_dump(mode="json")
+                for task_id, raw in self.raw_samples.items()
+            },
+            flawed_raw_samples={
+                task_id: flawed.model_dump(mode="json")
+                for task_id, flawed in self.flawed_raw_samples.items()
+            },
+            tasks={
+                task_id: task.model_dump(mode="json")
+                for task_id, task in self.tasks.items()
+            },
+        )
+        cache_dir = write_snapshot(snapshot)
+        logger.info(
+            "Wrote parsed dataset cache for %s (split=%s) to %s",
+            self.dataset_id.value,
+            self.split,
+            cache_dir,
+        )
+        return self
+
+    def _build_from_rows(self, rows: Any, *, effective_id: str) -> None:
         total_rows = len(rows)
         next_progress_pct = 10
 
@@ -97,4 +187,29 @@ class Dataset(BaseModel):
             len(self.tasks),
         )
 
-        return self
+    def _restore_from_snapshot(self, snapshot: ParsedDatasetSnapshot) -> None:
+        self.raw_samples = {
+            task_id: self.raw_model_type.model_validate(raw_input)
+            for task_id, raw_input in snapshot.raw_samples.items()
+        }
+        self.flawed_raw_samples = {
+            task_id: FlawedSample.model_validate(flawed)
+            for task_id, flawed in snapshot.flawed_raw_samples.items()
+        }
+        self.tasks = {
+            task_id: Task.model_validate(task)
+            for task_id, task in snapshot.tasks.items()
+        }
+        logger.info(
+            "Loaded parsed dataset cache for %s (split=%s): %d valid, %d flawed, %d tasks",
+            self.dataset_id.value,
+            self.split,
+            len(self.raw_samples),
+            len(self.flawed_raw_samples),
+            len(self.tasks),
+        )
+
+    def _source_revision_for(self, hf_id: str | None) -> str | None:
+        if hf_id is None or hf_id == self.dataset_id.value:
+            return self.source_revision
+        return None

@@ -1533,6 +1533,7 @@ dependencies = [
     { name = "datasets" },
     { name = "fastapi" },
     { name = "pydantic" },
+    { name = "typer" },
     { name = "uvicorn", extra = ["standard"] },
 ]
 
@@ -1575,6 +1576,7 @@ requires-dist = [
     { name = "scipy", marker = "extra == 'bigcodebench'", specifier = ">=1.14" },
     { name = "seaborn", marker = "extra == 'bigcodebench'", specifier = ">=0.13" },
     { name = "statsmodels", marker = "extra == 'bigcodebench'", specifier = ">=0.14" },
+    { name = "typer", specifier = ">=0.24.1" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.44.0" },
 ]
 provides-extras = ["bigcodebench"]

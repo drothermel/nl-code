@@ -1,9 +1,11 @@
 import textwrap
-from typing import Any
+from pathlib import Path
+from typing import Any, cast
 from unittest.mock import MagicMock
 
 import pytest
 
+from nl_code.datasets.dataset import Dataset
 from nl_code.datasets.humaneval_dataset import HumanEvalDataset
 from nl_code.datasets.humaneval_task import RawHumanEvalTask
 
@@ -295,6 +297,13 @@ def valid_raw_task(valid_row: dict[str, Any]) -> RawHumanEvalTask:
     return RawHumanEvalTask.model_validate(valid_row)
 
 
+@pytest.fixture
+def dataset_cache_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    cache_dir = tmp_path / "dataset-cache"
+    monkeypatch.setenv("NL_CODE_DATASET_CACHE_DIR", str(cache_dir))
+    return cache_dir
+
+
 def mock_hf_dataset(rows: list[dict[str, Any]]) -> MagicMock:
     mock = MagicMock()
     mock.__len__ = lambda self: len(rows)
@@ -302,16 +311,34 @@ def mock_hf_dataset(rows: list[dict[str, Any]]) -> MagicMock:
     return mock
 
 
+def fail_on_hf(*_args: object, **_kwargs: object) -> None:
+    raise AssertionError("HF should not be touched during cached loads")
+
+
+def prime_dataset_cache(
+    dataset: Dataset,
+    rows: list[dict[str, Any]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> Dataset:
+    monkeypatch.setattr(
+        "nl_code.datasets.dataset.load_dataset",
+        lambda *_a, **_kw: mock_hf_dataset(rows),
+    )
+    dataset.load(force_reparse=True)
+    monkeypatch.setattr("nl_code.datasets.dataset.load_dataset", fail_on_hf)
+    return dataset.__class__.model_construct().load()
+
+
 @pytest.fixture
-def loaded_dataset(monkeypatch: pytest.MonkeyPatch) -> HumanEvalDataset:
+def loaded_dataset(
+    monkeypatch: pytest.MonkeyPatch, request: pytest.FixtureRequest
+) -> HumanEvalDataset:
+    request.getfixturevalue("dataset_cache_dir")
     rows = [
         make_humaneval_row(task_id="HumanEval/0"),
         make_humaneval_row(task_id="HumanEval/1"),
     ]
-    monkeypatch.setattr(
-        "nl_code.datasets.dataset.load_dataset",
-        lambda *a, **kw: mock_hf_dataset(rows),
+    return cast(
+        HumanEvalDataset,
+        prime_dataset_cache(HumanEvalDataset(), rows, monkeypatch),
     )
-    ds = HumanEvalDataset()
-    ds.load()
-    return ds

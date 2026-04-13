@@ -13,7 +13,7 @@ sys.path.insert(
 
 from backend.main import app
 from backend.services import datasets as explorer_service
-from conftest import make_humaneval_row, make_mbpp_pro_row, mock_hf_dataset
+from conftest import fail_on_hf, make_humaneval_row, make_mbpp_pro_row, mock_hf_dataset
 from nl_code.datasets.humaneval_dataset import HumanEvalDataset
 from nl_code.datasets.humaneval_task import RawHumanEvalTask
 from nl_code.datasets.mbpp_pro_dataset import MbppProDataset
@@ -33,7 +33,10 @@ def _ratio_stats_by_key(
 
 
 @pytest.fixture
-def configured_compare_registry(monkeypatch: pytest.MonkeyPatch) -> None:
+def configured_compare_registry(
+    monkeypatch: pytest.MonkeyPatch, request: pytest.FixtureRequest
+) -> None:
+    request.getfixturevalue("dataset_cache_dir")
     human_rows = [
         make_humaneval_row(task_id="HumanEval/0"),
         make_humaneval_row(
@@ -70,11 +73,12 @@ def configured_compare_registry(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(
         "nl_code.datasets.dataset.load_dataset",
-        lambda hf_id, split: mock_hf_dataset(rows_by_id[hf_id]),
+        lambda hf_id, _split=None, **_kwargs: mock_hf_dataset(rows_by_id[hf_id]),
     )
 
-    human_dataset = HumanEvalDataset().load()
-    mbpp_dataset = MbppProDataset().load()
+    human_dataset = HumanEvalDataset().load(force_reparse=True)
+    mbpp_dataset = MbppProDataset().load(force_reparse=True)
+    monkeypatch.setattr("nl_code.datasets.dataset.load_dataset", fail_on_hf)
 
     custom_registry = {
         "humaneval-plus": explorer_service.DatasetRegistryEntry(

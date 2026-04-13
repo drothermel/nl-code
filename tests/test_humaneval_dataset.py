@@ -3,18 +3,14 @@ import pytest
 from nl_code.datasets.dataset import FlawedSample
 from nl_code.datasets.humaneval_dataset import HumanEvalDataset
 
-from conftest import make_humaneval_row, mock_hf_dataset
+from conftest import make_humaneval_row, prime_dataset_cache
 
 
+@pytest.mark.usefixtures("dataset_cache_dir")
 class TestHumanEvalDataset:
     def test_load_valid_rows(self, monkeypatch: pytest.MonkeyPatch) -> None:
         rows = [make_humaneval_row(task_id="HumanEval/0")]
-        monkeypatch.setattr(
-            "nl_code.datasets.dataset.load_dataset",
-            lambda *a, **kw: mock_hf_dataset(rows),
-        )
-        ds = HumanEvalDataset()
-        ds.load()
+        ds = prime_dataset_cache(HumanEvalDataset(), rows, monkeypatch)
 
         assert len(ds.raw_samples) == 1
         assert "HumanEval/0" in ds.raw_samples
@@ -28,12 +24,7 @@ class TestHumanEvalDataset:
             canonical_solution="    return a - b\n",
         )
         good_row = make_humaneval_row(task_id="HumanEval/0")
-        monkeypatch.setattr(
-            "nl_code.datasets.dataset.load_dataset",
-            lambda *a, **kw: mock_hf_dataset([bad_row, good_row]),
-        )
-        ds = HumanEvalDataset()
-        ds.load()
+        ds = prime_dataset_cache(HumanEvalDataset(), [bad_row, good_row], monkeypatch)
 
         assert len(ds.raw_samples) == 1
         assert len(ds.flawed_raw_samples) == 1
@@ -45,23 +36,17 @@ class TestHumanEvalDataset:
     def test_derived_tasks_use_stripped_code(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.setattr(
-            "nl_code.datasets.dataset.load_dataset",
-            lambda *a, **kw: mock_hf_dataset([make_humaneval_row()]),
+        ds = prime_dataset_cache(
+            HumanEvalDataset(), [make_humaneval_row()], monkeypatch
         )
-        ds = HumanEvalDataset()
-        ds.load()
         task = ds.tasks["HumanEval/0"]
         assert '"""' not in task.gt_solution
 
     def test_derived_tasks_have_description(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.setattr(
-            "nl_code.datasets.dataset.load_dataset",
-            lambda *a, **kw: mock_hf_dataset([make_humaneval_row()]),
+        ds = prime_dataset_cache(
+            HumanEvalDataset(), [make_humaneval_row()], monkeypatch
         )
-        ds = HumanEvalDataset()
-        ds.load()
         task = ds.tasks["HumanEval/0"]
         assert task.description == "Add two integers and return the result."

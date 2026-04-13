@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, ClassVar
 
 from pydantic import BaseModel
 
@@ -8,6 +8,9 @@ from nl_code.datasets.task import CodeDataset, Task
 
 
 class HumanEvalProDataset(Dataset):
+    dataset_key: ClassVar[str] = "humaneval-pro"
+    raw_model_type: ClassVar[type[BaseModel]] = RawHumanEvalProTask
+    source_revision: ClassVar[str] = "cd078f93d57d1902b5c3e4ae330166b2ca0e0e80"
     dataset_id: CodeDataset = CodeDataset.HUMANEVAL_PRO
     split: str = "train"
 

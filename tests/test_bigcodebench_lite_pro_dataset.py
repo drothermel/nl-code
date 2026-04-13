@@ -3,18 +3,14 @@ import pytest
 from nl_code.datasets.bigcodebench_lite_pro_dataset import BigCodeBenchLiteProDataset
 from nl_code.datasets.dataset import FlawedSample
 
-from conftest import make_bigcodebench_lite_pro_row, mock_hf_dataset
+from conftest import make_bigcodebench_lite_pro_row, prime_dataset_cache
 
 
+@pytest.mark.usefixtures("dataset_cache_dir")
 class TestBigCodeBenchLiteProDataset:
     def test_load_valid_rows(self, monkeypatch: pytest.MonkeyPatch) -> None:
         rows = [make_bigcodebench_lite_pro_row(id="BigCodeBench/23")]
-        monkeypatch.setattr(
-            "nl_code.datasets.dataset.load_dataset",
-            lambda *a, **kw: mock_hf_dataset(rows),
-        )
-        ds = BigCodeBenchLiteProDataset()
-        ds.load()
+        ds = prime_dataset_cache(BigCodeBenchLiteProDataset(), rows, monkeypatch)
 
         assert len(ds.raw_samples) == 1
         assert "BigCodeBenchLitePro/23" in ds.raw_samples
@@ -24,12 +20,7 @@ class TestBigCodeBenchLiteProDataset:
 
     def test_task_has_correct_fields(self, monkeypatch: pytest.MonkeyPatch) -> None:
         rows = [make_bigcodebench_lite_pro_row(id="BigCodeBench/23")]
-        monkeypatch.setattr(
-            "nl_code.datasets.dataset.load_dataset",
-            lambda *a, **kw: mock_hf_dataset(rows),
-        )
-        ds = BigCodeBenchLiteProDataset()
-        ds.load()
+        ds = prime_dataset_cache(BigCodeBenchLiteProDataset(), rows, monkeypatch)
 
         task = ds.tasks["BigCodeBenchLitePro/23"]
         assert task.entry_point_name == "multiply_pairs"
@@ -41,12 +32,9 @@ class TestBigCodeBenchLiteProDataset:
             id="BigCodeBench/99", new_solution="    return []\n"
         )
         good_row = make_bigcodebench_lite_pro_row(id="BigCodeBench/23")
-        monkeypatch.setattr(
-            "nl_code.datasets.dataset.load_dataset",
-            lambda *a, **kw: mock_hf_dataset([bad_row, good_row]),
+        ds = prime_dataset_cache(
+            BigCodeBenchLiteProDataset(), [bad_row, good_row], monkeypatch
         )
-        ds = BigCodeBenchLiteProDataset()
-        ds.load()
 
         assert len(ds.raw_samples) == 1
         assert len(ds.flawed_raw_samples) == 1
@@ -61,11 +49,6 @@ class TestBigCodeBenchLiteProDataset:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         rows = [make_bigcodebench_lite_pro_row(id="BigCodeBench/456")]
-        monkeypatch.setattr(
-            "nl_code.datasets.dataset.load_dataset",
-            lambda *a, **kw: mock_hf_dataset(rows),
-        )
-        ds = BigCodeBenchLiteProDataset()
-        ds.load()
+        ds = prime_dataset_cache(BigCodeBenchLiteProDataset(), rows, monkeypatch)
 
         assert "BigCodeBenchLitePro/456" in ds.tasks

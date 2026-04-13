@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, ClassVar
 
 from pydantic import BaseModel
 
@@ -8,6 +8,9 @@ from nl_code.datasets.task import CodeDataset, Task
 
 
 class ClassEvalDataset(Dataset):
+    dataset_key: ClassVar[str] = "class-eval"
+    raw_model_type: ClassVar[type[BaseModel]] = RawClassEvalTask
+    source_revision: ClassVar[str] = "fef204b34e221f207f47904ee660bb920d4c5d1d"
     dataset_id: CodeDataset = CodeDataset.CLASS_EVAL
 
     def _parse_row(self, row: dict[str, Any]) -> RawClassEvalTask:

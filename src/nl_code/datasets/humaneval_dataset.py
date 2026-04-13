@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, ClassVar
 
 from pydantic import BaseModel
 
@@ -8,6 +8,9 @@ from nl_code.datasets.task import CodeDataset, Task
 
 
 class HumanEvalDataset(Dataset):
+    dataset_key: ClassVar[str] = "humaneval-plus"
+    raw_model_type: ClassVar[type[BaseModel]] = RawHumanEvalTask
+    source_revision: ClassVar[str] = "d32357cf319e50e9c8d8dab5ea876c72b0fd321b"
     dataset_id: CodeDataset = CodeDataset.HUMANEVAL_PLUS
 
     def _parse_row(self, row: dict[str, Any]) -> RawHumanEvalTask:

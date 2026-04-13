@@ -1,10 +1,11 @@
 import pytest
 from pydantic import BaseModel
+from typing import ClassVar
 
-from nl_code.datasets.dataset import Dataset, FlawedSample
+from nl_code.datasets.dataset import Dataset, DatasetCacheMissError, FlawedSample
 from nl_code.datasets.task import CodeDataset, Task
 
-from conftest import mock_hf_dataset
+from conftest import mock_hf_dataset, prime_dataset_cache
 
 
 class _DummyRaw(BaseModel):
@@ -13,6 +14,9 @@ class _DummyRaw(BaseModel):
 
 
 class _DummyDataset(Dataset):
+    dataset_key: ClassVar[str] = "dummy"
+    raw_model_type: ClassVar[type[BaseModel]] = _DummyRaw
+    source_revision: ClassVar[str] = "dummy-revision"
     dataset_id: CodeDataset = CodeDataset.HUMANEVAL_PLUS
 
     def _parse_row(self, row: dict) -> _DummyRaw:
@@ -32,17 +36,14 @@ class _DummyDataset(Dataset):
         )
 
 
+@pytest.mark.usefixtures("dataset_cache_dir")
 class TestDatasetBase:
     def test_load_populates_all_dicts(self, monkeypatch: pytest.MonkeyPatch) -> None:
         rows = [
             {"task_id": "t/0", "value": "x = 1"},
             {"task_id": "t/1", "value": "y = 2"},
         ]
-        monkeypatch.setattr(
-            "nl_code.datasets.dataset.load_dataset",
-            lambda *a, **kw: mock_hf_dataset(rows),
-        )
-        ds = _DummyDataset()
+        ds = prime_dataset_cache(_DummyDataset(), rows, monkeypatch)
         result = ds.load()
 
         assert result is ds
@@ -55,12 +56,7 @@ class TestDatasetBase:
             {"task_id": "t/0", "value": "ok"},
             {"task_id": "t/bad"},  # missing "value" field
         ]
-        monkeypatch.setattr(
-            "nl_code.datasets.dataset.load_dataset",
-            lambda *a, **kw: mock_hf_dataset(rows),
-        )
-        ds = _DummyDataset()
-        ds.load()
+        ds = prime_dataset_cache(_DummyDataset(), rows, monkeypatch)
 
         assert len(ds.raw_samples) == 1
         assert len(ds.flawed_raw_samples) == 1
@@ -68,11 +64,9 @@ class TestDatasetBase:
         assert isinstance(ds.flawed_raw_samples["t/bad"], FlawedSample)
 
     def test_load_returns_self(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr(
-            "nl_code.datasets.dataset.load_dataset",
-            lambda *a, **kw: mock_hf_dataset([{"task_id": "t/0", "value": "x"}]),
+        ds = prime_dataset_cache(
+            _DummyDataset(), [{"task_id": "t/0", "value": "x"}], monkeypatch
         )
-        ds = _DummyDataset()
         assert ds.load() is ds
 
     def test_hf_id_override(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -84,19 +78,18 @@ class TestDatasetBase:
 
         monkeypatch.setattr("nl_code.datasets.dataset.load_dataset", mock_load)
         ds = _DummyDataset()
-        ds.load(hf_id="custom/dataset")
+        ds.load(hf_id="custom/dataset", force_reparse=True)
         assert captured[0] == "custom/dataset"
 
     def test_task_id_fallback_on_bad_extract(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         rows = [{"value": "x"}]  # no task_id key
-        monkeypatch.setattr(
-            "nl_code.datasets.dataset.load_dataset",
-            lambda *a, **kw: mock_hf_dataset(rows),
-        )
-        ds = _DummyDataset()
-        ds.load()
+        ds = prime_dataset_cache(_DummyDataset(), rows, monkeypatch)
 
         assert len(ds.flawed_raw_samples) == 1
         assert "row-1" in ds.flawed_raw_samples
+
+    def test_load_without_cache_raises_actionable_error(self) -> None:
+        with pytest.raises(DatasetCacheMissError, match="cache_cli rebuild dummy"):
+            _DummyDataset().load()
