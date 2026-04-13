@@ -61,13 +61,15 @@ def _(ds, time):
             error = str(exc)
         elapsed = time.perf_counter() - start
 
-        results.append({
-            "task_id": task_id,
-            "entry_point": raw.new_entry_point,
-            "passed": passed,
-            "elapsed_s": round(elapsed, 4),
-            "error": error,
-        })
+        results.append(
+            {
+                "task_id": task_id,
+                "entry_point": raw.new_entry_point,
+                "passed": passed,
+                "elapsed_s": round(elapsed, 4),
+                "error": error,
+            }
+        )
 
     results_df = pd.DataFrame(results)
     return (results_df,)
@@ -127,7 +129,9 @@ def _(ds, mo):
         {"task_id": tid, "error": ds.flawed_raw_samples[tid].error[:200]}
         for tid in flawed_ids
     ]
-    mo.md(f"## Flawed Samples ({len(flawed_ids)} tasks failed validation during loading)")
+    mo.md(
+        f"## Flawed Samples ({len(flawed_ids)} tasks failed validation during loading)"
+    )
     return (flawed_info,)
 
 
