@@ -34,8 +34,9 @@ def _ratio_stats_by_key(
 
 @pytest.fixture
 def configured_compare_registry(
-    monkeypatch: pytest.MonkeyPatch, dataset_cache_dir: Path
+    monkeypatch: pytest.MonkeyPatch, request: pytest.FixtureRequest
 ) -> None:
+    request.getfixturevalue("dataset_cache_dir")
     human_rows = [
         make_humaneval_row(task_id="HumanEval/0"),
         make_humaneval_row(
@@ -72,7 +73,7 @@ def configured_compare_registry(
 
     monkeypatch.setattr(
         "nl_code.datasets.dataset.load_dataset",
-        lambda hf_id, split, **kwargs: mock_hf_dataset(rows_by_id[hf_id]),
+        lambda hf_id, _split=None, **_kwargs: mock_hf_dataset(rows_by_id[hf_id]),
     )
 
     human_dataset = HumanEvalDataset().load(force_reparse=True)

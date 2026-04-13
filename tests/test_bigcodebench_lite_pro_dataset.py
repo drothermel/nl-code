@@ -6,10 +6,9 @@ from nl_code.datasets.dataset import FlawedSample
 from conftest import make_bigcodebench_lite_pro_row, prime_dataset_cache
 
 
+@pytest.mark.usefixtures("dataset_cache_dir")
 class TestBigCodeBenchLiteProDataset:
-    def test_load_valid_rows(
-        self, monkeypatch: pytest.MonkeyPatch, dataset_cache_dir: object
-    ) -> None:
+    def test_load_valid_rows(self, monkeypatch: pytest.MonkeyPatch) -> None:
         rows = [make_bigcodebench_lite_pro_row(id="BigCodeBench/23")]
         ds = prime_dataset_cache(BigCodeBenchLiteProDataset(), rows, monkeypatch)
 
@@ -19,9 +18,7 @@ class TestBigCodeBenchLiteProDataset:
         assert len(ds.tasks) == 1
         assert "BigCodeBenchLitePro/23" in ds.tasks
 
-    def test_task_has_correct_fields(
-        self, monkeypatch: pytest.MonkeyPatch, dataset_cache_dir: object
-    ) -> None:
+    def test_task_has_correct_fields(self, monkeypatch: pytest.MonkeyPatch) -> None:
         rows = [make_bigcodebench_lite_pro_row(id="BigCodeBench/23")]
         ds = prime_dataset_cache(BigCodeBenchLiteProDataset(), rows, monkeypatch)
 
@@ -30,9 +27,7 @@ class TestBigCodeBenchLiteProDataset:
         assert "list of pairs" in task.description
         assert '"""' not in task.gt_solution
 
-    def test_flawed_rows_tracked(
-        self, monkeypatch: pytest.MonkeyPatch, dataset_cache_dir: object
-    ) -> None:
+    def test_flawed_rows_tracked(self, monkeypatch: pytest.MonkeyPatch) -> None:
         bad_row = make_bigcodebench_lite_pro_row(
             id="BigCodeBench/99", new_solution="    return []\n"
         )
@@ -51,7 +46,7 @@ class TestBigCodeBenchLiteProDataset:
         assert ds.split == "train"
 
     def test_parses_task_number_from_string_id(
-        self, monkeypatch: pytest.MonkeyPatch, dataset_cache_dir: object
+        self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         rows = [make_bigcodebench_lite_pro_row(id="BigCodeBench/456")]
         ds = prime_dataset_cache(BigCodeBenchLiteProDataset(), rows, monkeypatch)

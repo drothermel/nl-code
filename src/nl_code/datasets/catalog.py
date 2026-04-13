@@ -18,4 +18,4 @@ def get_dataset_type(dataset_key: str) -> type[Dataset]:
     try:
         return DATASET_TYPES_BY_KEY[dataset_key]
     except KeyError as exc:
-        raise KeyError(f"Unknown dataset key: {dataset_key}") from exc
+        raise KeyError(dataset_key) from exc

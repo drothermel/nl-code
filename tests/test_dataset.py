@@ -36,10 +36,9 @@ class _DummyDataset(Dataset):
         )
 
 
+@pytest.mark.usefixtures("dataset_cache_dir")
 class TestDatasetBase:
-    def test_load_populates_all_dicts(
-        self, monkeypatch: pytest.MonkeyPatch, dataset_cache_dir: object
-    ) -> None:
+    def test_load_populates_all_dicts(self, monkeypatch: pytest.MonkeyPatch) -> None:
         rows = [
             {"task_id": "t/0", "value": "x = 1"},
             {"task_id": "t/1", "value": "y = 2"},
@@ -52,9 +51,7 @@ class TestDatasetBase:
         assert len(ds.tasks) == 2
         assert len(ds.flawed_raw_samples) == 0
 
-    def test_flawed_rows_tracked(
-        self, monkeypatch: pytest.MonkeyPatch, dataset_cache_dir: object
-    ) -> None:
+    def test_flawed_rows_tracked(self, monkeypatch: pytest.MonkeyPatch) -> None:
         rows = [
             {"task_id": "t/0", "value": "ok"},
             {"task_id": "t/bad"},  # missing "value" field
@@ -66,17 +63,13 @@ class TestDatasetBase:
         assert "t/bad" in ds.flawed_raw_samples
         assert isinstance(ds.flawed_raw_samples["t/bad"], FlawedSample)
 
-    def test_load_returns_self(
-        self, monkeypatch: pytest.MonkeyPatch, dataset_cache_dir: object
-    ) -> None:
+    def test_load_returns_self(self, monkeypatch: pytest.MonkeyPatch) -> None:
         ds = prime_dataset_cache(
             _DummyDataset(), [{"task_id": "t/0", "value": "x"}], monkeypatch
         )
         assert ds.load() is ds
 
-    def test_hf_id_override(
-        self, monkeypatch: pytest.MonkeyPatch, dataset_cache_dir: object
-    ) -> None:
+    def test_hf_id_override(self, monkeypatch: pytest.MonkeyPatch) -> None:
         captured: list[str] = []
 
         def mock_load(*args: object, **kwargs: object) -> object:
@@ -89,7 +82,7 @@ class TestDatasetBase:
         assert captured[0] == "custom/dataset"
 
     def test_task_id_fallback_on_bad_extract(
-        self, monkeypatch: pytest.MonkeyPatch, dataset_cache_dir: object
+        self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         rows = [{"value": "x"}]  # no task_id key
         ds = prime_dataset_cache(_DummyDataset(), rows, monkeypatch)
@@ -97,8 +90,6 @@ class TestDatasetBase:
         assert len(ds.flawed_raw_samples) == 1
         assert "row-1" in ds.flawed_raw_samples
 
-    def test_load_without_cache_raises_actionable_error(
-        self, dataset_cache_dir: object
-    ) -> None:
+    def test_load_without_cache_raises_actionable_error(self) -> None:
         with pytest.raises(DatasetCacheMissError, match="cache_cli rebuild dummy"):
             _DummyDataset().load()

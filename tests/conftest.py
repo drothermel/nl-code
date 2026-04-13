@@ -311,7 +311,7 @@ def mock_hf_dataset(rows: list[dict[str, Any]]) -> MagicMock:
     return mock
 
 
-def fail_on_hf(*args: object, **kwargs: object) -> None:
+def fail_on_hf(*_args: object, **_kwargs: object) -> None:
     raise AssertionError("HF should not be touched during cached loads")
 
 
@@ -322,7 +322,7 @@ def prime_dataset_cache(
 ) -> Dataset:
     monkeypatch.setattr(
         "nl_code.datasets.dataset.load_dataset",
-        lambda *a, **kw: mock_hf_dataset(rows),
+        lambda *_a, **_kw: mock_hf_dataset(rows),
     )
     dataset.load(force_reparse=True)
     monkeypatch.setattr("nl_code.datasets.dataset.load_dataset", fail_on_hf)
@@ -331,8 +331,9 @@ def prime_dataset_cache(
 
 @pytest.fixture
 def loaded_dataset(
-    monkeypatch: pytest.MonkeyPatch, dataset_cache_dir: Path
+    monkeypatch: pytest.MonkeyPatch, request: pytest.FixtureRequest
 ) -> HumanEvalDataset:
+    request.getfixturevalue("dataset_cache_dir")
     rows = [
         make_humaneval_row(task_id="HumanEval/0"),
         make_humaneval_row(task_id="HumanEval/1"),

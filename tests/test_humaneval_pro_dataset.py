@@ -6,10 +6,9 @@ from nl_code.datasets.humaneval_pro_dataset import HumanEvalProDataset
 from conftest import make_humaneval_pro_row, prime_dataset_cache
 
 
+@pytest.mark.usefixtures("dataset_cache_dir")
 class TestHumanEvalProDataset:
-    def test_load_valid_rows(
-        self, monkeypatch: pytest.MonkeyPatch, dataset_cache_dir: object
-    ) -> None:
+    def test_load_valid_rows(self, monkeypatch: pytest.MonkeyPatch) -> None:
         rows = [make_humaneval_pro_row(id=0)]
         ds = prime_dataset_cache(HumanEvalProDataset(), rows, monkeypatch)
 
@@ -19,9 +18,7 @@ class TestHumanEvalProDataset:
         assert len(ds.tasks) == 1
         assert "HumanEvalPro/0" in ds.tasks
 
-    def test_task_has_correct_fields(
-        self, monkeypatch: pytest.MonkeyPatch, dataset_cache_dir: object
-    ) -> None:
+    def test_task_has_correct_fields(self, monkeypatch: pytest.MonkeyPatch) -> None:
         rows = [make_humaneval_pro_row(id=0)]
         ds = prime_dataset_cache(HumanEvalProDataset(), rows, monkeypatch)
 
@@ -30,9 +27,7 @@ class TestHumanEvalProDataset:
         assert "list of pairs" in task.description
         assert '"""' not in task.gt_solution
 
-    def test_flawed_rows_tracked(
-        self, monkeypatch: pytest.MonkeyPatch, dataset_cache_dir: object
-    ) -> None:
+    def test_flawed_rows_tracked(self, monkeypatch: pytest.MonkeyPatch) -> None:
         bad_row = make_humaneval_pro_row(id=99, new_solution="    return []\n")
         good_row = make_humaneval_pro_row(id=0)
         ds = prime_dataset_cache(

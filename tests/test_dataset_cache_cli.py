@@ -1,3 +1,4 @@
+import pytest
 from typer.testing import CliRunner
 
 from nl_code.datasets.cache import read_manifest
@@ -9,10 +10,11 @@ from conftest import fail_on_hf, make_humaneval_row, mock_hf_dataset
 runner = CliRunner()
 
 
-def test_cli_rebuild_status_and_clear(monkeypatch, dataset_cache_dir) -> None:
+@pytest.mark.usefixtures("dataset_cache_dir")
+def test_cli_rebuild_status_and_clear(monkeypatch) -> None:
     monkeypatch.setattr(
         "nl_code.datasets.dataset.load_dataset",
-        lambda *a, **kw: mock_hf_dataset([make_humaneval_row()]),
+        lambda *_args, **_kwargs: mock_hf_dataset([make_humaneval_row()]),
     )
 
     rebuild_result = runner.invoke(app, ["rebuild", "humaneval-plus"])

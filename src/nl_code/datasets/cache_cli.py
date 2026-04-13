@@ -1,4 +1,4 @@
-from typing import Iterable
+from collections.abc import Iterable
 
 import typer
 
@@ -31,7 +31,11 @@ def rebuild(
         typer.echo(f"Rebuilding {key}...")
         dataset.rebuild_cache(offline=offline)
         manifest = read_manifest(dataset.dataset_id, dataset.split)
-        assert manifest is not None
+        if manifest is None:
+            raise RuntimeError(
+                "Rebuild completed but no cache manifest was written for "
+                f"{dataset.dataset_id.value} (split={dataset.split})"
+            )
         typer.echo(
             f"{key}: cached {manifest.task_count} tasks "
             f"({manifest.raw_sample_count} raw, {manifest.flawed_count} flawed)"

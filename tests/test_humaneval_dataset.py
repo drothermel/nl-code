@@ -6,10 +6,9 @@ from nl_code.datasets.humaneval_dataset import HumanEvalDataset
 from conftest import make_humaneval_row, prime_dataset_cache
 
 
+@pytest.mark.usefixtures("dataset_cache_dir")
 class TestHumanEvalDataset:
-    def test_load_valid_rows(
-        self, monkeypatch: pytest.MonkeyPatch, dataset_cache_dir: object
-    ) -> None:
+    def test_load_valid_rows(self, monkeypatch: pytest.MonkeyPatch) -> None:
         rows = [make_humaneval_row(task_id="HumanEval/0")]
         ds = prime_dataset_cache(HumanEvalDataset(), rows, monkeypatch)
 
@@ -19,9 +18,7 @@ class TestHumanEvalDataset:
         assert len(ds.tasks) == 1
         assert "HumanEval/0" in ds.tasks
 
-    def test_flawed_rows_tracked(
-        self, monkeypatch: pytest.MonkeyPatch, dataset_cache_dir: object
-    ) -> None:
+    def test_flawed_rows_tracked(self, monkeypatch: pytest.MonkeyPatch) -> None:
         bad_row = make_humaneval_row(
             task_id="HumanEval/bad",
             canonical_solution="    return a - b\n",
@@ -37,7 +34,7 @@ class TestHumanEvalDataset:
         assert flawed.error
 
     def test_derived_tasks_use_stripped_code(
-        self, monkeypatch: pytest.MonkeyPatch, dataset_cache_dir: object
+        self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         ds = prime_dataset_cache(
             HumanEvalDataset(), [make_humaneval_row()], monkeypatch
@@ -46,7 +43,7 @@ class TestHumanEvalDataset:
         assert '"""' not in task.gt_solution
 
     def test_derived_tasks_have_description(
-        self, monkeypatch: pytest.MonkeyPatch, dataset_cache_dir: object
+        self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         ds = prime_dataset_cache(
             HumanEvalDataset(), [make_humaneval_row()], monkeypatch

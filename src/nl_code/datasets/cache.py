@@ -1,5 +1,6 @@
 import gzip
 import json
+import os
 import shutil
 
 from datetime import UTC, datetime
@@ -36,19 +37,10 @@ class ParsedDatasetSnapshot(BaseModel):
 
 
 def get_cache_root() -> Path:
-    cache_dir = Path(DEFAULT_CACHE_DIR)
-    override = (
-        Path.from_env("NL_CODE_DATASET_CACHE_DIR")
-        if hasattr(Path, "from_env")
-        else None
-    )
-    if override is not None:
-        return override.expanduser()
-
-    env_value = __import__("os").environ.get("NL_CODE_DATASET_CACHE_DIR")
+    env_value = os.environ.get("NL_CODE_DATASET_CACHE_DIR")
     if env_value:
         return Path(env_value).expanduser()
-    return cache_dir
+    return Path(DEFAULT_CACHE_DIR)
 
 
 def get_cache_dir(dataset_id: CodeDataset | str, split: str) -> Path:
@@ -99,6 +91,7 @@ def write_snapshot(snapshot: ParsedDatasetSnapshot) -> Path:
     cache_dir = get_cache_dir(snapshot.manifest.dataset_id, snapshot.manifest.split)
     cache_dir.parent.mkdir(parents=True, exist_ok=True)
     staging_dir = cache_dir.parent / f"{cache_dir.name}.tmp-{uuid4().hex}"
+    backup_dir = cache_dir.parent / f"{cache_dir.name}.bak-{uuid4().hex}"
     staging_dir.mkdir(parents=True, exist_ok=False)
 
     try:
@@ -117,12 +110,27 @@ def write_snapshot(snapshot: ParsedDatasetSnapshot) -> Path:
                 handle,
             )
 
+        backup_created = False
         if cache_dir.exists():
-            shutil.rmtree(cache_dir)
-        staging_dir.rename(cache_dir)
+            if backup_dir.exists():
+                shutil.rmtree(backup_dir)
+            cache_dir.replace(backup_dir)
+            backup_created = True
+
+        try:
+            staging_dir.replace(cache_dir)
+        except Exception:
+            if backup_created and backup_dir.exists() and not cache_dir.exists():
+                backup_dir.replace(cache_dir)
+            raise
+
+        if backup_created and backup_dir.exists():
+            shutil.rmtree(backup_dir)
     finally:
         if staging_dir.exists():
             shutil.rmtree(staging_dir, ignore_errors=True)
+        if backup_dir.exists():
+            shutil.rmtree(backup_dir, ignore_errors=True)
 
     return cache_dir
 

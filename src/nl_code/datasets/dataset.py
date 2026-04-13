@@ -2,8 +2,7 @@ import logging
 import os
 
 from contextlib import contextmanager
-from typing import Any, Self
-from typing import ClassVar
+from typing import Any, ClassVar, Generator, Self
 
 from datasets import load_dataset
 from pydantic import BaseModel, Field, ValidationError
@@ -31,7 +30,7 @@ class DatasetCacheMissError(FileNotFoundError):
 
 
 @contextmanager
-def _hf_offline_mode(enabled: bool):
+def _hf_offline_mode(enabled: bool) -> Generator[None, None, None]:
     if not enabled:
         yield
         return
