@@ -31,3 +31,6 @@ build/
 # IDE
 .idea/
 .vscode/
+
+# Frontend caches
+.vite/
