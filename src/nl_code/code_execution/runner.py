@@ -95,31 +95,31 @@ def _runtime_config(*, docker_image: str | None) -> _WorkerRuntimeConfig:
         update={
             "docker_image": docker_image,
             "tmpfs_size": os.getenv(
-                "NL_CODE_EVAL_DOCKER_TMPFS_SIZE",
+                "NL_CODE_DOCKER_TMPFS_SIZE",
                 _PYTHON_RUNTIME_CONFIG.tmpfs_size,
             ),
             "pids_limit": _parse_int_env(
-                "NL_CODE_EVAL_DOCKER_PIDS_LIMIT",
+                "NL_CODE_DOCKER_PIDS_LIMIT",
                 _PYTHON_RUNTIME_CONFIG.pids_limit,
             ),
             "memory": os.getenv(
-                "NL_CODE_EVAL_DOCKER_MEMORY",
+                "NL_CODE_DOCKER_MEMORY",
                 _PYTHON_RUNTIME_CONFIG.memory,
             ),
             "cpus": _parse_float_env(
-                "NL_CODE_EVAL_DOCKER_CPUS",
+                "NL_CODE_DOCKER_CPUS",
                 _PYTHON_RUNTIME_CONFIG.cpus,
             ),
             "tmpfs_exec": _parse_bool_env(
-                "NL_CODE_EVAL_DOCKER_TMPFS_EXEC",
+                "NL_CODE_DOCKER_TMPFS_EXEC",
                 _PYTHON_RUNTIME_CONFIG.tmpfs_exec,
             ),
             "fsize_bytes": _parse_int_env(
-                "NL_CODE_EVAL_DOCKER_FSIZE_BYTES",
+                "NL_CODE_DOCKER_FSIZE_BYTES",
                 _PYTHON_RUNTIME_CONFIG.fsize_bytes,
             ),
             "nofile": _parse_int_env(
-                "NL_CODE_EVAL_DOCKER_NOFILE",
+                "NL_CODE_DOCKER_NOFILE",
                 _PYTHON_RUNTIME_CONFIG.nofile,
             ),
         }
@@ -336,6 +336,7 @@ def _build_docker_runtime_request(
             "NL_CODE_EVAL_NPROC": str(
                 _parse_int_env("NL_CODE_EVAL_NPROC", runtime.pids_limit)
             ),
+            "NL_CODE_EVAL_SKIP_LIMITS": os.getenv("NL_CODE_EVAL_SKIP_LIMITS", "false"),
         },
         timeout_seconds=max(1, math.ceil(timeout_seconds)),
         working_dir=_WORKER_WORKING_DIR,
