@@ -1,7 +1,7 @@
 import { BarChart3, Bug, Database, Layers3, TableProperties } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
-import { decodeDatasetKey, encodeDatasetKey, useDatasets } from "@/api/datasets";
 import { API_BASE } from "@/api/client";
+import { decodeDatasetKey, encodeDatasetKey, useDatasets } from "@/api/datasets";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
@@ -48,7 +48,7 @@ export default function Sidebar() {
                 "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
                 isActive
                   ? "bg-accent text-accent-foreground font-medium"
-                  : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+                  : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
               )
             }
           >
@@ -59,29 +59,29 @@ export default function Sidebar() {
       </nav>
 
       <div className="border-b px-4 py-4">
-        <label className="mb-2 block text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          Dataset
-        </label>
-        <select
-          className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-          value={selectedDataset}
-          disabled={isLoading || !datasets?.length}
-          onChange={(event) => {
-            if (!event.target.value) {
-              return;
-            }
-            navigate(`/datasets/${encodeDatasetKey(event.target.value)}/overview`);
-          }}
-        >
-          <option value="">
-            {datasets?.length ? "Jump to dataset..." : "Loading datasets..."}
-          </option>
-          {datasets?.map((dataset) => (
-            <option key={dataset.key} value={dataset.key}>
-              {dataset.label}
+        <label className="block text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          <span className="mb-2 block">Dataset</span>
+          <select
+            className="w-full rounded-md border bg-background px-3 py-2 text-sm font-normal normal-case tracking-normal"
+            value={selectedDataset}
+            disabled={isLoading || !datasets?.length}
+            onChange={(event) => {
+              if (!event.target.value) {
+                return;
+              }
+              navigate(`/datasets/${encodeDatasetKey(event.target.value)}/overview`);
+            }}
+          >
+            <option value="">
+              {datasets?.length ? "Jump to dataset..." : "Loading datasets..."}
             </option>
-          ))}
-        </select>
+            {datasets?.map((dataset) => (
+              <option key={dataset.key} value={dataset.key}>
+                {dataset.label}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
 
       <nav className="flex-1 space-y-1 p-3">
@@ -98,7 +98,7 @@ export default function Sidebar() {
                   "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
                   isActive
                     ? "bg-accent text-accent-foreground font-medium"
-                    : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+                    : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
                 )
               }
             >

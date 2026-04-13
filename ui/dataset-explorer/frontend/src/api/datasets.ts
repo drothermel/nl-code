@@ -1,5 +1,4 @@
 import { useQuery } from "@tanstack/react-query";
-import { apiFetch } from "./client";
 import type {
   DatasetCompareResponse,
   DatasetOption,
@@ -8,6 +7,7 @@ import type {
   TaskDetailResponse,
   TaskListResponse,
 } from "@/types/datasetExplorer";
+import { apiFetch } from "./client";
 
 export interface TaskListParams {
   search?: string;
@@ -59,9 +59,7 @@ export function useOverview(datasetKey: string) {
   return useQuery({
     queryKey: ["dataset-overview", datasetKey],
     queryFn: () =>
-      apiFetch<DatasetOverviewResponse>(
-        `/api/datasets/${encodeDatasetKey(datasetKey)}/overview`
-      ),
+      apiFetch<DatasetOverviewResponse>(`/api/datasets/${encodeDatasetKey(datasetKey)}/overview`),
     enabled: !!datasetKey,
   });
 }
@@ -79,7 +77,7 @@ export function useTasks(datasetKey: string, params: TaskListParams) {
     queryFn: () =>
       apiFetch<TaskListResponse>(
         `/api/datasets/${encodeDatasetKey(datasetKey)}/tasks`,
-        params as Record<string, string | number | boolean | undefined>
+        params as Record<string, string | number | boolean | undefined>,
       ),
     enabled: !!datasetKey,
   });
@@ -90,7 +88,7 @@ export function useTaskDetail(datasetKey: string, taskId: string) {
     queryKey: ["dataset-task-detail", datasetKey, taskId],
     queryFn: () =>
       apiFetch<TaskDetailResponse>(
-        `/api/datasets/${encodeDatasetKey(datasetKey)}/tasks/${encodeTaskPath(taskId)}`
+        `/api/datasets/${encodeDatasetKey(datasetKey)}/tasks/${encodeTaskPath(taskId)}`,
       ),
     enabled: !!datasetKey && !!taskId,
   });
@@ -101,7 +99,7 @@ export function useRawDetail(datasetKey: string, taskId: string) {
     queryKey: ["dataset-raw-detail", datasetKey, taskId],
     queryFn: () =>
       apiFetch<RawDetailResponse>(
-        `/api/datasets/${encodeDatasetKey(datasetKey)}/raw/${encodeTaskPath(taskId)}`
+        `/api/datasets/${encodeDatasetKey(datasetKey)}/raw/${encodeTaskPath(taskId)}`,
       ),
     enabled: !!datasetKey && !!taskId,
   });

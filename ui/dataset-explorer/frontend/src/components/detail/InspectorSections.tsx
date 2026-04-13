@@ -1,6 +1,6 @@
-import type { DerivedFieldSummary, InspectorSection } from "@/types/datasetExplorer";
 import PythonCodeBlock from "@/components/code/PythonCodeBlock";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import type { DerivedFieldSummary, InspectorSection } from "@/types/datasetExplorer";
 
 // Add new derived fields here when they should render with code syntax highlighting.
 export const CODE_DERIVED_FIELD_NAMES = new Set(["Task.gt_solution"]);
@@ -44,11 +44,7 @@ function renderValue(sectionKey: string, kind: string, value: unknown) {
   );
 }
 
-export function DerivedFieldsCard({
-  derivedFields,
-}: {
-  derivedFields: DerivedFieldSummary[];
-}) {
+export function DerivedFieldsCard({ derivedFields }: { derivedFields: DerivedFieldSummary[] }) {
   if (!derivedFields.length) {
     return null;
   }
@@ -79,11 +75,7 @@ export function DerivedFieldsCard({
   );
 }
 
-export function InspectorSections({
-  sections,
-}: {
-  sections: InspectorSection[];
-}) {
+export function InspectorSections({ sections }: { sections: InspectorSection[] }) {
   return (
     <div className="space-y-6">
       {sections.map((section) => (

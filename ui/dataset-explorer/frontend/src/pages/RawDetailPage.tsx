@@ -1,15 +1,7 @@
 import { AlertTriangle } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
-import {
-  decodeTaskPath,
-  encodeDatasetKey,
-  encodeTaskPath,
-  useRawDetail,
-} from "@/api/datasets";
-import {
-  DerivedFieldsCard,
-  InspectorSections,
-} from "@/components/detail/InspectorSections";
+import { decodeTaskPath, encodeDatasetKey, encodeTaskPath, useRawDetail } from "@/api/datasets";
+import { DerivedFieldsCard, InspectorSections } from "@/components/detail/InspectorSections";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function RawDetailPage() {

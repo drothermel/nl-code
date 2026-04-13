@@ -20,6 +20,7 @@ export default function TaskBrowserPage() {
   const [descending, setDescending] = useState(false);
   const [page, setPage] = useState(1);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: reset page when any filter changes
   useEffect(() => {
     setPage(1);
   }, [search, status, sort, descending]);
@@ -77,9 +78,7 @@ export default function TaskBrowserPage() {
             <select
               className="w-full rounded-md border bg-background px-3 py-2"
               value={status}
-              onChange={(event) =>
-                setStatus(event.target.value as "all" | "valid" | "flawed")
-              }
+              onChange={(event) => setStatus(event.target.value as "all" | "valid" | "flawed")}
             >
               <option value="all">All</option>
               <option value="valid">Valid</option>
@@ -100,7 +99,7 @@ export default function TaskBrowserPage() {
                     | "derived_code_length_chars"
                     | "prompt_length_chars"
                     | "raw_source_length_chars"
-                    | "test_length_chars"
+                    | "test_length_chars",
                 )
               }
             >
@@ -169,7 +168,9 @@ export default function TaskBrowserPage() {
                     <td className="px-3 py-3 text-xs text-muted-foreground">
                       {row.description_preview ?? row.error_summary ?? "—"}
                     </td>
-                    <td className="px-3 py-3 tabular-nums">{row.derived_code_length_chars ?? "—"}</td>
+                    <td className="px-3 py-3 tabular-nums">
+                      {row.derived_code_length_chars ?? "—"}
+                    </td>
                     <td className="px-3 py-3 tabular-nums">{row.prompt_length_chars ?? "—"}</td>
                     <td className="px-3 py-3 tabular-nums">{row.raw_source_length_chars ?? "—"}</td>
                     <td className="px-3 py-3 tabular-nums">{row.test_length_chars ?? "—"}</td>
@@ -186,7 +187,11 @@ export default function TaskBrowserPage() {
           )}
 
           <div className="mt-6 flex items-center justify-between">
-            <Button variant="outline" onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={page <= 1}>
+            <Button
+              variant="outline"
+              onClick={() => setPage((current) => Math.max(1, current - 1))}
+              disabled={page <= 1}
+            >
               Previous
             </Button>
             <p className="text-sm text-muted-foreground">

@@ -8,7 +8,7 @@ const API_FETCH_TIMEOUT_MS = 60_000;
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 30_000,       // 30s before refetching
+      staleTime: 30_000, // 30s before refetching
       retry: 1,
       refetchOnWindowFocus: false,
     },
@@ -20,7 +20,7 @@ export const queryClient = new QueryClient({
  */
 export async function apiFetch<T>(
   path: string,
-  params?: Record<string, string | number | boolean | undefined>
+  params?: Record<string, string | number | boolean | undefined>,
 ): Promise<T> {
   const url = new URL(`${API_BASE}${path}`, window.location.origin);
 

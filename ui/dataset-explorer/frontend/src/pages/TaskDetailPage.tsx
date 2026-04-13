@@ -1,12 +1,7 @@
 import { Link, useParams } from "react-router-dom";
-import {
-  decodeTaskPath,
-  encodeDatasetKey,
-  encodeTaskPath,
-  useTaskDetail,
-} from "@/api/datasets";
-import { isCodeDerivedField } from "@/components/detail/InspectorSections";
+import { decodeTaskPath, encodeDatasetKey, encodeTaskPath, useTaskDetail } from "@/api/datasets";
 import PythonCodeBlock from "@/components/code/PythonCodeBlock";
+import { isCodeDerivedField } from "@/components/detail/InspectorSections";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function TaskDetailPage() {
