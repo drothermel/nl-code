@@ -652,7 +652,7 @@ def _build_derived_fields(family: str, raw: Any, task: Task) -> list[DerivedFiel
     return [
         DerivedFieldSummary(name="Task.entry_point_name", value=task.entry_point_name, source="raw.class_name"),
         DerivedFieldSummary(name="Task.description", value=task.description, source="raw.class_description"),
-        DerivedFieldSummary(name="Task.gt_solution", value=task.gt_solution, source="raw.solution_code"),
+        DerivedFieldSummary(name="Task.gt_solution", value=task.gt_solution, source="raw.gt_code"),
     ]
 
 

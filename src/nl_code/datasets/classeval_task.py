@@ -212,7 +212,7 @@ class RawClassEvalTask(BaseModel):
         if self.postprocess_solution:
             self.gt_code = _build_gt_code(self.import_statement, self.solution_code)
 
-        ast.parse(self.solution_code)
+        ast.parse(self.gt_code)
         ast.parse(self.test)
 
         try:
@@ -228,8 +228,7 @@ class RawClassEvalTask(BaseModel):
         return self
 
     def run_test(self, code: str) -> ClassEvalTestResult:
-        imports = "\n".join(self.import_statement)
-        parts = [p for p in (imports, code, self.test) if p]
+        parts = [p for p in (code, self.test) if p]
         full_source = "\n\n".join(parts)
 
         # Provide __file__ so tests using os.path.dirname(__file__) work in exec()
@@ -317,4 +316,4 @@ class RawClassEvalTask(BaseModel):
         )
 
     def run_test_on_gt_solution(self) -> ClassEvalTestResult:
-        return self.run_test(self.solution_code)
+        return self.run_test(self.gt_code)
