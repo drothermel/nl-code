@@ -12,6 +12,7 @@ app = marimo.App(width="columns")
 
 with app.setup:
     import marimo as mo
+    import altair as alt
 
     from nl_code.datasets.humaneval_dataset import HumanEvalDataset
     from nl_code.evaluation.length import compression_ratio, measure_length
@@ -30,29 +31,18 @@ def _():
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _():
     ds = HumanEvalDataset()
     ds.load_raw_samples()
-    type(ds)
-    return (ds,)
-
-
-@app.cell(hide_code=True)
-def _(ds):
     mo.md(f"""
     **Loaded {len(ds.raw_samples)} valid tasks**
     ({len(ds.flawed_raw_samples)} flawed, skipped)
     """)
-    return
+    return (ds,)
 
 
-@app.cell(column=1)
-def _():
-    return
-
-
-@app.cell(hide_code=True)
+@app.cell(column=1, hide_code=True)
 def _(ds):
     task_ids = sorted(ds.raw_samples.keys())
     task_selector = mo.ui.dropdown(
@@ -67,40 +57,43 @@ def _(ds):
 @app.cell(hide_code=True)
 def _(ds, task_selector):
     _raw = ds.raw_samples[task_selector.value]
-    mo.md(
-        f"""
-        ## `{task_selector.value}` — `{_raw.entry_point}`
+    _comments = _raw.prompt_comments or "_(none)_"
+    mo.vstack(
+        [
+            mo.md(
+                f"""
+                ## `{task_selector.value}` — `{_raw.entry_point}`
 
-        ---
-
-        **Docstring**
-
-        > {_raw.prompt_docstring}
-
-        ---
-
-        **Source code** (with docstring)
-
-        ```python
-        {_raw.gt_solution}
-        ```
-
-        **Source code** (stripped)
-
-        ```python
-        {_raw.gt_solution_without_comments}
-        ```
-        """
+                ---
+                """
+            ),
+            mo.accordion(
+                {"**Docstring**": mo.plain(_raw.prompt_docstring.split("\n"))}
+            ),
+            mo.accordion({"**Comments**": mo.md(f"```\n{_comments}\n```")}),
+            mo.accordion(
+                {
+                    "**Source code** (with docstring)": mo.md(
+                        f"```python\n{_raw.gt_solution}```"
+                    )
+                }
+            ),
+            mo.accordion(
+                {
+                    "**Source code** (stripped)": mo.md(
+                        f"```python\n{_raw.gt_solution_without_comments}```"
+                    )
+                }
+            ),
+            mo.accordion(
+                {"**Test harness**": mo.md(f"```python\n{_raw.test}```")}
+            ),
+        ]
     )
     return
 
 
-@app.cell(column=2)
-def _():
-    return
-
-
-@app.cell
+@app.cell(hide_code=True)
 def _(ds, task_selector):
     _raw = ds.raw_samples[task_selector.value]
     _docstring = _raw.prompt_docstring
@@ -109,7 +102,10 @@ def _(ds, task_selector):
     doc_length = measure_length(_docstring)
     code_length = measure_length(_code)
     cr = compression_ratio(_docstring, _code)
-    return code_length, cr, doc_length
+    overlap = lexical_overlap(
+        _raw.prompt_docstring, _raw.gt_solution_without_comments
+    )
+    return code_length, cr, doc_length, overlap
 
 
 @app.cell(hide_code=True)
@@ -124,16 +120,6 @@ def _(code_length, cr, doc_length):
     | **Ratio** (doc/code) | {cr.char_ratio:.2f} | {cr.token_ratio:.2f} |
     """)
     return
-
-
-@app.cell
-def _(ds, task_selector):
-    _raw = ds.raw_samples[task_selector.value]
-    overlap = lexical_overlap(
-        _raw.prompt_docstring, _raw.gt_solution_without_comments
-    )
-    overlap
-    return (overlap,)
 
 
 @app.cell(hide_code=True)
@@ -156,7 +142,7 @@ def _(overlap):
     return
 
 
-@app.cell(hide_code=True)
+@app.cell(column=2, hide_code=True)
 def _():
     mo.md("""
     ## Dataset-wide distributions
@@ -164,7 +150,7 @@ def _():
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(ds):
     all_metrics = []
     for _tid, _raw in ds.raw_samples.items():
@@ -188,12 +174,6 @@ def _(ds):
                 "shared_count": len(_ov.shared),
             }
         )
-    all_metrics
-    return (all_metrics,)
-
-
-@app.cell
-def _(all_metrics):
     metrics_table = mo.ui.table(
         all_metrics,
         selection=None,
@@ -201,13 +181,11 @@ def _(all_metrics):
         label="All tasks — description quality metrics",
     )
     metrics_table
-    return
+    return (all_metrics,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(all_metrics):
-    import altair as alt
-
     _chart_data = alt.Data(values=all_metrics)
 
     char_ratio_hist = (
@@ -241,11 +219,11 @@ def _(all_metrics):
     )
 
     char_ratio_hist | jaccard_hist
-    return (alt,)
+    return
 
 
-@app.cell
-def _(all_metrics, alt):
+@app.cell(hide_code=True)
+def _(all_metrics):
     _chart_data = alt.Data(values=all_metrics)
 
     overlap_scatter = (
@@ -266,10 +244,10 @@ def _(all_metrics, alt):
     return
 
 
-@app.cell(hide_code=True)
+@app.cell(column=3, hide_code=True)
 def _():
     mo.md("""
-    ## Description vs description overlap
+    ## Description vs Description Overlap
     """)
     return
 
@@ -290,12 +268,11 @@ def _(task_ids):
     return task_a_selector, task_b_selector
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(ds, task_a_selector, task_b_selector):
     _doc_a = ds.raw_samples[task_a_selector.value].prompt_docstring
     _doc_b = ds.raw_samples[task_b_selector.value].prompt_docstring
     doc_overlap = lexical_overlap(_doc_a, _doc_b)
-    doc_overlap
     return (doc_overlap,)
 
 
@@ -311,6 +288,14 @@ def _(doc_overlap, task_a_selector, task_b_selector):
     | **Overlap B → A** | {doc_overlap.overlap_b:.3f} |
 
     **Shared**: {", ".join(f"`{t}`" for t in sorted(doc_overlap.shared)) or "_(none)_"}
+    """)
+    return
+
+
+@app.cell(column=4, hide_code=True)
+def _():
+    mo.md(r"""
+    (leave space)
     """)
     return
 
