@@ -66,6 +66,16 @@ class TestDatasetSlice:
         with pytest.raises(ValueError, match="not found"):
             sl.resolve_tasks()
 
+    def test_resolve_duplicate_ids_raises(
+        self, loaded_dataset: HumanEvalDataset
+    ) -> None:
+        sl = DatasetSlice(
+            dataset=loaded_dataset,
+            ids=["HumanEval/0", "HumanEval/0"],
+        )
+        with pytest.raises(ValueError, match="duplicate task ids"):
+            sl.resolve_tasks()
+
     def test_limit_must_be_positive(self, loaded_dataset: HumanEvalDataset) -> None:
         with pytest.raises(ValueError, match="limit must be >= 1"):
             DatasetSlice(dataset=loaded_dataset, limit=0)

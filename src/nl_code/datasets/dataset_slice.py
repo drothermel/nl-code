@@ -50,6 +50,17 @@ class DatasetSlice(BaseModel):
         if not self.ids:
             task_ids = list(self.dataset.tasks)
         else:
+            seen: set[str] = set()
+            duplicates: list[str] = []
+            for task_id in self.ids:
+                if task_id in seen:
+                    duplicates.append(task_id)
+                    continue
+                seen.add(task_id)
+            if duplicates:
+                duplicate_ids = ", ".join(sorted(set(duplicates)))
+                raise ValueError(f"duplicate task ids: {duplicate_ids}")
+
             missing = set(self.ids) - set(self.dataset.tasks)
             if missing:
                 raise ValueError(f"Task IDs not found in dataset: {missing}")
