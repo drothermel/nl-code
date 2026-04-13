@@ -17,11 +17,15 @@ from nl_code.datasets.humaneval_dataset import HumanEvalDataset
 from nl_code.datasets.mbpp_pro_dataset import MbppProDataset
 
 
-def _metric_stats_by_key(row: explorer_service.DatasetCompareRow) -> dict[str, explorer_service.SummaryStats]:
+def _metric_stats_by_key(
+    row: explorer_service.DatasetCompareRow,
+) -> dict[str, explorer_service.SummaryStats]:
     return {metric.key: metric.stats for metric in row.metrics}
 
 
-def _ratio_stats_by_key(row: explorer_service.DatasetCompareRow) -> dict[str, explorer_service.SummaryStats]:
+def _ratio_stats_by_key(
+    row: explorer_service.DatasetCompareRow,
+) -> dict[str, explorer_service.SummaryStats]:
     return {ratio.key: ratio.stats for ratio in row.ratios}
 
 
@@ -70,8 +74,8 @@ def configured_compare_registry(monkeypatch: pytest.MonkeyPatch) -> None:
     mbpp_dataset = MbppProDataset().load()
 
     custom_registry = {
-        "human-eval-plus": explorer_service.DatasetRegistryEntry(
-            key="human-eval-plus",
+        "humaneval-plus": explorer_service.DatasetRegistryEntry(
+            key="humaneval-plus",
             dataset_id=human_dataset.dataset_id,
             label="HumanEval+",
             family="humaneval",
@@ -88,7 +92,7 @@ def configured_compare_registry(monkeypatch: pytest.MonkeyPatch) -> None:
         ),
     }
     custom_cache = {
-        "human-eval-plus": human_dataset,
+        "humaneval-plus": human_dataset,
         "mbpp-pro": mbpp_dataset,
     }
 
@@ -107,7 +111,7 @@ def test_get_comparison_summarizes_counts_metrics_and_ratios(
     response = explorer_service.get_comparison()
 
     assert [row.dataset.key for row in response.datasets] == [
-        "human-eval-plus",
+        "humaneval-plus",
         "mbpp-pro",
     ]
 
@@ -118,18 +122,28 @@ def test_get_comparison_summarizes_counts_metrics_and_ratios(
     assert human_row.flawed_rate == 1.0
 
     human_metric_stats = _metric_stats_by_key(human_row)
-    human_task = explorer_service.DATASET_CACHE["human-eval-plus"].tasks["HumanEval/0"]
-    human_raw = explorer_service.DATASET_CACHE["human-eval-plus"].raw_samples["HumanEval/0"]
-    assert human_metric_stats["description_length_chars"].median == float(len(human_task.description))
-    assert human_metric_stats["prompt_length_chars"].median == float(len(human_raw.prompt))
+    human_task = explorer_service.DATASET_CACHE["humaneval-plus"].tasks["HumanEval/0"]
+    human_raw = explorer_service.DATASET_CACHE["humaneval-plus"].raw_samples[
+        "HumanEval/0"
+    ]
+    assert human_metric_stats["description_length_chars"].median == float(
+        len(human_task.description)
+    )
+    assert human_metric_stats["prompt_length_chars"].median == float(
+        len(human_raw.prompt)
+    )
 
     mbpp_row = response.datasets[1]
     mbpp_metric_stats = _metric_stats_by_key(mbpp_row)
     mbpp_ratio_stats = _ratio_stats_by_key(mbpp_row)
     mbpp_dataset = explorer_service.DATASET_CACHE["mbpp-pro"]
 
-    derived_lengths = sorted(float(len(task.gt_solution)) for task in mbpp_dataset.tasks.values())
-    expected_derived_p90 = derived_lengths[0] + 0.9 * (derived_lengths[1] - derived_lengths[0])
+    derived_lengths = sorted(
+        float(len(task.gt_solution)) for task in mbpp_dataset.tasks.values()
+    )
+    expected_derived_p90 = derived_lengths[0] + 0.9 * (
+        derived_lengths[1] - derived_lengths[0]
+    )
     assert mbpp_metric_stats["derived_code_length_chars"].count == 2
     assert mbpp_metric_stats["derived_code_length_chars"].p90 == expected_derived_p90
 
@@ -140,17 +154,22 @@ def test_get_comparison_summarizes_counts_metrics_and_ratios(
     )
     expected_ratio_median = (ratios[0] + ratios[1]) / 2
     expected_ratio_p90 = ratios[0] + 0.9 * (ratios[1] - ratios[0])
-    assert mbpp_ratio_stats["test_to_derived_code_ratio"].median == expected_ratio_median
+    assert (
+        mbpp_ratio_stats["test_to_derived_code_ratio"].median == expected_ratio_median
+    )
     assert mbpp_ratio_stats["test_to_derived_code_ratio"].p90 == expected_ratio_p90
 
     metric_series = {series.key: series for series in response.metric_series}
-    assert [dataset.dataset_key for dataset in metric_series["derived_code_length_chars"].datasets] == [
-        "human-eval-plus",
+    assert [
+        dataset.dataset_key
+        for dataset in metric_series["derived_code_length_chars"].datasets
+    ] == [
+        "humaneval-plus",
         "mbpp-pro",
     ]
 
     landscape_points = {point.dataset_key: point for point in response.landscape_points}
-    assert landscape_points["human-eval-plus"].task_count == 1
+    assert landscape_points["humaneval-plus"].task_count == 1
     assert landscape_points["mbpp-pro"].task_count == 2
 
 
@@ -164,7 +183,7 @@ def test_compare_endpoint_returns_compare_payload(
     assert response.status_code == 200
     payload = response.json()
     assert [row["dataset"]["key"] for row in payload["datasets"]] == [
-        "human-eval-plus",
+        "humaneval-plus",
         "mbpp-pro",
     ]
     assert any(
@@ -182,17 +201,17 @@ def test_refresh_endpoint_reloads_cached_dataset(
 ) -> None:
     client = TestClient(app)
 
-    stale_dataset = explorer_service.DATASET_CACHE["human-eval-plus"]
-    explorer_service.DATASET_CACHE["human-eval-plus"] = HumanEvalDataset()
+    stale_dataset = explorer_service.DATASET_CACHE["humaneval-plus"]
+    explorer_service.DATASET_CACHE["humaneval-plus"] = HumanEvalDataset()
 
-    response = client.post("/api/datasets/human-eval-plus/refresh")
+    response = client.post("/api/datasets/humaneval-plus/refresh")
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["dataset"]["key"] == "human-eval-plus"
+    assert payload["dataset"]["key"] == "humaneval-plus"
     assert payload["reloaded"] is True
 
-    refreshed_dataset = explorer_service.DATASET_CACHE["human-eval-plus"]
+    refreshed_dataset = explorer_service.DATASET_CACHE["humaneval-plus"]
     assert refreshed_dataset is not stale_dataset
     assert len(refreshed_dataset.tasks) == 1
     assert "HumanEval/0" in refreshed_dataset.tasks
