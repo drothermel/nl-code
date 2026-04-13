@@ -13,7 +13,7 @@ class _DummyRaw(BaseModel):
 
 
 class _DummyDataset(Dataset):
-    dataset_id: CodeDataset = CodeDataset.HUMAN_EVAL_PLUS
+    dataset_id: CodeDataset = CodeDataset.HUMANEVAL_PLUS
 
     def _parse_row(self, row: dict) -> _DummyRaw:
         return _DummyRaw(task_id=row["task_id"], value=row["value"])

@@ -1,6 +1,8 @@
 import pytest
+from typing import cast
 
 from nl_code.datasets.classeval_dataset import ClassEvalDataset
+from nl_code.datasets.classeval_task import RawClassEvalTask
 from nl_code.datasets.dataset import FlawedSample
 
 from conftest import make_classeval_row, mock_hf_dataset
@@ -32,10 +34,11 @@ class TestClassEvalDataset:
         ds.load()
 
         task = ds.tasks["ClassEval_0"]
+        raw_task = cast(RawClassEvalTask, ds.raw_samples["ClassEval_0"])
         assert task.entry_point_name == "Calculator"
         assert task.description == "A simple calculator."
         assert "class Calculator" in task.gt_solution
-        assert task.gt_solution == ds.raw_samples["ClassEval_0"].gt_code
+        assert task.gt_solution == raw_task.gt_code
 
     def test_flawed_rows_tracked(self, monkeypatch: pytest.MonkeyPatch) -> None:
         bad_row = make_classeval_row(
