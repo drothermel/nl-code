@@ -461,6 +461,18 @@ wheels = [
 ]
 
 [[package]]
+name = "dr-docker"
+version = "0.4.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pydantic" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/59/f3/b911843c4e2315e91112755aed29b0a7ff95c37264b8f250ab6f201dfa9c/dr_docker-0.4.0.tar.gz", hash = "sha256:ec87857a35decca8b1b92453f9feac08e774e16b0ebf299ba74371831f81af01", size = 42722 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b1/5b/1d3b441c36d18889862bf4416b85d326df954ea06fa06a97e5e45fbdd75f/dr_docker-0.4.0-py3-none-any.whl", hash = "sha256:505d53ef49343372be85ef07fcbc3bfed4288ee70e13b3c740eae4e8cfdd9322", size = 11626 },
+]
+
+[[package]]
 name = "duckdb"
 version = "1.5.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1551,6 +1563,9 @@ bigcodebench = [
     { name = "seaborn" },
     { name = "statsmodels" },
 ]
+docker = [
+    { name = "dr-docker" },
+]
 
 [package.dev-dependencies]
 dev = [
@@ -1563,6 +1578,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "datasets", specifier = ">=3.0.0" },
+    { name = "dr-docker", marker = "extra == 'docker'", specifier = ">=0.4.0" },
     { name = "fastapi", specifier = ">=0.135.3" },
     { name = "holidays", marker = "extra == 'bigcodebench'", specifier = ">=0.60" },
     { name = "matplotlib", marker = "extra == 'bigcodebench'", specifier = ">=3.9" },
@@ -1579,7 +1595,7 @@ requires-dist = [
     { name = "typer", specifier = ">=0.24.1" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.44.0" },
 ]
-provides-extras = ["bigcodebench"]
+provides-extras = ["docker", "bigcodebench"]
 
 [package.metadata.requires-dev]
 dev = [

@@ -74,7 +74,12 @@ def _run_worker(request: dict) -> dict:
     return json.loads(stdout_capture.getvalue())
 
 
-class TestWorkerMain:
+# ---------------------------------------------------------------------------
+# Function-call mode
+# ---------------------------------------------------------------------------
+
+
+class TestFunctionCallMode:
     def test_single_input(self) -> None:
         result = _run_worker(
             {
@@ -86,6 +91,7 @@ class TestWorkerMain:
         assert result["error"] is None
         assert result["return_value"] == 10
         assert result["return_type"] == "int"
+        assert result["compile_success"] is True
 
     def test_batch_inputs(self) -> None:
         result = _run_worker(
@@ -101,27 +107,16 @@ class TestWorkerMain:
         assert result["results"][1]["return_value"] == 4
         assert result["results"][2]["return_value"] == 6
 
-    def test_compile_only_valid(self) -> None:
+    def test_batch_compile_success(self) -> None:
         result = _run_worker(
             {
-                "code": "def foo():\n    return 1\n",
-                "function_name": "foo",
-                "compile_only": True,
+                "code": "def f(x):\n    return x + 1\n",
+                "function_name": "f",
+                "input_values": [1],
             }
         )
-        assert result["error"] is None
-        assert result["results"] == []
-
-    def test_compile_only_invalid(self) -> None:
-        result = _run_worker(
-            {
-                "code": "def foo(:\n",
-                "function_name": "foo",
-                "compile_only": True,
-            }
-        )
-        assert result["error"] is not None
-        assert "SyntaxError" in result["error"]
+        assert result["results"][0]["compile_success"] is True
+        assert result["results"][0]["compile_error"] is None
 
     def test_runtime_error(self) -> None:
         result = _run_worker(
@@ -133,6 +128,7 @@ class TestWorkerMain:
         )
         assert result["error"] is not None
         assert "ValueError" in result["error"]
+        assert result["compile_success"] is True
 
     def test_function_not_found(self) -> None:
         result = _run_worker(
@@ -166,3 +162,226 @@ class TestWorkerMain:
         )
         assert result["error"] is None
         assert "hi" in result["stdout"]
+
+    def test_batch_isolation(self) -> None:
+        """Each input in a batch gets a fresh function load."""
+        # Code with a mutable default that could leak between calls
+        code = (
+            "counter = [0]\ndef count(x):\n    counter[0] += 1\n    return counter[0]\n"
+        )
+        result = _run_worker(
+            {
+                "code": code,
+                "function_name": "count",
+                "input_values": [1, 2, 3],
+            }
+        )
+        # Each call reloads, so counter always returns 1
+        assert result["error"] is None
+        for r in result["results"]:
+            assert r["return_value"] == 1
+
+    def test_import_works(self) -> None:
+        """Full builtins allows import statements."""
+        result = _run_worker(
+            {
+                "code": "import math\ndef root(x):\n    return math.sqrt(x)\n",
+                "function_name": "root",
+                "input_value": 4,
+            }
+        )
+        assert result["error"] is None
+        assert result["return_value"] == 2.0
+
+
+# ---------------------------------------------------------------------------
+# Assertion mode
+# ---------------------------------------------------------------------------
+
+
+class TestAssertionMode:
+    def test_passing(self) -> None:
+        result = _run_worker(
+            {
+                "mode": "assertion",
+                "code": "def add(a, b):\n    return a + b\n",
+                "test_code": "assert add(1, 2) == 3\nassert add(0, 0) == 0\n",
+            }
+        )
+        assert result["passed"] is True
+        assert result["error"] is None
+        assert result["compile_success"] is True
+
+    def test_failing(self) -> None:
+        result = _run_worker(
+            {
+                "mode": "assertion",
+                "code": "def add(a, b):\n    return a - b\n",
+                "test_code": "assert add(1, 2) == 3\n",
+            }
+        )
+        assert result["passed"] is False
+        assert result["error"] is not None
+        assert "AssertionError" in result["error"]
+        assert result["compile_success"] is True
+
+    def test_runtime_error(self) -> None:
+        result = _run_worker(
+            {
+                "mode": "assertion",
+                "code": "def f(x):\n    raise ValueError('bad')\n",
+                "test_code": "f(1)\n",
+            }
+        )
+        assert result["passed"] is False
+        assert "ValueError" in result["error"]
+
+    def test_syntax_error_in_code(self) -> None:
+        result = _run_worker(
+            {
+                "mode": "assertion",
+                "code": "def f(:\n",
+                "test_code": "assert True\n",
+            }
+        )
+        assert result["passed"] is False
+        assert result["compile_success"] is False
+        assert result["compile_error"] is not None
+
+
+# ---------------------------------------------------------------------------
+# Unittest mode
+# ---------------------------------------------------------------------------
+
+
+class TestUnittestMode:
+    def test_passing(self) -> None:
+        code = "class Calculator:\n    def add(self, a, b):\n        return a + b\n"
+        test_code = (
+            "import unittest\n"
+            "class TestCalc(unittest.TestCase):\n"
+            "    def test_add(self):\n"
+            "        c = Calculator()\n"
+            "        self.assertEqual(c.add(1, 2), 3)\n"
+        )
+        result = _run_worker(
+            {
+                "mode": "unittest",
+                "code": code,
+                "test_code": test_code,
+                "test_class_names": ["TestCalc"],
+            }
+        )
+        assert result["all_passed"] is True
+        assert result["total_tests_run"] == 1
+        assert result["total_tests_passed"] == 1
+        assert result["error"] is None
+        assert len(result["per_test_class"]) == 1
+        assert result["per_test_class"][0]["passed"] is True
+
+    def test_failing(self) -> None:
+        code = "class Calculator:\n    def add(self, a, b):\n        return a - b\n"
+        test_code = (
+            "import unittest\n"
+            "class TestCalc(unittest.TestCase):\n"
+            "    def test_add(self):\n"
+            "        c = Calculator()\n"
+            "        self.assertEqual(c.add(1, 2), 3)\n"
+        )
+        result = _run_worker(
+            {
+                "mode": "unittest",
+                "code": code,
+                "test_code": test_code,
+                "test_class_names": ["TestCalc"],
+            }
+        )
+        assert result["all_passed"] is False
+        assert result["total_tests_failed"] == 1
+
+    def test_missing_test_class(self) -> None:
+        result = _run_worker(
+            {
+                "mode": "unittest",
+                "code": "x = 1\n",
+                "test_code": "",
+                "test_class_names": ["TestMissing"],
+            }
+        )
+        assert result["all_passed"] is False
+        assert result["per_test_class"][0]["passed"] is False
+        assert "not found" in result["per_test_class"][0]["failures"][0]
+
+    def test_syntax_error(self) -> None:
+        result = _run_worker(
+            {
+                "mode": "unittest",
+                "code": "def f(:\n",
+                "test_code": "",
+                "test_class_names": ["TestFoo"],
+            }
+        )
+        assert result["all_passed"] is False
+        assert "SyntaxError" in (result.get("error") or "")
+
+
+# ---------------------------------------------------------------------------
+# Batch mode
+# ---------------------------------------------------------------------------
+
+
+class TestBatchMode:
+    def test_mixed_items(self) -> None:
+        result = _run_worker(
+            {
+                "mode": "batch",
+                "timeout_per_item": 5,
+                "items": [
+                    {
+                        "mode": "function_call",
+                        "code": "def f(x):\n    return x + 1\n",
+                        "function_name": "f",
+                        "input_values": [1, 2],
+                    },
+                    {
+                        "mode": "assertion",
+                        "code": "def g(x):\n    return x * 2\n",
+                        "test_code": "assert g(3) == 6\n",
+                    },
+                ],
+            }
+        )
+        assert result["error"] is None
+        assert len(result["results"]) == 2
+        # First item: function_call
+        assert result["results"][0]["results"][0]["return_value"] == 2
+        # Second item: assertion
+        assert result["results"][1]["passed"] is True
+
+    def test_item_error_doesnt_stop_batch(self) -> None:
+        result = _run_worker(
+            {
+                "mode": "batch",
+                "timeout_per_item": 5,
+                "items": [
+                    {
+                        "mode": "function_call",
+                        "code": "def f(x):\n    raise ValueError('boom')\n",
+                        "function_name": "f",
+                        "input_values": [1],
+                    },
+                    {
+                        "mode": "function_call",
+                        "code": "def g(x):\n    return x\n",
+                        "function_name": "g",
+                        "input_values": [42],
+                    },
+                ],
+            }
+        )
+        assert result["error"] is None
+        assert len(result["results"]) == 2
+        # First item has an error
+        assert result["results"][0]["results"][0]["error"] is not None
+        # Second item succeeds
+        assert result["results"][1]["results"][0]["return_value"] == 42

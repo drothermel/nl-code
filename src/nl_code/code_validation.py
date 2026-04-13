@@ -8,7 +8,7 @@ from nl_code.code_analysis import (
     extract_from_code_fences,
 )
 from nl_code.code_execution.models import TestCase, TestCaseResult
-from nl_code.code_execution.runner import run_test_cases
+from nl_code.code_execution.runner import EXEC_MODE_DOCKER, run_test_cases
 
 
 class ValidationResult(BaseModel):
@@ -29,7 +29,10 @@ def validate_generated_code(
     raw_output: str,
     function_name: str,
     test_cases: list[TestCase] | None = None,
-    timeout_seconds: float = 10.0,
+    timeout_seconds: float = 30.0,
+    *,
+    execution_mode: str = EXEC_MODE_DOCKER,
+    docker_image: str | None = None,
 ) -> ValidationResult:
     """Validate generated Python code through the full pipeline.
 
@@ -53,7 +56,12 @@ def validate_generated_code(
     pass_rate: float | None = None
     if is_valid and has_function and test_cases:
         tc_results, pass_rate = run_test_cases(
-            extracted, function_name, test_cases, timeout_seconds
+            extracted,
+            function_name,
+            test_cases,
+            timeout_seconds,
+            execution_mode=execution_mode,
+            docker_image=docker_image,
         )
 
     return ValidationResult(

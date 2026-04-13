@@ -16,6 +16,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+docker = [
+    "dr-docker>=0.4.0",
+]
 bigcodebench = [
     "numpy>=1.26",
     "pandas>=2.2",
@@ -41,6 +44,12 @@ dev = [
     "ruff>=0.15.10",
     "ty>=0.0.29",
 ]
+
+[tool.pytest.ini_options]
+markers = [
+    "docker: tests that require a running Docker daemon",
+]
+addopts = "-m 'not docker'"
 
 [tool.ruff]
 include = ["src/**/*.py", "tests/**/*.py"]
