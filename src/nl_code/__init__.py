@@ -1,2 +1,1 @@
-def hello() -> str:
-    return "Hello from nl-code!"
+"""Primitives for research into LLMs and code."""

@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.venv/
+
+# Testing
+.pytest_cache/
+
+# Type checking
+.ty_cache/
+
+# Editors
+*.swp
+*.swo
+*~
+.*.un~
+
+# macOS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
