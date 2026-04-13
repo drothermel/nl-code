@@ -12,6 +12,21 @@ dependencies = [
     "datasets>=3.0.0",
 ]
 
+[project.optional-dependencies]
+bigcodebench = [
+    "numpy>=1.26",
+    "pandas>=2.2",
+    "scipy>=1.14",
+    "scikit-learn>=1.5",
+    "statsmodels>=0.14",
+    "matplotlib>=3.9",
+    "seaborn>=0.13",
+    "pytz>=2024.1",
+    "python-dateutil>=2.9",
+    "holidays>=0.60",
+    "regex>=2024.4",
+]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

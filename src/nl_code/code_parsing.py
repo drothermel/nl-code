@@ -54,6 +54,14 @@ def remove_docstrings_and_comments(source: str) -> str:
     return ast.unparse(stripped_tree).rstrip() + "\n"
 
 
+def find_first_function_name(source: str) -> str:
+    tree = ast.parse(source)
+    for node in tree.body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            return node.name
+    raise ValueError("no function definition found in source")
+
+
 def find_named_function_in_module(
     tree: ast.Module, function_name: str
 ) -> ast.FunctionDef | ast.AsyncFunctionDef:

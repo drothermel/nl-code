@@ -1,17 +1,17 @@
 from pydantic import BaseModel, ConfigDict, Field
 
-from nl_code.datasets.humaneval_dataset import HumanEvalDataset
-from nl_code.datasets.humaneval_task import HumanEvalTask
+from nl_code.datasets.dataset import Dataset
+from nl_code.datasets.task import Task
 
 
 class DatasetSlice(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    dataset: HumanEvalDataset
+    dataset: Dataset
     ids: list[str] = Field(default_factory=list)
-    raw_source_field: str | None = "gt_solution_without_comments"
+    raw_source_field: str | None = None
 
-    def resolve_tasks(self) -> dict[str, HumanEvalTask]:
+    def resolve_tasks(self) -> dict[str, Task]:
         if not self.ids:
             return dict(self.dataset.tasks)
         missing = set(self.ids) - set(self.dataset.tasks)
