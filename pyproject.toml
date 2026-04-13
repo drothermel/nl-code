@@ -40,3 +40,9 @@ dev = [
     "ruff>=0.15.10",
     "ty>=0.0.29",
 ]
+
+[tool.ruff]
+include = ["src/**/*.py", "tests/**/*.py"]
+
+[tool.ty.src]
+include = ["src", "tests"]
