@@ -6,6 +6,8 @@ from nl_code.datasets.dataset import FlawedSample
 
 from conftest import make_bigcodebench_lite_pro_row, prime_dataset_cache
 
+pytestmark = pytest.mark.docker
+
 
 @pytest.mark.usefixtures("dataset_cache_dir")
 class TestBigCodeBenchLiteProDataset:

@@ -31,6 +31,7 @@ class TestHelperFunctions:
         assert extract_prompt_comments("def foo():\n    pass\n") is None
 
 
+@pytest.mark.docker
 class TestRawHumanEvalTask:
     def test_construction(self, valid_raw_task: RawHumanEvalTask) -> None:
         assert valid_raw_task.task_id == "HumanEval/0"

@@ -1,6 +1,10 @@
+import pytest
+
 from nl_code.datasets.humaneval_pro_task import RawHumanEvalProTask
 
 from conftest import make_humaneval_pro_row
+
+pytestmark = pytest.mark.docker
 
 
 class TestRawHumanEvalProTask:

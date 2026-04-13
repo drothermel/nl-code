@@ -1,5 +1,7 @@
 import textwrap
 
+import pytest
+
 from nl_code.datasets.classeval_task import (
     ClassEvalTestDetail,
     MethodDependencies,
@@ -82,6 +84,7 @@ class TestClassEvalTestDetail:
         assert detail.passed is False
 
 
+@pytest.mark.docker
 class TestRawClassEvalTask:
     def test_construction(self) -> None:
         row = make_classeval_row()

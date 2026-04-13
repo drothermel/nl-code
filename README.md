@@ -34,6 +34,23 @@ This is the default runtime image used by the execution pipeline. The Dockerfile
 installs the `bigcodebench` dependency set directly from `pyproject.toml`, so
 the image stays aligned with the repo's declared scientific requirements.
 
+### Run The Docker Test Tier
+
+Docker-dependent tests are marked with `@pytest.mark.docker` and are excluded
+from the default `pytest` run.
+
+Run them explicitly with:
+
+```bash
+uv run nl-code-test docker
+```
+
+You can pass extra pytest arguments through after `docker`, for example:
+
+```bash
+uv run nl-code-test docker -q tests/test_execution_runner.py
+```
+
 ## Datasets
 
 Loaders for HumanEval, HumanEval-Pro, MBPP-Pro, BigCodeBench Lite Pro, and ClassEval. Datasets are fetched from HuggingFace, parsed into `Task` objects, and cached locally. `DatasetSlice` supports filtering, seeded shuffling, and limit.

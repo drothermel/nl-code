@@ -8,6 +8,7 @@ from nl_code.datasets.humaneval_dataset import HumanEvalDataset
 from conftest import fail_on_hf, make_humaneval_row, mock_hf_dataset
 
 runner = CliRunner()
+pytestmark = pytest.mark.docker
 
 
 @pytest.mark.usefixtures("dataset_cache_dir")

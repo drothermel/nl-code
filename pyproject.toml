@@ -35,6 +35,9 @@ bigcodebench = [
     "regex>=2024.4",
 ]
 
+[project.scripts]
+nl-code-test = "nl_code.test_cli:app"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

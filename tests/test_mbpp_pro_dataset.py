@@ -5,6 +5,8 @@ from nl_code.datasets.mbpp_pro_dataset import MbppProDataset
 
 from conftest import make_mbpp_pro_row, prime_dataset_cache
 
+pytestmark = pytest.mark.docker
+
 
 @pytest.mark.usefixtures("dataset_cache_dir")
 class TestMbppProDataset:

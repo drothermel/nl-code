@@ -64,6 +64,7 @@ class TestCheckCompiles:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.docker
 class TestRunFunctionBatch:
     def test_basic(self) -> None:
         results = run_function_batch(
@@ -125,6 +126,7 @@ class TestRunFunctionBatch:
             )
 
 
+@pytest.mark.docker
 class TestRunTestCases:
     def test_all_pass(self) -> None:
         test_cases = [
@@ -177,6 +179,7 @@ class TestRunTestCases:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.docker
 class TestRunAssertionTest:
     def test_passing(self) -> None:
         result = run_assertion_test(
@@ -231,6 +234,7 @@ class TestRunAssertionTest:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.docker
 class TestRunUnittestTest:
     def test_passing(self) -> None:
         code = "class Calc:\n    def add(self, a, b):\n        return a + b\n"
@@ -270,6 +274,7 @@ class TestRunUnittestTest:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.docker
 class TestBatchRunTestCases:
     def test_basic(self) -> None:
         items = [
@@ -301,6 +306,7 @@ class TestBatchRunTestCases:
         assert batch_run_test_cases([]) == []
 
 
+@pytest.mark.docker
 class TestBatchRunAssertionTests:
     def test_basic(self) -> None:
         items = [

@@ -6,6 +6,8 @@ from nl_code.datasets.humaneval_dataset import HumanEvalDataset
 
 from conftest import make_humaneval_row, prime_dataset_cache
 
+pytestmark = pytest.mark.docker
+
 
 @pytest.mark.usefixtures("dataset_cache_dir")
 class TestHumanEvalDataset:

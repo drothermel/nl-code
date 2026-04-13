@@ -1,6 +1,10 @@
+import pytest
+
 from nl_code.datasets.mbpp_pro_task import RawMbppProTask
 
 from conftest import make_mbpp_pro_row
+
+pytestmark = pytest.mark.docker
 
 
 class TestRawMbppProTask:

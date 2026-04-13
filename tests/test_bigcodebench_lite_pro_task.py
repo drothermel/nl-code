@@ -1,6 +1,10 @@
+import pytest
+
 from nl_code.datasets.bigcodebench_lite_pro_task import RawBigCodeBenchLiteProTask
 
 from conftest import make_bigcodebench_lite_pro_row
+
+pytestmark = pytest.mark.docker
 
 
 class TestRawBigCodeBenchLiteProTask:

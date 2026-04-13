@@ -1,3 +1,5 @@
+# ruff: noqa: E402
+
 from pathlib import Path
 from threading import Lock
 from typing import cast
@@ -5,6 +7,8 @@ import sys
 
 import pytest
 from fastapi.testclient import TestClient
+
+pytestmark = pytest.mark.docker
 
 sys.path.insert(
     0,

@@ -3,6 +3,8 @@ import pytest
 from nl_code.datasets.dataset_slice import DatasetSlice
 from nl_code.datasets.humaneval_dataset import HumanEvalDataset
 
+pytestmark = pytest.mark.docker
+
 
 class TestDatasetSlice:
     def test_resolve_all_tasks(self, loaded_dataset: HumanEvalDataset) -> None:
