@@ -165,6 +165,7 @@ class TestRawClassEvalTask:
         result = task.run_test(bad_code)
         assert result.all_passed is False
         assert result.total_tests_failed > 0
+        assert result.error is None
 
     def test_run_test_exec_error(self) -> None:
         row = make_classeval_row()
@@ -190,11 +191,48 @@ class TestRawClassEvalTask:
         row["test_classes"] = ["TestCalculatorAdd", "TestNonExistent"]
         row["validated"] = True
         task = RawClassEvalTask.model_validate(row)
-        result = task.run_test(task.solution_code)
+        result = task.run_test(task.gt_code)
         assert result.all_passed is False
         by_name = {r.test_class_name: r for r in result.per_test_class}
         assert by_name["TestNonExistent"].passed is False
         assert "not found" in by_name["TestNonExistent"].failures[0]
+
+    def test_run_test_requires_self_contained_code(self) -> None:
+        row = make_classeval_row()
+        row["import_statement"] = ["import math"]
+        row["solution_code"] = textwrap.dedent("""\
+            class Calculator:
+                def __init__(self):
+                    self.result = 0
+
+                def add(self, a, b):
+                    return a + b
+
+                def subtract(self, a, b):
+                    return a - b
+
+                def sqrt(self, x):
+                    return math.sqrt(x)
+        """)
+        row["test"] = textwrap.dedent("""\
+            import unittest
+
+            class TestCalculatorSqrt(unittest.TestCase):
+                def test_sqrt(self):
+                    calc = Calculator()
+                    self.assertEqual(calc.sqrt(9), 3)
+        """)
+        row["test_classes"] = ["TestCalculatorSqrt"]
+        task = RawClassEvalTask.model_validate(row)
+
+        bare_result = task.run_test(task.solution_code)
+        assert bare_result.all_passed is False
+        assert bare_result.total_tests_errored == 1
+        assert bare_result.per_test_class[0].errors
+        assert "NameError" in bare_result.per_test_class[0].errors[0]
+
+        full_result = task.run_test(task.gt_code)
+        assert full_result.all_passed is True
 
     def test_validation_rejects_failing_solution(self) -> None:
         row = make_classeval_row(

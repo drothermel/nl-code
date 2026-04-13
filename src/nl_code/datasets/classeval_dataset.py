@@ -23,5 +23,5 @@ class ClassEvalDataset(Dataset):
             task_id=task_id,
             entry_point_name=raw.class_name,
             description=raw.class_description,
-            gt_solution=raw.solution_code,
+            gt_solution=raw.gt_code,
         )

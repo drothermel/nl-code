@@ -35,6 +35,7 @@ class TestClassEvalDataset:
         assert task.entry_point_name == "Calculator"
         assert task.description == "A simple calculator."
         assert "class Calculator" in task.gt_solution
+        assert task.gt_solution == ds.raw_samples["ClassEval_0"].gt_code
 
     def test_flawed_rows_tracked(self, monkeypatch: pytest.MonkeyPatch) -> None:
         bad_row = make_classeval_row(

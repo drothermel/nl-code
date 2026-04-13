@@ -1,8 +1,8 @@
-# CLAUDE.md
+# AGENTS.md
 
 ## Pre-commit checks
 
-Run these before committing:
+Run all relevant checks before committing changes.
 
 ### Python (from repo root)
 
@@ -23,8 +23,5 @@ npx tsc --noEmit
 ## Dataset validation
 
 For dataset validation, debugging, or analysis commands that may import
-`matplotlib`, run them with `MPLBACKEND=Agg` to suppress GUI plot windows:
-
-```bash
-MPLBACKEND=Agg uv run python ...
-```
+`matplotlib`, run them headlessly with `MPLBACKEND=Agg` so they do not open GUI
+plot windows during execution.
