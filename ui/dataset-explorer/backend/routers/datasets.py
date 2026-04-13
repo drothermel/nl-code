@@ -3,18 +3,22 @@ from typing import Literal
 from fastapi import APIRouter, Query
 
 from backend.models.dataset_explorer import (
+    DatasetCompareResponse,
     DatasetOption,
     DatasetOverviewResponse,
+    DatasetRefreshResponse,
     RawDetailResponse,
     TaskDetailResponse,
     TaskListResponse,
 )
 from backend.services.datasets import (
+    get_comparison,
     get_overview,
     get_raw_detail,
     get_task_detail,
     list_dataset_options,
     list_tasks,
+    refresh_dataset,
 )
 
 router = APIRouter()
@@ -25,9 +29,19 @@ def get_datasets():
     return list_dataset_options()
 
 
+@router.get("/compare", response_model=DatasetCompareResponse)
+def dataset_compare():
+    return get_comparison()
+
+
 @router.get("/{dataset_key}/overview", response_model=DatasetOverviewResponse)
 def dataset_overview(dataset_key: str):
     return get_overview(dataset_key)
+
+
+@router.post("/{dataset_key}/refresh", response_model=DatasetRefreshResponse)
+def dataset_refresh(dataset_key: str):
+    return refresh_dataset(dataset_key)
 
 
 @router.get("/{dataset_key}/tasks", response_model=TaskListResponse)

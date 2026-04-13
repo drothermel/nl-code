@@ -56,6 +56,69 @@ class DatasetOverviewResponse(BaseModel):
     flawed_error_groups: list[FlawedErrorGroup]
 
 
+class DatasetRefreshResponse(BaseModel):
+    dataset: DatasetOption
+    reloaded: bool
+
+
+class SummaryStats(BaseModel):
+    count: int
+    min: float
+    median: float
+    p90: float
+    max: float
+
+
+class MetricSummary(BaseModel):
+    key: str
+    label: str
+    stats: SummaryStats
+
+
+class RatioSummary(BaseModel):
+    key: str
+    label: str
+    numerator_key: str
+    denominator_key: str
+    stats: SummaryStats
+
+
+class CrossDatasetSeriesValues(BaseModel):
+    dataset_key: str
+    dataset_label: str
+    values: list[float]
+
+
+class CrossDatasetSeries(BaseModel):
+    key: str
+    label: str
+    datasets: list[CrossDatasetSeriesValues]
+
+
+class DatasetLandscapePoint(BaseModel):
+    dataset_key: str
+    dataset_label: str
+    family: str
+    task_count: int
+    median_prompt_length_chars: float
+    median_derived_code_length_chars: float
+
+
+class DatasetCompareRow(BaseModel):
+    dataset: DatasetOption
+    counts: OverviewCounts
+    flawed_rate: float
+    metrics: list[MetricSummary]
+    ratios: list[RatioSummary]
+
+
+class DatasetCompareResponse(BaseModel):
+    datasets: list[DatasetCompareRow]
+    metric_series: list[CrossDatasetSeries]
+    ratio_series: list[CrossDatasetSeries]
+    landscape_points: list[DatasetLandscapePoint]
+
+
 class TaskRow(BaseModel):
     task_id: str
     status: Literal["valid", "flawed"]

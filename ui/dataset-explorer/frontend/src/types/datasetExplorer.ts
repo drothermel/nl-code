@@ -49,6 +49,64 @@ export interface DatasetOverviewResponse {
   flawed_error_groups: FlawedErrorGroup[];
 }
 
+export interface SummaryStats {
+  count: number;
+  min: number;
+  median: number;
+  p90: number;
+  max: number;
+}
+
+export interface MetricSummary {
+  key: string;
+  label: string;
+  stats: SummaryStats;
+}
+
+export interface RatioSummary {
+  key: string;
+  label: string;
+  numerator_key: string;
+  denominator_key: string;
+  stats: SummaryStats;
+}
+
+export interface CrossDatasetSeriesValues {
+  dataset_key: string;
+  dataset_label: string;
+  values: number[];
+}
+
+export interface CrossDatasetSeries {
+  key: string;
+  label: string;
+  datasets: CrossDatasetSeriesValues[];
+}
+
+export interface DatasetLandscapePoint {
+  dataset_key: string;
+  dataset_label: string;
+  family: string;
+  task_count: number;
+  median_prompt_length_chars: number;
+  median_derived_code_length_chars: number;
+}
+
+export interface DatasetCompareRow {
+  dataset: DatasetOption;
+  counts: OverviewCounts;
+  flawed_rate: number;
+  metrics: MetricSummary[];
+  ratios: RatioSummary[];
+}
+
+export interface DatasetCompareResponse {
+  datasets: DatasetCompareRow[];
+  metric_series: CrossDatasetSeries[];
+  ratio_series: CrossDatasetSeries[];
+  landscape_points: DatasetLandscapePoint[];
+}
+
 export interface TaskRow {
   task_id: string;
   status: "valid" | "flawed";
