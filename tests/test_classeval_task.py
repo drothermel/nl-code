@@ -178,13 +178,12 @@ class TestRawClassEvalTask:
         row = make_classeval_row()
         task = RawClassEvalTask.model_validate(row)
         result = task.run_test_on_gt_solution()
-        assert len(result.per_test_class) == 2
-        assert result.per_test_class[0].test_class_name == "TestCalculatorAdd"
-        assert result.per_test_class[0].tests_run == 2
-        assert result.per_test_class[0].passed is True
-        assert result.per_test_class[1].test_class_name == "TestCalculatorSubtract"
-        assert result.per_test_class[1].tests_run == 1
-        assert result.per_test_class[1].passed is True
+        by_name = {r.test_class_name: r for r in result.per_test_class}
+        assert len(by_name) == 2
+        assert by_name["TestCalculatorAdd"].tests_run == 2
+        assert by_name["TestCalculatorAdd"].passed is True
+        assert by_name["TestCalculatorSubtract"].tests_run == 1
+        assert by_name["TestCalculatorSubtract"].passed is True
 
     def test_run_test_missing_test_class(self) -> None:
         row = make_classeval_row()
@@ -193,10 +192,9 @@ class TestRawClassEvalTask:
         task = RawClassEvalTask.model_validate(row)
         result = task.run_test(task.solution_code)
         assert result.all_passed is False
-        non_existent = result.per_test_class[1]
-        assert non_existent.test_class_name == "TestNonExistent"
-        assert non_existent.passed is False
-        assert "not found" in non_existent.failures[0]
+        by_name = {r.test_class_name: r for r in result.per_test_class}
+        assert by_name["TestNonExistent"].passed is False
+        assert "not found" in by_name["TestNonExistent"].failures[0]
 
     def test_validation_rejects_failing_solution(self) -> None:
         row = make_classeval_row(

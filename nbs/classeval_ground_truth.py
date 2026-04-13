@@ -83,6 +83,7 @@ def _(results):
 @app.cell(hide_code=True)
 def _(ds):
     task_ids = sorted(ds.raw_samples.keys())
+    mo.stop(not task_ids, mo.md("_No valid tasks loaded._"))
     task_selector = mo.ui.dropdown(
         options=task_ids,
         value=task_ids[0],

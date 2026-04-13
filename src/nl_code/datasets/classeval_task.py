@@ -233,7 +233,10 @@ class RawClassEvalTask(BaseModel):
         full_source = "\n\n".join(parts)
 
         # Provide __file__ so tests using os.path.dirname(__file__) work in exec()
-        tmp_dir = tempfile.mkdtemp()
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            return self._run_test_in_dir(full_source, tmp_dir)
+
+    def _run_test_in_dir(self, full_source: str, tmp_dir: str) -> ClassEvalTestResult:
         namespace: dict[str, object] = {
             "__file__": os.path.join(tmp_dir, "__classeval__.py"),
         }

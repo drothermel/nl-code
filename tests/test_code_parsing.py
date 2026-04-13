@@ -77,6 +77,10 @@ class TestFindFirstFunctionName:
         source = "import os\ndef baz():\n    pass\n"
         assert find_first_function_name(source) == "baz"
 
+    def test_finds_first_async(self) -> None:
+        source = "async def fetch():\n    pass\ndef process():\n    pass\n"
+        assert find_first_function_name(source) == "fetch"
+
     def test_raises_on_no_function(self) -> None:
         with pytest.raises(ValueError, match="no function definition"):
             find_first_function_name("x = 1\n")

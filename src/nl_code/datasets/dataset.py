@@ -76,9 +76,18 @@ class Dataset(BaseModel):
 
         self.raw_samples = raw_samples
         self.flawed_raw_samples = flawed_raw_samples
-        self.tasks = {
-            task_id: self._to_task(task_id, raw) for task_id, raw in raw_samples.items()
-        }
+
+        tasks: dict[str, Task] = {}
+        for task_id, raw in raw_samples.items():
+            try:
+                tasks[task_id] = self._to_task(task_id, raw)
+            except Exception as exc:
+                flawed_raw_samples[task_id] = FlawedSample(
+                    error=f"_to_task failed: {exc}",
+                    raw_input={"task_id": task_id},
+                )
+                logger.warning("Failed to convert task %s: %s", task_id, exc)
+        self.tasks = tasks
 
         logger.info(
             "Finished loading from %s: %d valid, %d flawed, %d tasks",
