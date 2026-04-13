@@ -3,6 +3,7 @@ import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { API_BASE } from "@/api/client";
 import { decodeDatasetKey, encodeDatasetKey, useDatasets } from "@/api/datasets";
 import { Badge } from "@/components/ui/badge";
+import { NativeSelect } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
 const GLOBAL_NAV_ITEMS = [
@@ -19,6 +20,15 @@ function currentDatasetKey(pathname: string) {
   return match ? decodeDatasetKey(match[1]) : "";
 }
 
+function navLinkClassName({ isActive }: { isActive: boolean }) {
+  return cn(
+    "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
+    isActive
+      ? "bg-accent text-accent-foreground font-medium"
+      : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+  );
+}
+
 export default function Sidebar() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -27,7 +37,7 @@ export default function Sidebar() {
   const apiBaseLabel = API_BASE || "/api";
 
   return (
-    <aside className="flex min-h-screen w-72 flex-col border-r bg-card">
+    <aside className="z-10 flex min-h-screen w-72 flex-col border-r bg-card shadow-sm">
       <div className="border-b px-5 py-4">
         <div className="flex items-center gap-2">
           <Database className="h-5 w-5 text-primary" />
@@ -40,18 +50,7 @@ export default function Sidebar() {
 
       <nav className="border-b p-3">
         {GLOBAL_NAV_ITEMS.map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            className={({ isActive }) =>
-              cn(
-                "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
-                isActive
-                  ? "bg-accent text-accent-foreground font-medium"
-                  : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
-              )
-            }
-          >
+          <NavLink key={item.to} to={item.to} className={navLinkClassName}>
             {item.icon}
             {item.label}
           </NavLink>
@@ -59,10 +58,14 @@ export default function Sidebar() {
       </nav>
 
       <div className="border-b px-4 py-4">
-        <label className="block text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        <label
+          htmlFor="sidebar-dataset-select"
+          className="block text-xs font-medium uppercase tracking-wide text-muted-foreground"
+        >
           <span className="mb-2 block">Dataset</span>
-          <select
-            className="w-full rounded-md border bg-background px-3 py-2 text-sm font-normal normal-case tracking-normal outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          <NativeSelect
+            id="sidebar-dataset-select"
+            className="font-normal normal-case tracking-normal"
             value={selectedDataset}
             disabled={isLoading || !datasets?.length}
             onChange={(event) => {
@@ -80,7 +83,7 @@ export default function Sidebar() {
                 {dataset.label}
               </option>
             ))}
-          </select>
+          </NativeSelect>
         </label>
       </div>
 
@@ -93,14 +96,7 @@ export default function Sidebar() {
             <NavLink
               key={item.suffix}
               to={`/datasets/${encodeDatasetKey(selectedDataset)}/${item.suffix}`}
-              className={({ isActive }) =>
-                cn(
-                  "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
-                  isActive
-                    ? "bg-accent text-accent-foreground font-medium"
-                    : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
-                )
-              }
+              className={navLinkClassName}
             >
               {item.icon}
               {item.label}

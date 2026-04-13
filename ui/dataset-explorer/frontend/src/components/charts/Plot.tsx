@@ -15,6 +15,7 @@ import type { Config, Data, Layout } from "plotly.js";
 import Plotly from "plotly.js-cartesian-dist-min";
 import type { CSSProperties } from "react";
 import createPlotlyComponent from "react-plotly.js/factory";
+import { CHART_COLORS } from "@/lib/chartColors";
 import { cn } from "@/lib/utils";
 
 const ReactPlot = createPlotlyComponent(Plotly);
@@ -30,11 +31,11 @@ interface PlotProps {
 const defaultLayout: Partial<Layout> = {
   autosize: true,
   margin: { l: 60, r: 24, t: 40, b: 60 },
-  font: { family: "Inter, system-ui, sans-serif", size: 12 },
+  font: { family: '"DM Sans", system-ui, sans-serif', size: 12 },
   paper_bgcolor: "rgba(0,0,0,0)",
   plot_bgcolor: "rgba(0,0,0,0)",
-  xaxis: { gridcolor: "#e5e7eb", zeroline: false },
-  yaxis: { gridcolor: "#e5e7eb", zeroline: false },
+  xaxis: { gridcolor: CHART_COLORS.grid, zeroline: false },
+  yaxis: { gridcolor: CHART_COLORS.grid, zeroline: false },
 };
 
 const defaultConfig: Partial<Config> = {

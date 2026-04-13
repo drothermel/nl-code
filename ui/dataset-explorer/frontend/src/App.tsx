@@ -1,6 +1,8 @@
 import { lazy, Suspense } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import Layout from "@/components/layout/Layout";
+import { GenericSkeleton } from "@/components/ui/page-skeletons";
+import { PageLoading } from "@/components/ui/page-status";
 import HomeRedirect from "@/pages/HomeRedirect";
 
 const ComparePage = lazy(() => import("@/pages/ComparePage"));
@@ -10,7 +12,7 @@ const TaskBrowserPage = lazy(() => import("@/pages/TaskBrowserPage"));
 const TaskDetailPage = lazy(() => import("@/pages/TaskDetailPage"));
 
 function PageFallback() {
-  return <div className="p-8 text-sm text-muted-foreground">Loading…</div>;
+  return <PageLoading label="page" skeleton={<GenericSkeleton />} />;
 }
 
 export default function App() {

@@ -1,5 +1,6 @@
 import PythonCodeBlock from "@/components/code/PythonCodeBlock";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CodeBlock } from "@/components/ui/code-block";
 import type { DerivedFieldSummary, InspectorSection } from "@/types/datasetExplorer";
 
 // Add new derived fields here when they should render with code syntax highlighting.
@@ -20,28 +21,13 @@ function renderValue(sectionKey: string, kind: string, value: unknown) {
     }
 
     if (kind === "error") {
-      return (
-        <pre className="overflow-x-auto rounded-md border border-destructive/30 bg-card p-4 text-xs leading-6 text-destructive">
-          {value}
-        </pre>
-      );
+      return <CodeBlock variant="error">{value}</CodeBlock>;
     }
 
-    return (
-      <pre className="overflow-x-auto rounded-md border bg-card p-4 text-xs leading-6 text-card-foreground">
-        {value}
-      </pre>
-    );
+    return <CodeBlock>{value}</CodeBlock>;
   }
 
-  return (
-    <pre
-      className="overflow-x-auto rounded-md border bg-card p-4 text-xs leading-6 text-card-foreground"
-      data-testid={`json-${sectionKey}`}
-    >
-      {JSON.stringify(value, null, 2)}
-    </pre>
-  );
+  return <CodeBlock data-testid={`json-${sectionKey}`}>{JSON.stringify(value, null, 2)}</CodeBlock>;
 }
 
 export function DerivedFieldsCard({ derivedFields }: { derivedFields: DerivedFieldSummary[] }) {
@@ -63,9 +49,7 @@ export function DerivedFieldsCard({ derivedFields }: { derivedFields: DerivedFie
               {isCodeDerivedField(field.name) ? (
                 <PythonCodeBlock code={field.value} className="p-0" />
               ) : (
-                <pre className="overflow-x-auto rounded-md border bg-card p-3 text-xs leading-6 text-card-foreground">
-                  {field.value}
-                </pre>
+                <CodeBlock className="p-3">{field.value}</CodeBlock>
               )}
             </div>
           </div>

@@ -4,6 +4,9 @@ import { useDatasetComparison } from "@/api/datasets";
 import Plot from "@/components/charts/Plot";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CompareSkeleton } from "@/components/ui/page-skeletons";
+import { PageError, PageLoading } from "@/components/ui/page-status";
+import { CHART_COLORS, FAMILY_COLORS, SERIES_PALETTE } from "@/lib/chartColors";
 import { COMPARE_UNIT_TITLES, metricUnit } from "@/lib/metrics";
 import type { CrossDatasetSeries, DatasetCompareRow, SummaryStats } from "@/types/datasetExplorer";
 
@@ -30,14 +33,6 @@ const BOX_PLOT_METRIC_KEYS = new Set([
   "derived_code_length_tokens",
   "derived_code_length_lines",
 ]);
-
-const SERIES_COLORS = ["#0f766e", "#2563eb", "#b45309", "#9333ea", "#dc2626", "#4f46e5"];
-
-const FAMILY_COLORS: Record<string, string> = {
-  humaneval: "#0f766e",
-  pro: "#2563eb",
-  classeval: "#b45309",
-};
 
 type SortKey =
   | "dataset_label"
@@ -125,7 +120,7 @@ function boxPlotTraces(series: CrossDatasetSeries) {
     name: dataset.dataset_label,
     y: dataset.values,
     boxpoints: false as const,
-    marker: { color: SERIES_COLORS[index % SERIES_COLORS.length] },
+    marker: { color: SERIES_PALETTE[index % SERIES_PALETTE.length] },
     hovertemplate: `${dataset.dataset_label}<br>%{y}<extra></extra>`,
   }));
 }
@@ -293,19 +288,15 @@ export default function ComparePage() {
   }
 
   if (isLoading) {
-    return <div className="p-8 text-sm text-muted-foreground">Loading dataset comparison…</div>;
+    return <PageLoading label="dataset comparison" skeleton={<CompareSkeleton />} />;
   }
 
   if (error || !data) {
-    return (
-      <div className="p-8 text-sm text-destructive">
-        Failed to load dataset comparison: {error?.message ?? "Unknown error"}
-      </div>
-    );
+    return <PageError label="dataset comparison" error={error} />;
   }
 
   return (
-    <div className="space-y-6 p-8">
+    <div className="animate-fade-in-up space-y-6 p-8">
       <div className="space-y-2">
         <div className="flex items-center gap-2">
           <BarChart3 className="h-5 w-5 text-primary" />
@@ -417,7 +408,10 @@ export default function ComparePage() {
             </thead>
             <tbody>
               {rows.map((row) => (
-                <tr key={row.dataset.key} className="border-b align-top">
+                <tr
+                  key={row.dataset.key}
+                  className="border-b align-top transition-colors hover:bg-muted/50"
+                >
                   <td className="px-3 py-3">
                     <div className="font-medium">{row.dataset.label}</div>
                     <div className="font-mono text-xs text-muted-foreground">{row.dataset.key}</div>
@@ -511,7 +505,7 @@ export default function ComparePage() {
                     return `${formatPercent(row?.flawed_rate ?? 0)}`;
                   }),
                   textposition: "outside",
-                  marker: { color: "#dc2626" },
+                  marker: { color: CHART_COLORS.referenceLine },
                   cliponaxis: false,
                   hovertemplate:
                     "%{x}<br>Flawed samples=%{y}<br>Flawed rate=%{text}<extra></extra>",
@@ -553,7 +547,7 @@ export default function ComparePage() {
                       Math.max(12, Math.sqrt(point.task_count) * 2.5),
                     ),
                     color: data.landscape_points.map(
-                      (point) => FAMILY_COLORS[point.family] ?? "#4b5563",
+                      (point) => FAMILY_COLORS[point.family] ?? CHART_COLORS.fallbackFamily,
                     ),
                     opacity: 0.8,
                   },
@@ -575,7 +569,7 @@ export default function ComparePage() {
                     y0: landscapeAxisRange[0],
                     x1: landscapeAxisRange[1],
                     y1: landscapeAxisRange[1],
-                    line: { color: "#dc2626", width: 1.5, dash: "dash" },
+                    line: { color: CHART_COLORS.referenceLine, width: 1.5, dash: "dash" },
                   },
                 ],
                 xaxis: {

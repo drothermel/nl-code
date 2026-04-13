@@ -4,6 +4,9 @@ import { useParams } from "react-router-dom";
 import { useOverview } from "@/api/datasets";
 import Plot from "@/components/charts/Plot";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { OverviewSkeleton } from "@/components/ui/page-skeletons";
+import { PageError, PageLoading } from "@/components/ui/page-status";
+import { CHART_COLORS } from "@/lib/chartColors";
 import { metricUnit, UNIT_TITLES } from "@/lib/metrics";
 import type { MetricDistribution, MetricScatter, ScatterPoint } from "@/types/datasetExplorer";
 
@@ -133,7 +136,7 @@ function ScatterPlotCard({ plot }: { plot: MetricScatter }) {
               y: plot.points.map((point) => point.y),
               text: plot.points.map((point) => point.task_id),
               hovertemplate: "%{text}<br>x=%{x}<br>y=%{y}<extra></extra>",
-              marker: { color: "#2563eb", size: 8, opacity: 0.75 },
+              marker: { color: CHART_COLORS.scatter, size: 8, opacity: 0.75 },
             },
           ]}
           layout={{
@@ -145,7 +148,7 @@ function ScatterPlotCard({ plot }: { plot: MetricScatter }) {
                 y0: axisRange.min,
                 x1: axisRange.max,
                 y1: axisRange.max,
-                line: { color: "#dc2626", width: 1.5, dash: "dash" },
+                line: { color: CHART_COLORS.referenceLine, width: 1.5, dash: "dash" },
               },
             ],
             xaxis: {
@@ -166,10 +169,6 @@ function ScatterPlotCard({ plot }: { plot: MetricScatter }) {
   );
 }
 
-function getDistributionUnit(distribution: MetricDistribution) {
-  return metricUnit(distribution.key);
-}
-
 function getScatterUnit(plot: MetricScatter) {
   const xUnit = metricUnit(plot.x_key);
   const yUnit = metricUnit(plot.y_key);
@@ -181,19 +180,15 @@ export default function OverviewPage() {
   const { data, isLoading, error } = useOverview(datasetKey);
 
   if (isLoading) {
-    return <div className="p-8 text-sm text-muted-foreground">Loading overview…</div>;
+    return <PageLoading label="overview" skeleton={<OverviewSkeleton />} />;
   }
 
   if (error || !data) {
-    return (
-      <div className="p-8 text-sm text-destructive">
-        Failed to load overview: {error?.message ?? "Unknown error"}
-      </div>
-    );
+    return <PageError label="overview" error={error} />;
   }
 
   return (
-    <div className="space-y-6 p-8">
+    <div className="animate-fade-in-up space-y-6 p-8">
       <div className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight [text-wrap:balance]">
           {data.dataset.label}
@@ -224,7 +219,7 @@ export default function OverviewPage() {
       {(["chars", "tokens", "lines", "other"] as const).map((unit) => {
         const distributions = [...data.distributions]
           .filter((distribution) => distribution.key !== "test_length_chars")
-          .filter((distribution) => getDistributionUnit(distribution) === unit)
+          .filter((distribution) => metricUnit(distribution.key) === unit)
           .sort(
             (left, right) =>
               (DISTRIBUTION_ORDER[left.key] ?? Number.MAX_SAFE_INTEGER) -
@@ -271,7 +266,7 @@ export default function OverviewPage() {
                                 size: histogramBinSize,
                               }
                             : undefined,
-                          marker: { color: "#0f766e" },
+                          marker: { color: CHART_COLORS.histogram },
                           hovertemplate: "%{x}<extra></extra>",
                         },
                       ]}

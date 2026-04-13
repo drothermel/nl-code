@@ -1,8 +1,10 @@
 import { Link, useParams } from "react-router-dom";
 import { decodeTaskPath, encodeDatasetKey, encodeTaskPath, useTaskDetail } from "@/api/datasets";
 import PythonCodeBlock from "@/components/code/PythonCodeBlock";
-import { isCodeDerivedField } from "@/components/detail/InspectorSections";
+import { DerivedFieldsCard } from "@/components/detail/InspectorSections";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DetailSkeleton } from "@/components/ui/page-skeletons";
+import { PageError, PageLoading } from "@/components/ui/page-status";
 
 export default function TaskDetailPage() {
   const { datasetKey = "", "*": taskPath = "" } = useParams();
@@ -10,20 +12,16 @@ export default function TaskDetailPage() {
   const { data, isLoading, error } = useTaskDetail(datasetKey, taskId);
 
   if (isLoading) {
-    return <div className="p-8 text-sm text-muted-foreground">Loading task detail…</div>;
+    return <PageLoading label="task detail" skeleton={<DetailSkeleton />} />;
   }
 
   if (error || !data) {
-    return (
-      <div className="p-8 text-sm text-destructive">
-        Failed to load task detail: {error?.message ?? "Unknown error"}
-      </div>
-    );
+    return <PageError label="task detail" error={error} />;
   }
   const encodedDatasetKey = encodeDatasetKey(datasetKey);
 
   return (
-    <div className="space-y-6 p-8">
+    <div className="animate-fade-in-up space-y-6 p-8">
       <div className="space-y-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight [text-wrap:balance]">
@@ -86,28 +84,7 @@ export default function TaskDetailPage() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Derived Field Mapping</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {data.derived_fields.map((field) => (
-            <div key={field.name} className="rounded-md border p-3">
-              <div className="text-sm font-medium">{field.name}</div>
-              <div className="mt-1 text-xs text-muted-foreground">{field.source}</div>
-              <div className="mt-3">
-                {isCodeDerivedField(field.name) ? (
-                  <PythonCodeBlock code={field.value} className="p-0" />
-                ) : (
-                  <pre className="overflow-x-auto rounded-md border bg-card p-3 text-xs leading-6 text-card-foreground">
-                    {field.value}
-                  </pre>
-                )}
-              </div>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
+      <DerivedFieldsCard derivedFields={data.derived_fields} />
 
       <Card>
         <CardHeader>

@@ -11,7 +11,7 @@ export default function Layout() {
         Skip to main content
       </a>
       <Sidebar />
-      <main id="main-content" className="flex-1 overflow-y-auto bg-muted/20">
+      <main id="main-content" className="flex-1 overflow-y-auto bg-muted/20 bg-grid-dots">
         <Outlet />
       </main>
     </div>

@@ -3,6 +3,9 @@ import { Link, useParams } from "react-router-dom";
 import { decodeTaskPath, encodeDatasetKey, encodeTaskPath, useRawDetail } from "@/api/datasets";
 import { DerivedFieldsCard, InspectorSections } from "@/components/detail/InspectorSections";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CodeBlock } from "@/components/ui/code-block";
+import { DetailSkeleton } from "@/components/ui/page-skeletons";
+import { PageError, PageLoading } from "@/components/ui/page-status";
 
 export default function RawDetailPage() {
   const { datasetKey = "", "*": taskPath = "" } = useParams();
@@ -10,22 +13,18 @@ export default function RawDetailPage() {
   const { data, isLoading, error } = useRawDetail(datasetKey, taskId);
 
   if (isLoading) {
-    return <div className="p-8 text-sm text-muted-foreground">Loading raw detail…</div>;
+    return <PageLoading label="raw detail" skeleton={<DetailSkeleton />} />;
   }
 
   if (error || !data) {
-    return (
-      <div className="p-8 text-sm text-destructive">
-        Failed to load raw detail: {error?.message ?? "Unknown error"}
-      </div>
-    );
+    return <PageError label="raw detail" error={error} />;
   }
 
   const hasDerivedFields = "derived_fields" in data;
   const encodedDatasetKey = encodeDatasetKey(datasetKey);
 
   return (
-    <div className="space-y-6 p-8">
+    <div className="animate-fade-in-up space-y-6 p-8">
       <div className="space-y-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight [text-wrap:balance]">
@@ -73,9 +72,7 @@ export default function RawDetailPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <pre className="overflow-x-auto rounded-md border border-destructive/30 bg-card p-4 text-xs leading-6 text-destructive">
-              {data.error}
-            </pre>
+            <CodeBlock variant="error">{data.error}</CodeBlock>
           </CardContent>
         </Card>
       )}
@@ -89,9 +86,7 @@ export default function RawDetailPage() {
           <CardTitle className="text-base">Raw JSON</CardTitle>
         </CardHeader>
         <CardContent>
-          <pre className="overflow-x-auto rounded-md border bg-card p-4 text-xs leading-6 text-card-foreground">
-            {JSON.stringify(data.raw_json, null, 2)}
-          </pre>
+          <CodeBlock>{JSON.stringify(data.raw_json, null, 2)}</CodeBlock>
         </CardContent>
       </Card>
     </div>
