@@ -16,10 +16,63 @@ class TestDatasetSlice:
         assert len(tasks) == 1
         assert "HumanEval/0" in tasks
 
+    def test_resolve_limited_tasks_from_dataset_order(
+        self, loaded_dataset: HumanEvalDataset
+    ) -> None:
+        sl = DatasetSlice(dataset=loaded_dataset, limit=1)
+        tasks = sl.resolve_tasks()
+        assert list(tasks) == ["HumanEval/0"]
+
+    def test_resolve_limited_tasks_from_filtered_ids(
+        self, loaded_dataset: HumanEvalDataset
+    ) -> None:
+        sl = DatasetSlice(
+            dataset=loaded_dataset,
+            ids=["HumanEval/1", "HumanEval/0"],
+            limit=1,
+        )
+        tasks = sl.resolve_tasks()
+        assert list(tasks) == ["HumanEval/1"]
+
+    def test_resolve_limit_larger_than_available_returns_all(
+        self, loaded_dataset: HumanEvalDataset
+    ) -> None:
+        sl = DatasetSlice(dataset=loaded_dataset, limit=10)
+        tasks = sl.resolve_tasks()
+        assert list(tasks) == ["HumanEval/0", "HumanEval/1"]
+
+    def test_resolve_shuffled_tasks_is_seeded(
+        self, loaded_dataset: HumanEvalDataset
+    ) -> None:
+        sl = DatasetSlice(dataset=loaded_dataset, shuffle=True, seed=7)
+        tasks = sl.resolve_tasks()
+        assert list(tasks) == ["HumanEval/0", "HumanEval/1"]
+
+    def test_resolve_shuffled_and_limited_tasks_applies_shuffle_before_limit(
+        self, loaded_dataset: HumanEvalDataset
+    ) -> None:
+        sl = DatasetSlice(
+            dataset=loaded_dataset,
+            ids=["HumanEval/1", "HumanEval/0"],
+            shuffle=True,
+            seed=1,
+            limit=1,
+        )
+        tasks = sl.resolve_tasks()
+        assert list(tasks) == ["HumanEval/0"]
+
     def test_resolve_missing_raises(self, loaded_dataset: HumanEvalDataset) -> None:
         sl = DatasetSlice(dataset=loaded_dataset, ids=["HumanEval/999"])
         with pytest.raises(ValueError, match="not found"):
             sl.resolve_tasks()
+
+    def test_limit_must_be_positive(self, loaded_dataset: HumanEvalDataset) -> None:
+        with pytest.raises(ValueError, match="limit must be >= 1"):
+            DatasetSlice(dataset=loaded_dataset, limit=0)
+
+    def test_seed_requires_shuffle(self, loaded_dataset: HumanEvalDataset) -> None:
+        with pytest.raises(ValueError, match="seed requires shuffle=True"):
+            DatasetSlice(dataset=loaded_dataset, seed=7)
 
     def test_get_source_code_with_field(self, loaded_dataset: HumanEvalDataset) -> None:
         sl = DatasetSlice(
