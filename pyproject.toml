@@ -12,6 +12,7 @@ dependencies = [
     "datasets>=3.0.0",
     "fastapi>=0.135.3",
     "uvicorn[standard]>=0.44.0",
+    "typer>=0.24.1",
 ]
 
 [project.optional-dependencies]

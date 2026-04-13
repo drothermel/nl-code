@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, ClassVar
 
 from pydantic import BaseModel
 
@@ -8,6 +8,9 @@ from nl_code.datasets.task import CodeDataset, Task
 
 
 class MbppProDataset(Dataset):
+    dataset_key: ClassVar[str] = "mbpp-pro"
+    raw_model_type: ClassVar[type[BaseModel]] = RawMbppProTask
+    source_revision: ClassVar[str] = "50f18448e09a8383226e1a5cd3654d2a454fe333"
     dataset_id: CodeDataset = CodeDataset.MBPP_PRO
     split: str = "train"
 
