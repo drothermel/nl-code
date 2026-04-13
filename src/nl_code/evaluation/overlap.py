@@ -23,6 +23,8 @@ def lexical_overlap(text_a: str, text_b: str, *, min_length: int = 2) -> Overlap
 
     Works for code<->description and description<->description comparisons.
     """
+    if not isinstance(min_length, int) or min_length < 1:
+        raise ValueError("min_length must be a positive integer")
     set_a = frozenset(token_set(text_a, min_length=min_length))
     set_b = frozenset(token_set(text_b, min_length=min_length))
     shared = set_a & set_b

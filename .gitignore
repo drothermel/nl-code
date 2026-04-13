@@ -10,8 +10,14 @@ build/
 # Testing
 .pytest_cache/
 
+# Linting
+.ruff_cache/
+
 # Type checking
 .ty_cache/
+
+# Notebooks
+.ipynb_checkpoints/
 
 # Editors
 *.swp

@@ -10,6 +10,7 @@ class ExecutionResult(BaseModel):
     return_value: Any | None = None
     return_type: str | None = None
     stdout: str = ""
+    stdout_truncated: bool = False
     error: str | None = None
 
 

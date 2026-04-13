@@ -1,4 +1,5 @@
 import pytest
+from pydantic import ValidationError
 
 from nl_code.evaluation.overlap import lexical_overlap
 
@@ -47,5 +48,5 @@ class TestLexicalOverlap:
 
     def test_result_is_frozen(self) -> None:
         result = lexical_overlap("hello world", "hello")
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             result.jaccard = 0.5  # type: ignore[misc]

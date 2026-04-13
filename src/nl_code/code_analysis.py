@@ -135,7 +135,16 @@ def _is_camel_case(name: str) -> bool:
 def _get_nesting_depth(
     node: ast.AST, current_depth: int = 0, *, is_elif: bool = False
 ) -> int:
-    nesting_nodes = (ast.If, ast.For, ast.While, ast.With, ast.Try, ast.Match)
+    nesting_nodes = (
+        ast.If,
+        ast.For,
+        ast.AsyncFor,
+        ast.While,
+        ast.With,
+        ast.AsyncWith,
+        ast.Try,
+        ast.Match,
+    )
 
     if isinstance(node, nesting_nodes) and not is_elif:
         current_depth += 1
@@ -187,18 +196,12 @@ def check_python_syntax(code: str) -> tuple[bool, str | None]:
 
 
 def check_function_exists(code: str, function_name: str) -> bool:
-    """Check whether a function with the given name exists in the code."""
+    """Check whether a top-level function with the given name exists in the code."""
     try:
         tree = ast.parse(code)
     except SyntaxError:
         return False
-    for node in ast.walk(tree):
-        if (
-            isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-            and node.name == function_name
-        ):
-            return True
-    return False
+    return _find_function_node(tree, function_name) is not None
 
 
 # ---------------------------------------------------------------------------
@@ -380,7 +383,7 @@ def count_control_structures(
                 current = current.orelse[0]
 
     for child in local_nodes:
-        if isinstance(child, ast.For):
+        if isinstance(child, (ast.For, ast.AsyncFor)):
             counts.for_loops += 1
         elif isinstance(child, ast.While):
             counts.while_loops += 1
@@ -393,7 +396,7 @@ def count_control_structures(
             counts.match_statements += 1
         elif isinstance(child, ast.Try):
             counts.try_blocks += 1
-        elif isinstance(child, ast.With):
+        elif isinstance(child, (ast.With, ast.AsyncWith)):
             counts.with_statements += 1
         elif isinstance(child, ast.ListComp):
             counts.list_comprehensions += 1
@@ -445,17 +448,32 @@ def analyze_code_style(code: str, function_name: str) -> CodeStyleMetrics | None
 
     metrics.max_nesting_depth = _get_nesting_depth(func_node)
 
-    for child in _iter_local_body_nodes(func_node):
-        if isinstance(child, ast.Constant) and isinstance(child.value, int | float):
-            if child.value not in (0, 1, -1, 0.0, 1.0, -1.0):
-                metrics.num_magic_numbers += 1
-        elif isinstance(child, ast.UnaryOp) and isinstance(child.op, ast.USub):
+    # Build parent map to avoid double-counting negated literals.
+    # Without this, `-42` would count both the UnaryOp and the inner Constant.
+    negated_operand_ids: set[int] = set()
+    local_nodes = _iter_local_body_nodes(func_node)
+    for child in local_nodes:
+        if isinstance(child, ast.UnaryOp) and isinstance(child.op, ast.USub):
+            negated_operand_ids.add(id(child.operand))
+
+    for child in local_nodes:
+        if isinstance(child, ast.UnaryOp) and isinstance(child.op, ast.USub):
             if isinstance(child.operand, ast.Constant) and isinstance(
                 child.operand.value, int | float
             ):
                 signed_value = -child.operand.value
                 if signed_value not in (0, 1, -1, 0.0, 1.0, -1.0):
                     metrics.num_magic_numbers += 1
+        elif isinstance(child, ast.Constant) and isinstance(child.value, int | float):
+            if id(child) not in negated_operand_ids and child.value not in (
+                0,
+                1,
+                -1,
+                0.0,
+                1.0,
+                -1.0,
+            ):
+                metrics.num_magic_numbers += 1
 
     return metrics
 

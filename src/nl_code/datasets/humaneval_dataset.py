@@ -40,17 +40,18 @@ class HumanEvalDataset(BaseModel):
         raw_samples: dict[str, RawHumanEvalTask] = {}
         flawed_raw_samples: dict[str, FlawedSample] = {}
         for index, row in enumerate(rows, start=1):
-            task_id = str(row["task_id"])
             try:
+                task_id = str(row["task_id"])
                 raw_samples[task_id] = RawHumanEvalTask.model_validate(row)
-            except ValidationError as exc:
-                flawed_raw_samples[task_id] = FlawedSample(
+            except (ValidationError, KeyError, TypeError) as exc:
+                fallback_id = str(row.get("task_id", f"row-{index}"))
+                flawed_raw_samples[fallback_id] = FlawedSample(
                     error=str(exc),
                     raw_input=dict(row),
                 )
                 logger.warning(
                     "Skipping flawed HumanEval task %s: %s",
-                    task_id,
+                    fallback_id,
                     exc,
                 )
 

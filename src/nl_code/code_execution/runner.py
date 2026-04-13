@@ -98,14 +98,22 @@ def run_function_batch(
             for iv in input_values
         ]
 
+    raw_results = response.get("results", [])
+    if len(raw_results) != len(input_values):
+        raise ExecutionError(
+            stage="result_count_mismatch",
+            detail=f"expected {len(input_values)} results, got {len(raw_results)}",
+        )
+
     results: list[ExecutionResult] = []
-    for iv, raw in zip(input_values, response.get("results", [])):
+    for iv, raw in zip(input_values, raw_results):
         results.append(
             ExecutionResult(
                 input_value=iv,
                 return_value=raw.get("return_value"),
                 return_type=raw.get("return_type"),
                 stdout=raw.get("stdout", ""),
+                stdout_truncated=raw.get("stdout_truncated", False),
                 error=raw.get("error"),
             )
         )

@@ -23,4 +23,13 @@ class DatasetSlice(BaseModel):
         if self.raw_source_field is None:
             return self.dataset.tasks[task_id].gt_solution
         raw = self.dataset.raw_samples[task_id]
-        return getattr(raw, self.raw_source_field)
+        if not hasattr(raw, self.raw_source_field):
+            raise AttributeError(
+                f"Task {task_id!r}: raw sample has no field {self.raw_source_field!r}"
+            )
+        value = getattr(raw, self.raw_source_field)
+        if not isinstance(value, str):
+            raise TypeError(
+                f"Task {task_id!r}: field {self.raw_source_field!r} is {type(value).__name__}, expected str"
+            )
+        return value

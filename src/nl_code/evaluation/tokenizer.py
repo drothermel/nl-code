@@ -10,11 +10,13 @@ def tokenize(text: str, *, min_length: int = 2) -> list[str]:
     Also splits camelCase and PascalCase identifiers. Filters tokens
     shorter than min_length.
     """
+    if not isinstance(min_length, int) or min_length < 1:
+        raise ValueError("min_length must be a positive integer")
     raw_tokens = _SPLIT_PATTERN.split(text)
     tokens: list[str] = []
     for raw in raw_tokens:
         sub_tokens = _CAMEL_BOUNDARY.split(raw)
-        tokens.extend(t.lower() for t in sub_tokens if len(t) >= min_length)
+        tokens.extend(t.lower() for t in sub_tokens if t and len(t) >= min_length)
     return tokens
 
 

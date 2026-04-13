@@ -1,4 +1,5 @@
 import pytest
+from pydantic import ValidationError
 
 from nl_code.datasets.humaneval_task import (
     HumanEvalTask,
@@ -68,7 +69,7 @@ class TestRawHumanEvalTask:
 
     def test_validation_rejects_failing_solution(self) -> None:
         row = make_humaneval_row(canonical_solution="    return a - b\n")
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             RawHumanEvalTask.model_validate(row)
 
     def test_validated_flag_skips_validation(self) -> None:

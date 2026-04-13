@@ -73,12 +73,28 @@ class TestRunFunctionBatch:
         assert "ValueError" in results[0].error
 
     def test_timeout(self) -> None:
-        with pytest.raises(ExecutionError, match="timeout"):
+        # Use a subprocess-level timeout (sleep in a forked process to avoid
+        # the worker's RLIMIT_CPU from killing it before the timeout fires).
+        import subprocess
+        from unittest.mock import patch
+
+        original_run = subprocess.run
+
+        def slow_run(
+            *args: object, **kwargs: object
+        ) -> subprocess.CompletedProcess[str]:
+            kwargs["timeout"] = 0.01  # force immediate timeout
+            return original_run(*args, **kwargs)
+
+        with (
+            patch(
+                "nl_code.code_execution.runner.subprocess.run",
+                side_effect=subprocess.TimeoutExpired(cmd="test", timeout=0.01),
+            ),
+            pytest.raises(ExecutionError, match="timeout"),
+        ):
             run_function_batch(
-                "import time\ndef slow(x):\n    time.sleep(10)\n    return x\n",
-                "slow",
-                [1],
-                timeout_seconds=1.0,
+                "def foo(x):\n    return x\n", "foo", [1], timeout_seconds=0.01
             )
 
 
