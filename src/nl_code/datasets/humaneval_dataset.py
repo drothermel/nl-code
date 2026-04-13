@@ -8,7 +8,7 @@ from nl_code.datasets.task import CodeDataset, Task
 
 
 class HumanEvalDataset(Dataset):
-    dataset_id: CodeDataset = CodeDataset.HUMAN_EVAL_PLUS
+    dataset_id: CodeDataset = CodeDataset.HUMANEVAL_PLUS
 
     def _parse_row(self, row: dict[str, Any]) -> RawHumanEvalTask:
         return RawHumanEvalTask.model_validate(row)

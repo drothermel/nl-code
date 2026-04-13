@@ -1,5 +1,6 @@
 from pathlib import Path
 from threading import Lock
+from typing import cast
 import sys
 
 import pytest
@@ -14,7 +15,9 @@ from backend.main import app
 from backend.services import datasets as explorer_service
 from conftest import make_humaneval_row, make_mbpp_pro_row, mock_hf_dataset
 from nl_code.datasets.humaneval_dataset import HumanEvalDataset
+from nl_code.datasets.humaneval_task import RawHumanEvalTask
 from nl_code.datasets.mbpp_pro_dataset import MbppProDataset
+from nl_code.datasets.mbpp_pro_task import RawMbppProTask
 
 
 def _metric_stats_by_key(
@@ -123,9 +126,10 @@ def test_get_comparison_summarizes_counts_metrics_and_ratios(
 
     human_metric_stats = _metric_stats_by_key(human_row)
     human_task = explorer_service.DATASET_CACHE["humaneval-plus"].tasks["HumanEval/0"]
-    human_raw = explorer_service.DATASET_CACHE["humaneval-plus"].raw_samples[
-        "HumanEval/0"
-    ]
+    human_raw = cast(
+        RawHumanEvalTask,
+        explorer_service.DATASET_CACHE["humaneval-plus"].raw_samples["HumanEval/0"],
+    )
     assert human_metric_stats["description_length_chars"].median == float(
         len(human_task.description)
     )
@@ -150,7 +154,7 @@ def test_get_comparison_summarizes_counts_metrics_and_ratios(
     ratios = sorted(
         float(len(raw.test_code)) / float(len(task.gt_solution))
         for task_id, task in mbpp_dataset.tasks.items()
-        for raw in [mbpp_dataset.raw_samples[task_id]]
+        for raw in [cast(RawMbppProTask, mbpp_dataset.raw_samples[task_id])]
     )
     expected_ratio_median = (ratios[0] + ratios[1]) / 2
     expected_ratio_p90 = ratios[0] + 0.9 * (ratios[1] - ratios[0])

@@ -78,14 +78,6 @@ class TestRunFunctionBatch:
         import subprocess
         from unittest.mock import patch
 
-        original_run = subprocess.run
-
-        def slow_run(
-            *args: object, **kwargs: object
-        ) -> subprocess.CompletedProcess[str]:
-            kwargs["timeout"] = 0.01  # force immediate timeout
-            return original_run(*args, **kwargs)
-
         with (
             patch(
                 "nl_code.code_execution.runner.subprocess.run",

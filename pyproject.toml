@@ -1,6 +1,6 @@
 [project]
 name = "nl-code"
-version = "0.3.0"
+version = "0.4.0"
 description = "Primitives for research into LLMs and code"
 readme = "README.md"
 authors = [
@@ -43,6 +43,9 @@ dev = [
 
 [tool.ruff]
 include = ["src/**/*.py", "tests/**/*.py"]
+
+[tool.ty.environment]
+extra-paths = ["./ui/dataset-explorer"]
 
 [tool.ty.src]
 include = ["src", "tests"]
