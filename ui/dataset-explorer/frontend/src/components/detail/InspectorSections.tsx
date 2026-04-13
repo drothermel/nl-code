@@ -2,6 +2,13 @@ import type { DerivedFieldSummary, InspectorSection } from "@/types/datasetExplo
 import PythonCodeBlock from "@/components/code/PythonCodeBlock";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
+// Add new derived fields here when they should render with code syntax highlighting.
+export const CODE_DERIVED_FIELD_NAMES = new Set(["Task.gt_solution"]);
+
+export function isCodeDerivedField(name: string) {
+  return CODE_DERIVED_FIELD_NAMES.has(name);
+}
+
 function renderValue(sectionKey: string, kind: string, value: unknown) {
   if (value === null || value === undefined) {
     return <p className="text-sm text-muted-foreground">None</p>;
@@ -57,7 +64,7 @@ export function DerivedFieldsCard({
             <div className="text-sm font-medium">{field.name}</div>
             <div className="mt-1 text-xs text-muted-foreground">{field.source}</div>
             <div className="mt-3">
-              {field.name === "Task.gt_solution" ? (
+              {isCodeDerivedField(field.name) ? (
                 <PythonCodeBlock code={field.value} className="p-0" />
               ) : (
                 <pre className="overflow-x-auto rounded-md border border-slate-200 bg-white p-3 text-xs leading-6 text-slate-900">

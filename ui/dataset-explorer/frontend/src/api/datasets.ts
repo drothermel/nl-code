@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "./client";
 import type {
+  DatasetCompareResponse,
   DatasetOption,
   DatasetOverviewResponse,
   RawDetailResponse,
@@ -23,12 +24,28 @@ export interface TaskListParams {
   per_page?: number;
 }
 
+function safeDecodePathSegment(segment: string) {
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return segment;
+  }
+}
+
+export function encodeDatasetKey(datasetKey: string) {
+  return encodeURIComponent(datasetKey);
+}
+
+export function decodeDatasetKey(datasetKey: string) {
+  return safeDecodePathSegment(datasetKey);
+}
+
 export function encodeTaskPath(taskId: string) {
   return taskId.split("/").map(encodeURIComponent).join("/");
 }
 
 export function decodeTaskPath(taskPath: string) {
-  return taskPath.split("/").map(decodeURIComponent).join("/");
+  return taskPath.split("/").map(safeDecodePathSegment).join("/");
 }
 
 export function useDatasets() {
@@ -42,8 +59,17 @@ export function useOverview(datasetKey: string) {
   return useQuery({
     queryKey: ["dataset-overview", datasetKey],
     queryFn: () =>
-      apiFetch<DatasetOverviewResponse>(`/api/datasets/${datasetKey}/overview`),
+      apiFetch<DatasetOverviewResponse>(
+        `/api/datasets/${encodeDatasetKey(datasetKey)}/overview`
+      ),
     enabled: !!datasetKey,
+  });
+}
+
+export function useDatasetComparison() {
+  return useQuery({
+    queryKey: ["dataset-comparison"],
+    queryFn: () => apiFetch<DatasetCompareResponse>("/api/datasets/compare"),
   });
 }
 
@@ -52,7 +78,7 @@ export function useTasks(datasetKey: string, params: TaskListParams) {
     queryKey: ["dataset-tasks", datasetKey, params],
     queryFn: () =>
       apiFetch<TaskListResponse>(
-        `/api/datasets/${datasetKey}/tasks`,
+        `/api/datasets/${encodeDatasetKey(datasetKey)}/tasks`,
         params as Record<string, string | number | boolean | undefined>
       ),
     enabled: !!datasetKey,
@@ -64,7 +90,7 @@ export function useTaskDetail(datasetKey: string, taskId: string) {
     queryKey: ["dataset-task-detail", datasetKey, taskId],
     queryFn: () =>
       apiFetch<TaskDetailResponse>(
-        `/api/datasets/${datasetKey}/tasks/${encodeTaskPath(taskId)}`
+        `/api/datasets/${encodeDatasetKey(datasetKey)}/tasks/${encodeTaskPath(taskId)}`
       ),
     enabled: !!datasetKey && !!taskId,
   });
@@ -75,7 +101,7 @@ export function useRawDetail(datasetKey: string, taskId: string) {
     queryKey: ["dataset-raw-detail", datasetKey, taskId],
     queryFn: () =>
       apiFetch<RawDetailResponse>(
-        `/api/datasets/${datasetKey}/raw/${encodeTaskPath(taskId)}`
+        `/api/datasets/${encodeDatasetKey(datasetKey)}/raw/${encodeTaskPath(taskId)}`
       ),
     enabled: !!datasetKey && !!taskId,
   });

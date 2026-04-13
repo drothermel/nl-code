@@ -1,5 +1,11 @@
 import { Link, useParams } from "react-router-dom";
-import { decodeTaskPath, encodeTaskPath, useTaskDetail } from "@/api/datasets";
+import {
+  decodeTaskPath,
+  encodeDatasetKey,
+  encodeTaskPath,
+  useTaskDetail,
+} from "@/api/datasets";
+import { isCodeDerivedField } from "@/components/detail/InspectorSections";
 import PythonCodeBlock from "@/components/code/PythonCodeBlock";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -19,8 +25,7 @@ export default function TaskDetailPage() {
       </div>
     );
   }
-
-  const isCodeDerivedField = (fieldName: string) => fieldName === "Task.gt_solution";
+  const encodedDatasetKey = encodeDatasetKey(datasetKey);
 
   return (
     <div className="space-y-6 p-8">
@@ -36,7 +41,7 @@ export default function TaskDetailPage() {
           {data.prev_task_id && (
             <Link
               className="text-primary hover:underline"
-              to={`/datasets/${datasetKey}/tasks/${encodeTaskPath(data.prev_task_id)}`}
+              to={`/datasets/${encodedDatasetKey}/tasks/${encodeTaskPath(data.prev_task_id)}`}
             >
               ← Previous
             </Link>
@@ -44,14 +49,14 @@ export default function TaskDetailPage() {
           {data.next_task_id && (
             <Link
               className="text-primary hover:underline"
-              to={`/datasets/${datasetKey}/tasks/${encodeTaskPath(data.next_task_id)}`}
+              to={`/datasets/${encodedDatasetKey}/tasks/${encodeTaskPath(data.next_task_id)}`}
             >
               Next →
             </Link>
           )}
           <Link
             className="text-primary hover:underline"
-            to={`/datasets/${datasetKey}/raw/${encodeTaskPath(data.task_id)}`}
+            to={`/datasets/${encodedDatasetKey}/raw/${encodeTaskPath(data.task_id)}`}
           >
             Open raw inspector
           </Link>

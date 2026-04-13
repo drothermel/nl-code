@@ -1,5 +1,6 @@
 import re
 from collections import Counter
+from statistics import median
 from threading import Lock
 from typing import Any
 
@@ -8,20 +9,29 @@ from pydantic import BaseModel, ConfigDict
 
 from backend.models.dataset_explorer import (
     ClassEvalRawDetail,
+    CrossDatasetSeries,
+    CrossDatasetSeriesValues,
+    DatasetCompareResponse,
+    DatasetCompareRow,
     DatasetOption,
     DatasetOverviewResponse,
+    DatasetLandscapePoint,
+    DatasetRefreshResponse,
     DerivedFieldSummary,
     FlawedErrorGroup,
     FlawedRawDetail,
     InspectorField,
     InspectorSection,
+    MetricSummary,
     MetricDistribution,
     MetricScatter,
     NumericMetric,
     OverviewCounts,
     ProRawDetail,
     RawDetailResponse,
+    RatioSummary,
     ScatterPoint,
+    SummaryStats,
     TaskDetailResponse,
     TaskListResponse,
     TaskRow,
@@ -59,7 +69,7 @@ DATASET_REGISTRY: dict[str, DatasetRegistryEntry] = {
         label="HumanEval+",
         family="humaneval",
         dataset_type=HumanEvalDataset,
-        split=HumanEvalDataset().split,
+        split="test",
     ),
     "human-eval-pro": DatasetRegistryEntry(
         key="human-eval-pro",
@@ -67,7 +77,7 @@ DATASET_REGISTRY: dict[str, DatasetRegistryEntry] = {
         label="HumanEval Pro",
         family="pro",
         dataset_type=HumanEvalProDataset,
-        split=HumanEvalProDataset().split,
+        split="train",
     ),
     "mbpp-pro": DatasetRegistryEntry(
         key="mbpp-pro",
@@ -75,7 +85,7 @@ DATASET_REGISTRY: dict[str, DatasetRegistryEntry] = {
         label="MBPP Pro",
         family="pro",
         dataset_type=MbppProDataset,
-        split=MbppProDataset().split,
+        split="train",
     ),
     "bigcodebench-lite-pro": DatasetRegistryEntry(
         key="bigcodebench-lite-pro",
@@ -83,7 +93,7 @@ DATASET_REGISTRY: dict[str, DatasetRegistryEntry] = {
         label="BigCodeBench Lite Pro",
         family="pro",
         dataset_type=BigCodeBenchLiteProDataset,
-        split=BigCodeBenchLiteProDataset().split,
+        split="train",
     ),
     "class-eval": DatasetRegistryEntry(
         key="class-eval",
@@ -91,7 +101,7 @@ DATASET_REGISTRY: dict[str, DatasetRegistryEntry] = {
         label="ClassEval",
         family="classeval",
         dataset_type=ClassEvalDataset,
-        split=ClassEvalDataset().split,
+        split="test",
     ),
 }
 
@@ -108,6 +118,27 @@ METRIC_LABELS: dict[str, str] = {
     "raw_source_length_chars": "Raw Source Length (chars)",
     "test_length_chars": "Test Length (chars)",
 }
+
+RATIO_DEFINITIONS: tuple[tuple[str, str, str, str], ...] = (
+    (
+        "description_to_prompt_ratio",
+        "Description / Prompt",
+        "description_length_chars",
+        "prompt_length_chars",
+    ),
+    (
+        "derived_code_to_raw_source_ratio",
+        "Derived Code / Raw Source",
+        "derived_code_length_chars",
+        "raw_source_length_chars",
+    ),
+    (
+        "test_to_derived_code_ratio",
+        "Test / Derived Code",
+        "test_length_chars",
+        "derived_code_length_chars",
+    ),
+)
 
 
 def list_dataset_options() -> list[DatasetOption]:
@@ -141,6 +172,149 @@ def get_overview(dataset_key: str) -> DatasetOverviewResponse:
         distributions=distributions,
         scatter_plots=_build_scatter_plots(dataset, entry),
         flawed_error_groups=_build_error_groups(dataset),
+    )
+
+
+def refresh_dataset(dataset_key: str) -> DatasetRefreshResponse:
+    entry = _get_entry(dataset_key)
+
+    with DATASET_LOAD_LOCKS[entry.key]:
+        DATASET_CACHE.pop(entry.key, None)
+        dataset = entry.dataset_type().load()
+        DATASET_CACHE[entry.key] = dataset
+
+    return DatasetRefreshResponse(dataset=_dataset_option(entry), reloaded=True)
+
+
+def get_comparison() -> DatasetCompareResponse:
+    dataset_rows: list[DatasetCompareRow] = []
+    metric_series_values: dict[str, list[CrossDatasetSeriesValues]] = {
+        key: [] for key in METRIC_LABELS
+    }
+    ratio_series_values: dict[str, list[CrossDatasetSeriesValues]] = {
+        key: [] for key, _, _, _ in RATIO_DEFINITIONS
+    }
+    landscape_points: list[DatasetLandscapePoint] = []
+
+    for entry in DATASET_REGISTRY.values():
+        dataset = _get_dataset(entry)
+        metric_values: dict[str, list[float]] = {key: [] for key in METRIC_LABELS}
+        ratio_values: dict[str, list[float]] = {
+            key: [] for key, _, _, _ in RATIO_DEFINITIONS
+        }
+
+        for task_id, task in dataset.tasks.items():
+            raw = dataset.raw_samples[task_id]
+            metrics = _extract_metrics(entry.family, raw, task)
+
+            for key, value in metrics.items():
+                if value is not None:
+                    metric_values[key].append(float(value))
+
+            for ratio_key, _, numerator_key, denominator_key in RATIO_DEFINITIONS:
+                numerator = metrics[numerator_key]
+                denominator = metrics[denominator_key]
+                if numerator is None or denominator in (None, 0):
+                    continue
+                ratio_values[ratio_key].append(float(numerator) / float(denominator))
+
+        counts = OverviewCounts(
+            raw_sample_count=len(dataset.raw_samples),
+            task_count=len(dataset.tasks),
+            flawed_count=len(dataset.flawed_raw_samples),
+        )
+        flawed_rate = (
+            counts.flawed_count / counts.raw_sample_count
+            if counts.raw_sample_count
+            else 0.0
+        )
+
+        metrics = [
+            MetricSummary(
+                key=key,
+                label=METRIC_LABELS[key],
+                stats=_build_summary_stats(metric_values[key]),
+            )
+            for key in METRIC_LABELS
+            if metric_values[key]
+        ]
+        ratios = [
+            RatioSummary(
+                key=ratio_key,
+                label=label,
+                numerator_key=numerator_key,
+                denominator_key=denominator_key,
+                stats=_build_summary_stats(ratio_values[ratio_key]),
+            )
+            for ratio_key, label, numerator_key, denominator_key in RATIO_DEFINITIONS
+            if ratio_values[ratio_key]
+        ]
+
+        dataset_rows.append(
+            DatasetCompareRow(
+                dataset=_dataset_option(entry),
+                counts=counts,
+                flawed_rate=flawed_rate,
+                metrics=metrics,
+                ratios=ratios,
+            )
+        )
+
+        for key, values in metric_values.items():
+            if values:
+                metric_series_values[key].append(
+                    CrossDatasetSeriesValues(
+                        dataset_key=entry.key,
+                        dataset_label=entry.label,
+                        values=values,
+                    )
+                )
+
+        for ratio_key, values in ratio_values.items():
+            if values:
+                ratio_series_values[ratio_key].append(
+                    CrossDatasetSeriesValues(
+                        dataset_key=entry.key,
+                        dataset_label=entry.label,
+                        values=values,
+                    )
+                )
+
+        prompt_stats = _stats_by_key(metrics).get("prompt_length_chars")
+        derived_stats = _stats_by_key(metrics).get("derived_code_length_chars")
+        if prompt_stats is not None and derived_stats is not None:
+            landscape_points.append(
+                DatasetLandscapePoint(
+                    dataset_key=entry.key,
+                    dataset_label=entry.label,
+                    family=entry.family,
+                    task_count=counts.task_count,
+                    median_prompt_length_chars=prompt_stats.median,
+                    median_derived_code_length_chars=derived_stats.median,
+                )
+            )
+
+    return DatasetCompareResponse(
+        datasets=dataset_rows,
+        metric_series=[
+            CrossDatasetSeries(
+                key=key,
+                label=METRIC_LABELS[key],
+                datasets=metric_series_values[key],
+            )
+            for key in METRIC_LABELS
+            if metric_series_values[key]
+        ],
+        ratio_series=[
+            CrossDatasetSeries(
+                key=ratio_key,
+                label=label,
+                datasets=ratio_series_values[ratio_key],
+            )
+            for ratio_key, label, _, _ in RATIO_DEFINITIONS
+            if ratio_series_values[ratio_key]
+        ],
+        landscape_points=landscape_points,
     )
 
 
@@ -282,19 +456,22 @@ def get_raw_detail(dataset_key: str, task_id: str) -> RawDetailResponse:
             next_task_id=next_task_id,
         )
 
-    assert isinstance(raw, RawClassEvalTask)
-    return ClassEvalRawDetail(
-        detail_kind="classeval_raw_detail",
-        dataset=_dataset_option(entry),
-        task_id=task_id,
-        title=f"{entry.label} raw sample",
-        validated=raw.validated,
-        sections=_classeval_sections(raw),
-        derived_fields=_build_derived_fields(entry.family, raw, task),
-        raw_json=raw.model_dump(mode="json"),
-        prev_task_id=prev_task_id,
-        next_task_id=next_task_id,
-    )
+    if entry.family == "classeval":
+        assert isinstance(raw, RawClassEvalTask)
+        return ClassEvalRawDetail(
+            detail_kind="classeval_raw_detail",
+            dataset=_dataset_option(entry),
+            task_id=task_id,
+            title=f"{entry.label} raw sample",
+            validated=raw.validated,
+            sections=_classeval_sections(raw),
+            derived_fields=_build_derived_fields(entry.family, raw, task),
+            raw_json=raw.model_dump(mode="json"),
+            prev_task_id=prev_task_id,
+            next_task_id=next_task_id,
+        )
+
+    raise ValueError(f"Unsupported dataset family: {entry.family}")
 
 
 def _build_task_rows(dataset: Dataset, entry: DatasetRegistryEntry) -> list[TaskRow]:
@@ -648,3 +825,34 @@ def _line_count(value: str) -> int:
 def _natural_sort_key(value: str) -> list[Any]:
     parts = re.split(r"(\d+)", value)
     return [int(part) if part.isdigit() else part.lower() for part in parts if part]
+
+
+def _build_summary_stats(values: list[float]) -> SummaryStats:
+    ordered = sorted(values)
+    return SummaryStats(
+        count=len(ordered),
+        min=ordered[0],
+        median=float(median(ordered)),
+        p90=_percentile(ordered, 0.9),
+        max=ordered[-1],
+    )
+
+
+def _percentile(sorted_values: list[float], fraction: float) -> float:
+    if len(sorted_values) == 1:
+        return sorted_values[0]
+
+    position = (len(sorted_values) - 1) * fraction
+    lower_index = int(position)
+    upper_index = min(lower_index + 1, len(sorted_values) - 1)
+    weight = position - lower_index
+
+    lower_value = sorted_values[lower_index]
+    upper_value = sorted_values[upper_index]
+    return lower_value + (upper_value - lower_value) * weight
+
+
+def _stats_by_key(
+    metrics: list[MetricSummary],
+) -> dict[str, SummaryStats]:
+    return {metric.key: metric.stats for metric in metrics}

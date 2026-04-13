@@ -4,7 +4,7 @@ import { useParams } from "react-router-dom";
 import { useOverview } from "@/api/datasets";
 import Plot from "@/components/charts/Plot";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { ScatterPoint } from "@/types/datasetExplorer";
+import type { MetricScatter, ScatterPoint } from "@/types/datasetExplorer";
 
 function StatCard({
   icon,
@@ -50,6 +50,57 @@ function getScatterAxisRange(points: ScatterPoint[]) {
     min: min - padding,
     max: max + padding,
   };
+}
+
+function ScatterPlotCard({ plot }: { plot: MetricScatter }) {
+  const axisRange = getScatterAxisRange(plot.points);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">{plot.label}</CardTitle>
+      </CardHeader>
+      <CardContent className="pt-2">
+        <Plot
+          data={[
+            {
+              type: "scatter",
+              mode: "markers",
+              x: plot.points.map((point) => point.x),
+              y: plot.points.map((point) => point.y),
+              text: plot.points.map((point) => point.task_id),
+              hovertemplate: "%{text}<br>x=%{x}<br>y=%{y}<extra></extra>",
+              marker: { color: "#2563eb", size: 8, opacity: 0.75 },
+            },
+          ]}
+          layout={{
+            height: 320,
+            shapes: [
+              {
+                type: "line",
+                x0: axisRange.min,
+                y0: axisRange.min,
+                x1: axisRange.max,
+                y1: axisRange.max,
+                line: { color: "#dc2626", width: 1.5, dash: "dash" },
+              },
+            ],
+            xaxis: {
+              title: { text: plot.x_label },
+              range: [axisRange.min, axisRange.max],
+            },
+            yaxis: {
+              title: { text: plot.y_label },
+              range: [axisRange.min, axisRange.max],
+              scaleanchor: "x",
+              scaleratio: 1,
+            },
+          }}
+          style={{ height: "320px" }}
+        />
+      </CardContent>
+    </Card>
+  );
 }
 
 export default function OverviewPage() {
@@ -112,56 +163,7 @@ export default function OverviewPage() {
         ))}
 
         {data.scatter_plots.map((plot) => (
-          (() => {
-            const axisRange = getScatterAxisRange(plot.points);
-
-            return (
-              <Card key={plot.key}>
-                <CardHeader>
-                  <CardTitle className="text-base">{plot.label}</CardTitle>
-                </CardHeader>
-                <CardContent className="pt-2">
-                  <Plot
-                    data={[
-                      {
-                        type: "scatter",
-                        mode: "markers",
-                        x: plot.points.map((point) => point.x),
-                        y: plot.points.map((point) => point.y),
-                        text: plot.points.map((point) => point.task_id),
-                        hovertemplate: "%{text}<br>x=%{x}<br>y=%{y}<extra></extra>",
-                        marker: { color: "#2563eb", size: 8, opacity: 0.75 },
-                      },
-                    ]}
-                    layout={{
-                      height: 320,
-                      shapes: [
-                        {
-                          type: "line",
-                          x0: axisRange.min,
-                          y0: axisRange.min,
-                          x1: axisRange.max,
-                          y1: axisRange.max,
-                          line: { color: "#dc2626", width: 1.5, dash: "dash" },
-                        },
-                      ],
-                      xaxis: {
-                        title: { text: plot.x_label },
-                        range: [axisRange.min, axisRange.max],
-                      },
-                      yaxis: {
-                        title: { text: plot.y_label },
-                        range: [axisRange.min, axisRange.max],
-                        scaleanchor: "x",
-                        scaleratio: 1,
-                      },
-                    }}
-                    style={{ height: "320px" }}
-                  />
-                </CardContent>
-              </Card>
-            );
-          })()
+          <ScatterPlotCard key={plot.key} plot={plot} />
         ))}
       </div>
 

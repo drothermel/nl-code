@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { encodeTaskPath, useTasks } from "@/api/datasets";
+import { encodeDatasetKey, encodeTaskPath, useTasks } from "@/api/datasets";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -46,6 +46,7 @@ export default function TaskBrowserPage() {
   }
 
   const maxPage = Math.max(1, Math.ceil(data.total / data.per_page));
+  const encodedDatasetKey = encodeDatasetKey(datasetKey);
 
   return (
     <div className="space-y-6 p-8">
@@ -148,8 +149,8 @@ export default function TaskBrowserPage() {
             <tbody>
               {data.rows.map((row) => {
                 const target = row.has_derived_task
-                  ? `/datasets/${datasetKey}/tasks/${encodeTaskPath(row.task_id)}`
-                  : `/datasets/${datasetKey}/raw/${encodeTaskPath(row.task_id)}`;
+                  ? `/datasets/${encodedDatasetKey}/tasks/${encodeTaskPath(row.task_id)}`
+                  : `/datasets/${encodedDatasetKey}/raw/${encodeTaskPath(row.task_id)}`;
                 return (
                   <tr key={row.task_id} className="border-b align-top">
                     <td className="px-3 py-3 font-mono text-xs">

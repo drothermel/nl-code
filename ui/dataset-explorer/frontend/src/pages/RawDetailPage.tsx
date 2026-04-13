@@ -1,6 +1,11 @@
 import { AlertTriangle } from "lucide-react";
 import { Link, useParams } from "react-router-dom";
-import { decodeTaskPath, encodeTaskPath, useRawDetail } from "@/api/datasets";
+import {
+  decodeTaskPath,
+  encodeDatasetKey,
+  encodeTaskPath,
+  useRawDetail,
+} from "@/api/datasets";
 import {
   DerivedFieldsCard,
   InspectorSections,
@@ -25,6 +30,7 @@ export default function RawDetailPage() {
   }
 
   const hasDerivedFields = "derived_fields" in data;
+  const encodedDatasetKey = encodeDatasetKey(datasetKey);
 
   return (
     <div className="space-y-6 p-8">
@@ -40,7 +46,7 @@ export default function RawDetailPage() {
           {data.prev_task_id && (
             <Link
               className="text-primary hover:underline"
-              to={`/datasets/${datasetKey}/raw/${encodeTaskPath(data.prev_task_id)}`}
+              to={`/datasets/${encodedDatasetKey}/raw/${encodeTaskPath(data.prev_task_id)}`}
             >
               ← Previous
             </Link>
@@ -48,7 +54,7 @@ export default function RawDetailPage() {
           {data.next_task_id && (
             <Link
               className="text-primary hover:underline"
-              to={`/datasets/${datasetKey}/raw/${encodeTaskPath(data.next_task_id)}`}
+              to={`/datasets/${encodedDatasetKey}/raw/${encodeTaskPath(data.next_task_id)}`}
             >
               Next →
             </Link>
@@ -56,7 +62,7 @@ export default function RawDetailPage() {
           {hasDerivedFields && (
             <Link
               className="text-primary hover:underline"
-              to={`/datasets/${datasetKey}/tasks/${encodeTaskPath(data.task_id)}`}
+              to={`/datasets/${encodedDatasetKey}/tasks/${encodeTaskPath(data.task_id)}`}
             >
               Open derived task
             </Link>
