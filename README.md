@@ -66,3 +66,20 @@ Some dataset validation tasks import `matplotlib`. Suppress GUI windows with:
 ```bash
 MPLBACKEND=Agg uv run python ...
 ```
+
+## Rebuild Note
+
+After rebuilding the execution image from `docker/scientific.Dockerfile`, the
+real Docker-backed cache rebuild for HumanEval+ completes with:
+
+```bash
+uv run python -m nl_code.datasets.cache_cli rebuild humaneval-plus
+# humaneval-plus: cached 163 tasks (163 raw, 1 flawed)
+```
+
+The remaining flawed sample is currently `HumanEval/32`, which fails as a
+dataset-level test issue rather than a Docker/runtime issue:
+
+```text
+dataset_failure: TypeError: Value after * must be an iterable, not float
+```

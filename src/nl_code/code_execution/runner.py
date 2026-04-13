@@ -340,7 +340,7 @@ def _build_docker_runtime_request(
 
     return DockerRuntimeRequest(
         image=image,
-        command=["-I", "-S", _WORKER_CONTAINER_PATH],
+        command=["-I", _WORKER_CONTAINER_PATH],
         entrypoint="python3",
         env=env,
         timeout_seconds=max(1, math.ceil(timeout_seconds)),
