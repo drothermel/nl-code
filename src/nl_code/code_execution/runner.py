@@ -277,6 +277,7 @@ def _build_docker_runtime_request(
     stdin_payload: bytes,
     timeout_seconds: float,
     runtime: _WorkerRuntimeConfig,
+    docker_env: dict[str, str] | None = None,
 ) -> Any:
     (
         _Adapter,
@@ -306,38 +307,42 @@ def _build_docker_runtime_request(
             detail=f"invalid Docker memory limit {runtime.memory!r}: {exc}",
         ) from exc
 
+    env = {
+        "NL_CODE_EVAL_IN_DOCKER": "1",
+        "NL_CODE_EVAL_MAX_STDIN_BYTES": str(
+            _parse_int_env("NL_CODE_EVAL_MAX_STDIN_BYTES", _DEFAULT_STREAM_LIMIT)
+        ),
+        "NL_CODE_EVAL_MAX_STDOUT_BYTES": str(
+            _parse_int_env("NL_CODE_EVAL_MAX_STDOUT_BYTES", _DEFAULT_STREAM_LIMIT)
+        ),
+        "NL_CODE_EVAL_CPU_SECONDS": str(
+            _parse_int_env(
+                "NL_CODE_EVAL_CPU_SECONDS",
+                max(1, math.ceil(timeout_seconds)),
+            )
+        ),
+        "NL_CODE_EVAL_MEMORY_BYTES": str(
+            _parse_int_env(
+                "NL_CODE_EVAL_MEMORY_BYTES",
+                memory_bytes,
+            )
+        ),
+        "NL_CODE_EVAL_FILE_BYTES": str(
+            _parse_int_env("NL_CODE_EVAL_FILE_BYTES", runtime.fsize_bytes)
+        ),
+        "NL_CODE_EVAL_NPROC": str(
+            _parse_int_env("NL_CODE_EVAL_NPROC", runtime.pids_limit)
+        ),
+        "NL_CODE_EVAL_SKIP_LIMITS": os.getenv("NL_CODE_EVAL_SKIP_LIMITS", "false"),
+    }
+    if docker_env:
+        env.update(docker_env)
+
     return DockerRuntimeRequest(
         image=image,
         command=["-I", "-S", _WORKER_CONTAINER_PATH],
         entrypoint="python3",
-        env={
-            "NL_CODE_EVAL_IN_DOCKER": "1",
-            "NL_CODE_EVAL_MAX_STDIN_BYTES": str(
-                _parse_int_env("NL_CODE_EVAL_MAX_STDIN_BYTES", _DEFAULT_STREAM_LIMIT)
-            ),
-            "NL_CODE_EVAL_MAX_STDOUT_BYTES": str(
-                _parse_int_env("NL_CODE_EVAL_MAX_STDOUT_BYTES", _DEFAULT_STREAM_LIMIT)
-            ),
-            "NL_CODE_EVAL_CPU_SECONDS": str(
-                _parse_int_env(
-                    "NL_CODE_EVAL_CPU_SECONDS",
-                    max(1, math.ceil(timeout_seconds)),
-                )
-            ),
-            "NL_CODE_EVAL_MEMORY_BYTES": str(
-                _parse_int_env(
-                    "NL_CODE_EVAL_MEMORY_BYTES",
-                    memory_bytes,
-                )
-            ),
-            "NL_CODE_EVAL_FILE_BYTES": str(
-                _parse_int_env("NL_CODE_EVAL_FILE_BYTES", runtime.fsize_bytes)
-            ),
-            "NL_CODE_EVAL_NPROC": str(
-                _parse_int_env("NL_CODE_EVAL_NPROC", runtime.pids_limit)
-            ),
-            "NL_CODE_EVAL_SKIP_LIMITS": os.getenv("NL_CODE_EVAL_SKIP_LIMITS", "false"),
-        },
+        env=env,
         timeout_seconds=max(1, math.ceil(timeout_seconds)),
         working_dir=_WORKER_WORKING_DIR,
         stdin_payload=stdin_payload,
@@ -388,6 +393,7 @@ def _run_docker_worker(
     runtime: _WorkerRuntimeConfig,
     *,
     stream_limit: int = _DEFAULT_STREAM_LIMIT,
+    docker_env: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     _ErrorCode = _import_dr_docker()[5]
 
@@ -395,6 +401,7 @@ def _run_docker_worker(
         stdin_payload=req_bytes,
         timeout_seconds=timeout_seconds,
         runtime=runtime,
+        docker_env=docker_env,
     )
     adapter = _make_adapter(stream_limit=stream_limit)
     try:
@@ -439,10 +446,15 @@ def _run_worker(
     runtime: _WorkerRuntimeConfig,
     *,
     stream_limit: int = _DEFAULT_STREAM_LIMIT,
+    docker_env: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     req_bytes = _serialize_request(req)
     return _run_docker_worker(
-        req_bytes, timeout_seconds, runtime, stream_limit=stream_limit
+        req_bytes,
+        timeout_seconds,
+        runtime,
+        stream_limit=stream_limit,
+        docker_env=docker_env,
     )
 
 
@@ -567,6 +579,7 @@ def run_function_batch(
     timeout_seconds: float = 60.0,
     *,
     docker_image: str | None = None,
+    docker_env: dict[str, str] | None = None,
 ) -> list[ExecutionResult]:
     """Execute a function with multiple inputs in an isolated environment."""
     if not input_values:
@@ -579,7 +592,7 @@ def run_function_batch(
         "input_values": input_values,
     }
     runtime = _runtime_config(docker_image=docker_image)
-    proc = _run_worker(req, timeout_seconds, runtime)
+    proc = _run_worker(req, timeout_seconds, runtime, docker_env=docker_env)
     payload = _parse_worker_json(proc)
     return _parse_function_call_results(payload, input_values)
 
@@ -591,6 +604,7 @@ def run_test_cases(
     timeout_seconds: float = 30.0,
     *,
     docker_image: str | None = None,
+    docker_env: dict[str, str] | None = None,
 ) -> tuple[list[TestCaseResult], float]:
     """Run test cases and return (results, pass_rate)."""
     if not test_cases:
@@ -603,6 +617,7 @@ def run_test_cases(
         input_values,
         timeout_seconds,
         docker_image=docker_image,
+        docker_env=docker_env,
     )
 
     tc_results: list[TestCaseResult] = []
@@ -642,6 +657,7 @@ def run_assertion_test(
     timeout_seconds: float = 30.0,
     *,
     docker_image: str | None = None,
+    docker_env: dict[str, str] | None = None,
 ) -> AssertionTestResult:
     """Run code with assertion-based test code (Pro datasets)."""
     req: dict[str, Any] = {
@@ -650,7 +666,7 @@ def run_assertion_test(
         "test_code": test_code,
     }
     runtime = _runtime_config(docker_image=docker_image)
-    proc = _run_worker(req, timeout_seconds, runtime)
+    proc = _run_worker(req, timeout_seconds, runtime, docker_env=docker_env)
     payload = _parse_worker_json(proc)
     return AssertionTestResult(
         passed=payload.get("passed", False),
@@ -668,6 +684,7 @@ def run_unittest_test(
     timeout_seconds: float = 30.0,
     *,
     docker_image: str | None = None,
+    docker_env: dict[str, str] | None = None,
 ) -> UnittestResult:
     """Run code with unittest test classes (ClassEval)."""
     req: dict[str, Any] = {
@@ -677,7 +694,7 @@ def run_unittest_test(
         "test_class_names": test_class_names,
     }
     runtime = _runtime_config(docker_image=docker_image)
-    proc = _run_worker(req, timeout_seconds, runtime)
+    proc = _run_worker(req, timeout_seconds, runtime, docker_env=docker_env)
     payload = _parse_worker_json(proc)
 
     if payload.get("error"):
@@ -714,6 +731,7 @@ def _run_batch_chunk(
     items: list[dict[str, Any]],
     timeout_per_item: float,
     docker_image: str | None,
+    docker_env: dict[str, str] | None = None,
 ) -> list[dict[str, Any]]:
     """Send a chunk of items to a single worker and return raw results."""
     req: dict[str, Any] = {
@@ -732,6 +750,7 @@ def _run_batch_chunk(
         docker_timeout,
         runtime,
         stream_limit=stream_limit,
+        docker_env=docker_env,
     )
     payload = _parse_worker_json(proc)
 
@@ -775,6 +794,7 @@ def batch_run_test_cases(
     *,
     chunk_size: int = 200,
     docker_image: str | None = None,
+    docker_env: dict[str, str] | None = None,
 ) -> list[tuple[list[TestCaseResult], float]]:
     """Run test cases for many code samples, batched into containers."""
     if not items:
@@ -798,6 +818,7 @@ def batch_run_test_cases(
             chunk,
             timeout_per_item,
             docker_image,
+            docker_env,
         )
         # Map chunk offset to original items for test case matching
         offset = chunk_idx * chunk_size
@@ -884,6 +905,7 @@ def batch_run_assertion_tests(
     *,
     chunk_size: int = 200,
     docker_image: str | None = None,
+    docker_env: dict[str, str] | None = None,
 ) -> list[AssertionTestResult]:
     """Run assertion tests for many code samples, batched into containers."""
     if not items:
@@ -896,7 +918,12 @@ def batch_run_assertion_tests(
 
     all_results: list[AssertionTestResult] = []
     for chunk in _chunk_list(worker_items, chunk_size):
-        raw_results = _run_batch_chunk(chunk, timeout_per_item, docker_image)
+        raw_results = _run_batch_chunk(
+            chunk,
+            timeout_per_item,
+            docker_image,
+            docker_env,
+        )
         for raw in raw_results:
             all_results.append(
                 AssertionTestResult(
@@ -917,6 +944,7 @@ def batch_run_unittest_tests(
     *,
     chunk_size: int = 200,
     docker_image: str | None = None,
+    docker_env: dict[str, str] | None = None,
 ) -> list[UnittestResult]:
     """Run unittest tests for many code samples, batched into containers."""
     if not items:
@@ -934,7 +962,12 @@ def batch_run_unittest_tests(
 
     all_results: list[UnittestResult] = []
     for chunk in _chunk_list(worker_items, chunk_size):
-        raw_results = _run_batch_chunk(chunk, timeout_per_item, docker_image)
+        raw_results = _run_batch_chunk(
+            chunk,
+            timeout_per_item,
+            docker_image,
+            docker_env,
+        )
         for raw in raw_results:
             if raw.get("error") and not raw.get("per_test_class"):
                 all_results.append(

@@ -1,5 +1,4 @@
 import pytest
-from pydantic import ValidationError
 
 from nl_code.datasets.humaneval_task import (
     RawHumanEvalTask,
@@ -36,7 +35,7 @@ class TestRawHumanEvalTask:
     def test_construction(self, valid_raw_task: RawHumanEvalTask) -> None:
         assert valid_raw_task.task_id == "HumanEval/0"
         assert valid_raw_task.entry_point == "add"
-        assert valid_raw_task.validated is True
+        assert valid_raw_task.validated is False
 
     def test_computed_gt_solution(self, valid_raw_task: RawHumanEvalTask) -> None:
         assert "def add" in valid_raw_task.gt_solution
@@ -65,10 +64,11 @@ class TestRawHumanEvalTask:
         bad_code = "def add(a, b):\n    return a - b\n"
         assert valid_raw_task.run_test(bad_code) is False
 
-    def test_validation_rejects_failing_solution(self) -> None:
+    def test_construction_allows_failing_solution(self) -> None:
         row = make_humaneval_row(canonical_solution="    return a - b\n")
-        with pytest.raises(ValidationError):
-            RawHumanEvalTask.model_validate(row)
+        task = RawHumanEvalTask.model_validate(row)
+        assert task.validated is False
+        assert task.run_test_on_gt_solution() is False
 
     def test_validated_flag_skips_validation(self) -> None:
         row = make_humaneval_row(canonical_solution="    return a - b\n")

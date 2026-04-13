@@ -1,4 +1,5 @@
 import pytest
+import subprocess
 
 from nl_code.code_execution.models import (
     AssertionBatchItem,
@@ -192,6 +193,37 @@ class TestRunAssertionTest:
         )
         assert result.passed is False
         assert "AssertionError" in (result.error or "")
+
+    def test_passes_docker_env_through(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        captured_env: dict[str, str] | None = None
+
+        def fake_run_worker(
+            req: dict[str, object],
+            timeout_seconds: float,
+            runtime: object,
+            *,
+            stream_limit: int = 0,
+            docker_env: dict[str, str] | None = None,
+        ) -> subprocess.CompletedProcess[str]:
+            nonlocal captured_env
+            captured_env = docker_env
+            return subprocess.CompletedProcess(
+                args=["docker", "run"],
+                returncode=0,
+                stdout='{"passed": true, "error": null, "stdout": "", "compile_success": true, "compile_error": null}',
+                stderr="",
+            )
+
+        monkeypatch.setattr(
+            "nl_code.code_execution.runner._run_worker", fake_run_worker
+        )
+        result = run_assertion_test(
+            "def add(a, b):\n    return a + b\n",
+            "assert add(1, 2) == 3\n",
+            docker_env={"MPLBACKEND": "Agg"},
+        )
+        assert result.passed is True
+        assert captured_env == {"MPLBACKEND": "Agg"}
 
 
 # ---------------------------------------------------------------------------

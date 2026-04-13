@@ -42,8 +42,24 @@ class TestClassEvalDataset:
         assert len(ds.raw_samples) == 1
         assert len(ds.flawed_raw_samples) == 1
         assert "ClassEval_99" in ds.flawed_raw_samples
-        assert isinstance(ds.flawed_raw_samples["ClassEval_99"], FlawedSample)
+        flawed = ds.flawed_raw_samples["ClassEval_99"]
+        assert isinstance(flawed, FlawedSample)
+        assert flawed.error.startswith("dataset_failure:")
 
     def test_uses_test_split(self) -> None:
         ds = ClassEvalDataset()
         assert ds.split == "test"
+
+    def test_known_dataset_issue_is_tracked_as_dataset_failure(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        ds = prime_dataset_cache(
+            ClassEvalDataset(),
+            [make_classeval_row(task_id="ClassEval_58")],
+            monkeypatch,
+        )
+
+        assert "ClassEval_58" in ds.flawed_raw_samples
+        assert ds.flawed_raw_samples["ClassEval_58"].error.startswith(
+            "dataset_failure:"
+        )

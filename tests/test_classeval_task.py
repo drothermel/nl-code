@@ -1,8 +1,5 @@
 import textwrap
 
-import pytest
-from pydantic import ValidationError
-
 from nl_code.datasets.classeval_task import (
     ClassEvalTestDetail,
     MethodDependencies,
@@ -91,7 +88,7 @@ class TestRawClassEvalTask:
         task = RawClassEvalTask.model_validate(row)
         assert task.task_id == "ClassEval_0"
         assert task.class_name == "Calculator"
-        assert task.validated is True
+        assert task.validated is False
 
     def test_computed_gt_code(self) -> None:
         row = make_classeval_row()
@@ -234,7 +231,7 @@ class TestRawClassEvalTask:
         full_result = task.run_test(task.gt_code)
         assert full_result.all_passed is True
 
-    def test_validation_rejects_failing_solution(self) -> None:
+    def test_construction_allows_failing_solution(self) -> None:
         row = make_classeval_row(
             solution_code=textwrap.dedent("""\
                 class Calculator:
@@ -246,8 +243,9 @@ class TestRawClassEvalTask:
                         return 0
             """),
         )
-        with pytest.raises(ValidationError):
-            RawClassEvalTask.model_validate(row)
+        task = RawClassEvalTask.model_validate(row)
+        assert task.validated is False
+        assert task.run_test_on_gt_solution().all_passed is False
 
     def test_validated_flag_skips_validation(self) -> None:
         row = make_classeval_row(
@@ -264,3 +262,9 @@ class TestRawClassEvalTask:
         row["validated"] = True
         task = RawClassEvalTask.model_validate(row)
         assert task.validated is True
+
+    def test_known_dataset_issue_is_recorded_not_raised(self) -> None:
+        row = make_classeval_row(task_id="ClassEval_58")
+        task = RawClassEvalTask.model_validate(row)
+        assert task.auto_fail_reason is not None
+        assert "nondeterministic test failures" in task.auto_fail_reason

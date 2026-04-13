@@ -1,6 +1,3 @@
-import pytest
-from pydantic import ValidationError
-
 from nl_code.datasets.bigcodebench_lite_pro_task import RawBigCodeBenchLiteProTask
 
 from conftest import make_bigcodebench_lite_pro_row
@@ -12,7 +9,7 @@ class TestRawBigCodeBenchLiteProTask:
         row["task_id"] = "BigCodeBenchLitePro/23"
         task = RawBigCodeBenchLiteProTask.model_validate(row)
         assert task.task_id == "BigCodeBenchLitePro/23"
-        assert task.validated is True
+        assert task.validated is False
 
     def test_gt_solution_contains_both_functions(self) -> None:
         row = make_bigcodebench_lite_pro_row()
@@ -62,13 +59,14 @@ class TestRawBigCodeBenchLiteProTask:
         bad_code = "def multiply_pairs(pairs):\n    return []\n"
         assert task.run_test(bad_code) is False
 
-    def test_validation_rejects_failing_solution(self) -> None:
+    def test_construction_allows_failing_solution(self) -> None:
         row = make_bigcodebench_lite_pro_row(
             new_solution="    return []\n",
         )
         row["task_id"] = "BigCodeBenchLitePro/23"
-        with pytest.raises(ValidationError):
-            RawBigCodeBenchLiteProTask.model_validate(row)
+        task = RawBigCodeBenchLiteProTask.model_validate(row)
+        assert task.validated is False
+        assert task.run_test_on_gt_solution() is False
 
     def test_validated_flag_skips_validation(self) -> None:
         row = make_bigcodebench_lite_pro_row(
