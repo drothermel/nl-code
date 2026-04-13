@@ -2,8 +2,8 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-DEFAULT_CODE_EVAL_IMAGE = "nl-code/code-eval:v1"
-SCIENTIFIC_CODE_EVAL_IMAGE = "nl-code/code-eval-scientific:v1"
+DEFAULT_CODE_EVAL_IMAGE = "nl-code/code-eval-scientific:v1"
+SCIENTIFIC_CODE_EVAL_IMAGE = DEFAULT_CODE_EVAL_IMAGE
 
 
 class CodeExecutionInfrastructureError(RuntimeError):

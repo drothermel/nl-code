@@ -12,7 +12,7 @@ uv add nl-code[bigcodebench]  # + scientific libs for BigCodeBench/ClassEval
 
 ## Code Execution
 
-Execute generated code in isolated Docker containers (default) or local subprocesses.
+Execute generated code in isolated Docker containers.
 
 Three execution modes covering all supported dataset test formats:
 
@@ -22,14 +22,17 @@ Three execution modes covering all supported dataset test formats:
 
 Batch variants (`batch_run_test_cases`, `batch_run_assertion_tests`, `batch_run_unittest_tests`) process many code samples in a single container with auto-chunking.
 
-### Docker images
+### Build The Docker Image
 
-Build from the repo root:
+Build the execution image from the repo root:
 
 ```bash
-docker build -t nl-code/code-eval:v1 -f docker/slim.Dockerfile .
 docker build -t nl-code/code-eval-scientific:v1 -f docker/scientific.Dockerfile .
 ```
+
+This is the default runtime image used by the execution pipeline. The Dockerfile
+installs the `bigcodebench` dependency set directly from `pyproject.toml`, so
+the image stays aligned with the repo's declared scientific requirements.
 
 ## Datasets
 
