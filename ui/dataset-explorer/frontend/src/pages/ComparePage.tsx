@@ -309,7 +309,9 @@ export default function ComparePage() {
       <div className="space-y-2">
         <div className="flex items-center gap-2">
           <BarChart3 className="h-5 w-5 text-primary" />
-          <h1 className="text-2xl font-semibold tracking-tight">Compare Datasets</h1>
+          <h1 className="text-2xl font-semibold tracking-tight [text-wrap:balance]">
+            Compare Datasets
+          </h1>
         </div>
         <p className="max-w-4xl text-sm text-muted-foreground">
           Cross-dataset view of sample counts, length distributions, and compression-style ratios.

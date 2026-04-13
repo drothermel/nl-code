@@ -1,29 +1,15 @@
-import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { encodeDatasetKey, encodeTaskPath, useTasks } from "@/api/datasets";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import type { TaskSortKey, TaskStatus } from "@/hooks/useTaskFilters";
+import { useTaskFilters } from "@/hooks/useTaskFilters";
 
 export default function TaskBrowserPage() {
   const { datasetKey = "" } = useParams();
-  const [search, setSearch] = useState("");
-  const [status, setStatus] = useState<"all" | "valid" | "flawed">("all");
-  const [sort, setSort] = useState<
-    | "task_id"
-    | "description_length_chars"
-    | "derived_code_length_chars"
-    | "prompt_length_chars"
-    | "raw_source_length_chars"
-    | "test_length_chars"
-  >("task_id");
-  const [descending, setDescending] = useState(false);
-  const [page, setPage] = useState(1);
-
-  // biome-ignore lint/correctness/useExhaustiveDependencies: reset page when any filter changes
-  useEffect(() => {
-    setPage(1);
-  }, [search, status, sort, descending]);
+  const { filters, setFilters } = useTaskFilters();
+  const { search, status, sort, descending, page } = filters;
 
   const { data, isLoading, error } = useTasks(datasetKey, {
     search: search || undefined,
@@ -52,7 +38,7 @@ export default function TaskBrowserPage() {
   return (
     <div className="space-y-6 p-8">
       <div className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Tasks</h1>
+        <h1 className="text-2xl font-semibold tracking-tight [text-wrap:balance]">Tasks</h1>
         <p className="text-sm text-muted-foreground">
           Browse valid and flawed tasks for {data.dataset.label}.
         </p>
@@ -66,9 +52,11 @@ export default function TaskBrowserPage() {
           <label className="space-y-2 text-sm">
             <span className="font-medium">Search</span>
             <input
-              className="w-full rounded-md border bg-background px-3 py-2"
+              className="w-full rounded-md border bg-background px-3 py-2 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              name="search"
+              autoComplete="off"
               value={search}
-              onChange={(event) => setSearch(event.target.value)}
+              onChange={(event) => setFilters({ search: event.target.value })}
               placeholder="task id, entry point, error…"
             />
           </label>
@@ -76,9 +64,9 @@ export default function TaskBrowserPage() {
           <label className="space-y-2 text-sm">
             <span className="font-medium">Status</span>
             <select
-              className="w-full rounded-md border bg-background px-3 py-2"
+              className="w-full rounded-md border bg-background px-3 py-2 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               value={status}
-              onChange={(event) => setStatus(event.target.value as "all" | "valid" | "flawed")}
+              onChange={(event) => setFilters({ status: event.target.value as TaskStatus })}
             >
               <option value="all">All</option>
               <option value="valid">Valid</option>
@@ -89,19 +77,9 @@ export default function TaskBrowserPage() {
           <label className="space-y-2 text-sm">
             <span className="font-medium">Sort</span>
             <select
-              className="w-full rounded-md border bg-background px-3 py-2"
+              className="w-full rounded-md border bg-background px-3 py-2 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               value={sort}
-              onChange={(event) =>
-                setSort(
-                  event.target.value as
-                    | "task_id"
-                    | "description_length_chars"
-                    | "derived_code_length_chars"
-                    | "prompt_length_chars"
-                    | "raw_source_length_chars"
-                    | "test_length_chars",
-                )
-              }
+              onChange={(event) => setFilters({ sort: event.target.value as TaskSortKey })}
             >
               <option value="task_id">Task ID</option>
               <option value="description_length_chars">Description length</option>
@@ -115,9 +93,9 @@ export default function TaskBrowserPage() {
           <label className="space-y-2 text-sm">
             <span className="font-medium">Order</span>
             <select
-              className="w-full rounded-md border bg-background px-3 py-2"
+              className="w-full rounded-md border bg-background px-3 py-2 outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               value={descending ? "desc" : "asc"}
-              onChange={(event) => setDescending(event.target.value === "desc")}
+              onChange={(event) => setFilters({ descending: event.target.value === "desc" })}
             >
               <option value="asc">Ascending</option>
               <option value="desc">Descending</option>
@@ -165,7 +143,7 @@ export default function TaskBrowserPage() {
                     <td className="px-3 py-3 font-mono text-xs text-muted-foreground">
                       {row.entry_point_name ?? "—"}
                     </td>
-                    <td className="px-3 py-3 text-xs text-muted-foreground">
+                    <td className="max-w-xs truncate px-3 py-3 text-xs text-muted-foreground">
                       {row.description_preview ?? row.error_summary ?? "—"}
                     </td>
                     <td className="px-3 py-3 tabular-nums">
@@ -189,7 +167,7 @@ export default function TaskBrowserPage() {
           <div className="mt-6 flex items-center justify-between">
             <Button
               variant="outline"
-              onClick={() => setPage((current) => Math.max(1, current - 1))}
+              onClick={() => setFilters({ page: Math.max(1, page - 1) })}
               disabled={page <= 1}
             >
               Previous
@@ -199,7 +177,7 @@ export default function TaskBrowserPage() {
             </p>
             <Button
               variant="outline"
-              onClick={() => setPage((current) => Math.min(maxPage, current + 1))}
+              onClick={() => setFilters({ page: Math.min(maxPage, page + 1) })}
               disabled={page >= maxPage}
             >
               Next

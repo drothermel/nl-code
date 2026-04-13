@@ -8,15 +8,12 @@ export default function PythonCodeBlock({ code, className }: { code: string; cla
       language="python"
       style={oneLight}
       wrapLongLines
-      className={cn(
-        "overflow-x-auto rounded-md border border-slate-200 text-xs text-slate-900",
-        className,
-      )}
+      className={cn("overflow-x-auto rounded-md border text-xs text-card-foreground", className)}
       customStyle={{
         margin: 0,
         borderRadius: "0.375rem",
         padding: "1rem",
-        background: "#ffffff",
+        background: "hsl(var(--card))",
         fontSize: "0.75rem",
         lineHeight: "1.5rem",
       }}

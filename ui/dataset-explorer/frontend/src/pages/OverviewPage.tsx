@@ -36,7 +36,7 @@ function StatCard({ icon, label, value }: { icon: ReactNode; label: string; valu
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <p className="text-2xl font-semibold">{value}</p>
+        <p className="text-2xl font-semibold tabular-nums">{value}</p>
       </CardContent>
     </Card>
   );
@@ -195,7 +195,9 @@ export default function OverviewPage() {
   return (
     <div className="space-y-6 p-8">
       <div className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">{data.dataset.label}</h1>
+        <h1 className="text-2xl font-semibold tracking-tight [text-wrap:balance]">
+          {data.dataset.label}
+        </h1>
         <p className="text-sm text-muted-foreground">
           {data.dataset.dataset_id} · split: {data.dataset.split} · family: {data.dataset.family}
         </p>

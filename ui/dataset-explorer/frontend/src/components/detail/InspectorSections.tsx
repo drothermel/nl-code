@@ -21,14 +21,14 @@ function renderValue(sectionKey: string, kind: string, value: unknown) {
 
     if (kind === "error") {
       return (
-        <pre className="overflow-x-auto rounded-md border border-destructive/30 bg-white p-4 text-xs leading-6 text-destructive">
+        <pre className="overflow-x-auto rounded-md border border-destructive/30 bg-card p-4 text-xs leading-6 text-destructive">
           {value}
         </pre>
       );
     }
 
     return (
-      <pre className="overflow-x-auto rounded-md border border-slate-200 bg-white p-4 text-xs leading-6 text-slate-900">
+      <pre className="overflow-x-auto rounded-md border bg-card p-4 text-xs leading-6 text-card-foreground">
         {value}
       </pre>
     );
@@ -36,7 +36,7 @@ function renderValue(sectionKey: string, kind: string, value: unknown) {
 
   return (
     <pre
-      className="overflow-x-auto rounded-md border border-slate-200 bg-white p-4 text-xs leading-6 text-slate-900"
+      className="overflow-x-auto rounded-md border bg-card p-4 text-xs leading-6 text-card-foreground"
       data-testid={`json-${sectionKey}`}
     >
       {JSON.stringify(value, null, 2)}
@@ -63,7 +63,7 @@ export function DerivedFieldsCard({ derivedFields }: { derivedFields: DerivedFie
               {isCodeDerivedField(field.name) ? (
                 <PythonCodeBlock code={field.value} className="p-0" />
               ) : (
-                <pre className="overflow-x-auto rounded-md border border-slate-200 bg-white p-3 text-xs leading-6 text-slate-900">
+                <pre className="overflow-x-auto rounded-md border bg-card p-3 text-xs leading-6 text-card-foreground">
                   {field.value}
                 </pre>
               )}

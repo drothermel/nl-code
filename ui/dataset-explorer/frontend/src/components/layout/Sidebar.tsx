@@ -62,7 +62,7 @@ export default function Sidebar() {
         <label className="block text-xs font-medium uppercase tracking-wide text-muted-foreground">
           <span className="mb-2 block">Dataset</span>
           <select
-            className="w-full rounded-md border bg-background px-3 py-2 text-sm font-normal normal-case tracking-normal"
+            className="w-full rounded-md border bg-background px-3 py-2 text-sm font-normal normal-case tracking-normal outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             value={selectedDataset}
             disabled={isLoading || !datasets?.length}
             onChange={(event) => {

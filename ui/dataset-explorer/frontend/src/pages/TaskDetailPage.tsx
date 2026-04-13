@@ -26,7 +26,9 @@ export default function TaskDetailPage() {
     <div className="space-y-6 p-8">
       <div className="space-y-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">{data.task_id}</h1>
+          <h1 className="text-2xl font-semibold tracking-tight [text-wrap:balance]">
+            {data.task_id}
+          </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Derived task view for {data.dataset.label}
           </p>
@@ -67,7 +69,7 @@ export default function TaskDetailPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-2xl font-semibold">{metric.value}</p>
+              <p className="text-2xl font-semibold tabular-nums">{metric.value}</p>
             </CardContent>
           </Card>
         ))}
@@ -78,7 +80,7 @@ export default function TaskDetailPage() {
           <CardTitle className="text-base">Description</CardTitle>
         </CardHeader>
         <CardContent>
-          <pre className="whitespace-pre-wrap rounded-md border border-slate-200 bg-white p-4 text-sm leading-7 text-slate-900">
+          <pre className="whitespace-pre-wrap rounded-md border bg-card p-4 text-sm leading-7 text-card-foreground">
             {data.description}
           </pre>
         </CardContent>
@@ -97,7 +99,7 @@ export default function TaskDetailPage() {
                 {isCodeDerivedField(field.name) ? (
                   <PythonCodeBlock code={field.value} className="p-0" />
                 ) : (
-                  <pre className="overflow-x-auto rounded-md border border-slate-200 bg-white p-3 text-xs leading-6 text-slate-900">
+                  <pre className="overflow-x-auto rounded-md border bg-card p-3 text-xs leading-6 text-card-foreground">
                     {field.value}
                   </pre>
                 )}

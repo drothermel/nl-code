@@ -28,7 +28,9 @@ export default function RawDetailPage() {
     <div className="space-y-6 p-8">
       <div className="space-y-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">{data.title}</h1>
+          <h1 className="text-2xl font-semibold tracking-tight [text-wrap:balance]">
+            {data.title}
+          </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {data.task_id} · {data.dataset.label}
           </p>
@@ -71,7 +73,7 @@ export default function RawDetailPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <pre className="overflow-x-auto rounded-md border border-destructive/30 bg-white p-4 text-xs leading-6 text-destructive">
+            <pre className="overflow-x-auto rounded-md border border-destructive/30 bg-card p-4 text-xs leading-6 text-destructive">
               {data.error}
             </pre>
           </CardContent>
@@ -87,7 +89,7 @@ export default function RawDetailPage() {
           <CardTitle className="text-base">Raw JSON</CardTitle>
         </CardHeader>
         <CardContent>
-          <pre className="overflow-x-auto rounded-md border border-slate-200 bg-white p-4 text-xs leading-6 text-slate-900">
+          <pre className="overflow-x-auto rounded-md border bg-card p-4 text-xs leading-6 text-card-foreground">
             {JSON.stringify(data.raw_json, null, 2)}
           </pre>
         </CardContent>
