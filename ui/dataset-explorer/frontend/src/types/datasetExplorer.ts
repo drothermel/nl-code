@@ -114,7 +114,9 @@ export interface TaskRow {
   entry_point_name: string | null;
   description_preview: string | null;
   description_length_chars: number | null;
+  description_length_tokens: number | null;
   derived_code_length_chars: number | null;
+  derived_code_length_tokens: number | null;
   derived_code_length_lines: number | null;
   prompt_length_chars: number | null;
   raw_source_length_chars: number | null;

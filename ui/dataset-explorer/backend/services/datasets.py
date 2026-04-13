@@ -49,6 +49,7 @@ from nl_code.datasets.humaneval_task import RawHumanEvalTask
 from nl_code.datasets.mbpp_pro_dataset import MbppProDataset
 from nl_code.datasets.mbpp_pro_task import RawMbppProTask
 from nl_code.datasets.task import CodeDataset, Task
+from nl_code.evaluation.length import measure_length
 
 
 class DatasetRegistryEntry(BaseModel):
@@ -112,7 +113,9 @@ DATASET_LOAD_LOCKS: dict[str, Lock] = {
 
 METRIC_LABELS: dict[str, str] = {
     "description_length_chars": "Description Length (chars)",
+    "description_length_tokens": "Description Length (tokens)",
     "derived_code_length_chars": "Derived Code Length (chars)",
+    "derived_code_length_tokens": "Derived Code Length (tokens)",
     "derived_code_length_lines": "Derived Code Length (lines)",
     "prompt_length_chars": "Prompt or Problem Length (chars)",
     "raw_source_length_chars": "Raw Source Length (chars)",
@@ -488,7 +491,9 @@ def _build_task_rows(dataset: Dataset, entry: DatasetRegistryEntry) -> list[Task
                 entry_point_name=task.entry_point_name,
                 description_preview=_preview(task.description),
                 description_length_chars=_safe_int(metrics["description_length_chars"]),
+                description_length_tokens=_safe_int(metrics["description_length_tokens"]),
                 derived_code_length_chars=_safe_int(metrics["derived_code_length_chars"]),
+                derived_code_length_tokens=_safe_int(metrics["derived_code_length_tokens"]),
                 derived_code_length_lines=_safe_int(metrics["derived_code_length_lines"]),
                 prompt_length_chars=_safe_int(metrics["prompt_length_chars"]),
                 raw_source_length_chars=_safe_int(metrics["raw_source_length_chars"]),
@@ -512,17 +517,24 @@ def _build_task_rows(dataset: Dataset, entry: DatasetRegistryEntry) -> list[Task
 
 def _build_scatter_plots(dataset: Dataset, entry: DatasetRegistryEntry) -> list[MetricScatter]:
     description_vs_code: list[ScatterPoint] = []
+    description_tokens_vs_code_tokens: list[ScatterPoint] = []
     prompt_vs_code: list[ScatterPoint] = []
 
     for task_id, task in dataset.tasks.items():
         raw = dataset.raw_samples[task_id]
         metrics = _extract_metrics(entry.family, raw, task)
         description_length = metrics["description_length_chars"]
+        description_tokens = metrics["description_length_tokens"]
         prompt_length = metrics["prompt_length_chars"]
         code_length = metrics["derived_code_length_chars"]
+        code_tokens = metrics["derived_code_length_tokens"]
 
         if description_length is not None and code_length is not None:
             description_vs_code.append(ScatterPoint(task_id=task_id, x=float(description_length), y=float(code_length)))
+        if description_tokens is not None and code_tokens is not None:
+            description_tokens_vs_code_tokens.append(
+                ScatterPoint(task_id=task_id, x=float(description_tokens), y=float(code_tokens))
+            )
         if prompt_length is not None and code_length is not None:
             prompt_vs_code.append(ScatterPoint(task_id=task_id, x=float(prompt_length), y=float(code_length)))
 
@@ -537,6 +549,18 @@ def _build_scatter_plots(dataset: Dataset, entry: DatasetRegistryEntry) -> list[
             points=description_vs_code,
         )
     ]
+    if description_tokens_vs_code_tokens:
+        plots.append(
+            MetricScatter(
+                key="description-tokens-vs-code-tokens",
+                label="Description vs Derived Code Length (tokens)",
+                x_key="description_length_tokens",
+                x_label=METRIC_LABELS["description_length_tokens"],
+                y_key="derived_code_length_tokens",
+                y_label=METRIC_LABELS["derived_code_length_tokens"],
+                points=description_tokens_vs_code_tokens,
+            )
+        )
     if prompt_vs_code:
         plots.append(
             MetricScatter(
@@ -569,9 +593,13 @@ def _build_error_groups(dataset: Dataset) -> list[FlawedErrorGroup]:
 
 
 def _extract_metrics(family: str, raw: Any, task: Task) -> dict[str, int | None]:
+    description_metrics = measure_length(task.description)
+    derived_code_metrics = measure_length(task.gt_solution)
     metrics: dict[str, int | None] = {
-        "description_length_chars": len(task.description),
-        "derived_code_length_chars": len(task.gt_solution),
+        "description_length_chars": description_metrics.char_count,
+        "description_length_tokens": description_metrics.token_count,
+        "derived_code_length_chars": derived_code_metrics.char_count,
+        "derived_code_length_tokens": derived_code_metrics.token_count,
         "derived_code_length_lines": _line_count(task.gt_solution),
         "prompt_length_chars": None,
         "raw_source_length_chars": None,

@@ -38,6 +38,26 @@ export default function Sidebar() {
         </p>
       </div>
 
+      <nav className="border-b p-3">
+        {GLOBAL_NAV_ITEMS.map((item) => (
+          <NavLink
+            key={item.to}
+            to={item.to}
+            className={({ isActive }) =>
+              cn(
+                "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
+                isActive
+                  ? "bg-accent text-accent-foreground font-medium"
+                  : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+              )
+            }
+          >
+            {item.icon}
+            {item.label}
+          </NavLink>
+        ))}
+      </nav>
+
       <div className="border-b px-4 py-4">
         <label className="mb-2 block text-xs font-medium uppercase tracking-wide text-muted-foreground">
           Dataset
@@ -65,25 +85,7 @@ export default function Sidebar() {
       </div>
 
       <nav className="flex-1 space-y-1 p-3">
-        {GLOBAL_NAV_ITEMS.map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            className={({ isActive }) =>
-              cn(
-                "flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors",
-                isActive
-                  ? "bg-accent text-accent-foreground font-medium"
-                  : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
-              )
-            }
-          >
-            {item.icon}
-            {item.label}
-          </NavLink>
-        ))}
-
-        <div className="px-3 pt-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        <div className="px-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
           Dataset views
         </div>
         {selectedDataset ? (

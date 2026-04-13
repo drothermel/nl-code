@@ -16,6 +16,8 @@ const METRIC_COLUMNS = [
   { key: "prompt_length_chars", label: "Prompt/problem" },
   { key: "raw_source_length_chars", label: "Raw source" },
   { key: "test_length_chars", label: "Test" },
+  { key: "description_length_tokens", label: "Description tokens" },
+  { key: "derived_code_length_tokens", label: "Derived code tokens" },
 ] as const;
 
 const RATIO_COLUMNS = [
@@ -23,6 +25,14 @@ const RATIO_COLUMNS = [
   { key: "derived_code_to_raw_source_ratio", label: "Code / Raw" },
   { key: "test_to_derived_code_ratio", label: "Test / Code" },
 ] as const;
+
+const BOX_PLOT_METRIC_KEYS = new Set([
+  "description_length_chars",
+  "description_length_tokens",
+  "derived_code_length_chars",
+  "derived_code_length_tokens",
+  "derived_code_length_lines",
+]);
 
 const SERIES_COLORS = [
   "#0f766e",
@@ -37,6 +47,13 @@ const FAMILY_COLORS: Record<string, string> = {
   humaneval: "#0f766e",
   pro: "#2563eb",
   classeval: "#b45309",
+};
+
+const UNIT_TITLES: Record<string, string> = {
+  chars: "Character Length Comparisons",
+  tokens: "Token Length Comparisons",
+  lines: "Line Length Comparisons",
+  other: "Other Metric Comparisons",
 };
 
 type SortKey =
@@ -115,6 +132,51 @@ function boxPlotTraces(series: CrossDatasetSeries) {
   }));
 }
 
+function getSharedYAxisRange(seriesList: CrossDatasetSeries[]) {
+  const values = seriesList.flatMap((series) =>
+    series.datasets.flatMap((dataset) => dataset.values)
+  );
+  if (!values.length) {
+    return undefined;
+  }
+
+  const maxValue = Math.max(...values);
+  const paddedMax = maxValue === 0 ? 1 : maxValue * 1.05;
+  return [0, paddedMax] as [number, number];
+}
+
+function metricUnit(metricKey: string) {
+  if (metricKey.endsWith("_length_lines")) {
+    return "lines";
+  }
+  if (metricKey.endsWith("_length_tokens")) {
+    return "tokens";
+  }
+  if (metricKey.endsWith("_length_chars")) {
+    return "chars";
+  }
+  return "other";
+}
+
+function getLandscapeAxisRange(
+  points: {
+    median_prompt_length_chars: number;
+    median_derived_code_length_chars: number;
+  }[]
+) {
+  const values = points.flatMap((point) => [
+    point.median_prompt_length_chars,
+    point.median_derived_code_length_chars,
+  ]);
+  if (!values.length) {
+    return [0, 1] as [number, number];
+  }
+
+  const maxValue = Math.max(...values);
+  const paddedMax = maxValue === 0 ? 1 : maxValue * 1.15;
+  return [0, paddedMax] as [number, number];
+}
+
 function SortHeader({
   label,
   sortKey,
@@ -166,6 +228,75 @@ export default function ComparePage() {
     });
   }, [data, descending, sortKey]);
 
+  const chartDatasetOrder = useMemo(() => {
+    if (!data) {
+      return [];
+    }
+
+    return [...data.datasets]
+      .sort((left, right) => {
+        const leftMedian =
+          getMetricStats(left, "derived_code_length_chars")?.median ??
+          Number.NEGATIVE_INFINITY;
+        const rightMedian =
+          getMetricStats(right, "derived_code_length_chars")?.median ??
+          Number.NEGATIVE_INFINITY;
+        return leftMedian - rightMedian;
+      })
+      .map((row) => row.dataset.label);
+  }, [data]);
+
+  const orderedMetricSeries = useMemo(() => {
+    if (!data) {
+      return [];
+    }
+
+    const order = new Map(chartDatasetOrder.map((label, index) => [label, index]));
+    return data.metric_series.map((series) => ({
+      ...series,
+      datasets: [...series.datasets].sort(
+        (left, right) =>
+          (order.get(left.dataset_label) ?? Number.MAX_SAFE_INTEGER) -
+          (order.get(right.dataset_label) ?? Number.MAX_SAFE_INTEGER)
+      ),
+    })).filter((series) => BOX_PLOT_METRIC_KEYS.has(series.key));
+  }, [chartDatasetOrder, data]);
+
+  const groupedMetricSeries = useMemo(() => {
+    const groups = new Map<string, CrossDatasetSeries[]>();
+
+    for (const series of orderedMetricSeries) {
+      const unit = metricUnit(series.key);
+      const grouped = groups.get(unit) ?? [];
+      grouped.push(series);
+      groups.set(unit, grouped);
+    }
+
+    return groups;
+  }, [orderedMetricSeries]);
+
+  const sharedMetricYAxisRangesByUnit = useMemo(() => {
+    const seriesByUnit = new Map<string, CrossDatasetSeries[]>();
+
+    for (const series of orderedMetricSeries) {
+      const unit = metricUnit(series.key);
+      const grouped = seriesByUnit.get(unit) ?? [];
+      grouped.push(series);
+      seriesByUnit.set(unit, grouped);
+    }
+
+    return Object.fromEntries(
+      [...seriesByUnit.entries()].map(([unit, groupedSeries]) => [
+        unit,
+        getSharedYAxisRange(groupedSeries),
+      ])
+    ) as Record<string, [number, number] | undefined>;
+  }, [orderedMetricSeries]);
+  const landscapeAxisRange = useMemo(
+    () => getLandscapeAxisRange(data?.landscape_points ?? []),
+    [data]
+  );
+
   function toggleSort(nextKey: SortKey) {
     if (nextKey === sortKey) {
       setDescending((current) => !current);
@@ -200,7 +331,8 @@ export default function ComparePage() {
         <p className="max-w-4xl text-sm text-muted-foreground">
           Cross-dataset view of sample counts, length distributions, and
           compression-style ratios. Ratio charts use character counts from valid
-          derived tasks only and skip zero denominators.
+          derived tasks only and skip zero denominators. Categorical charts are
+          ordered by median derived code length.
         </p>
       </div>
 
@@ -273,50 +405,89 @@ export default function ComparePage() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-6 xl:grid-cols-2">
-        {data.metric_series.map((series) => (
-          <Card key={series.key}>
-            <CardHeader>
-              <CardTitle className="text-base">{series.label}</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-2">
-              <Plot
-                data={boxPlotTraces(series)}
-                layout={{
-                  height: 340,
-                  showlegend: false,
-                  xaxis: { title: { text: "Dataset" } },
-                  yaxis: { title: { text: series.label } },
-                }}
-                style={{ height: "340px" }}
-              />
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      {(["chars", "tokens", "lines", "other"] as const).map((unit) => {
+        const seriesForUnit = groupedMetricSeries.get(unit) ?? [];
+        if (!seriesForUnit.length) {
+          return null;
+        }
+
+        return (
+          <section key={unit} className="space-y-3">
+            <h2 className="text-lg font-semibold tracking-tight">{UNIT_TITLES[unit]}</h2>
+            <div className="grid gap-6 xl:grid-cols-2">
+              {seriesForUnit.map((series) => (
+                <Card key={series.key}>
+                  <CardHeader>
+                    <CardTitle className="text-base">{series.label}</CardTitle>
+                  </CardHeader>
+                  <CardContent className="pt-2">
+                    <Plot
+                      data={boxPlotTraces(series)}
+                      layout={{
+                        height: 520,
+                        showlegend: false,
+                        xaxis: {
+                          title: { text: "Dataset" },
+                          categoryorder: "array",
+                          categoryarray: chartDatasetOrder,
+                        },
+                        yaxis: {
+                          title: { text: series.label },
+                          range: sharedMetricYAxisRangesByUnit[metricUnit(series.key)],
+                        },
+                      }}
+                      className="aspect-square"
+                      style={{ height: "100%" }}
+                    />
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </section>
+        );
+      })}
 
       <div className="grid gap-6 xl:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Flawed rate by dataset</CardTitle>
+            <CardTitle className="text-base">Flawed samples by dataset</CardTitle>
           </CardHeader>
           <CardContent className="pt-2">
             <Plot
               data={[
                 {
                   type: "bar",
-                  x: rows.map((row) => row.dataset.label),
-                  y: rows.map((row) => row.flawed_rate * 100),
+                  x: chartDatasetOrder,
+                  y: chartDatasetOrder.map((label) => {
+                    const row = data.datasets.find(
+                      (dataset) => dataset.dataset.label === label
+                    );
+                    return row?.counts.flawed_count ?? 0;
+                  }),
+                  text: chartDatasetOrder.map((label) => {
+                    const row = data.datasets.find(
+                      (dataset) => dataset.dataset.label === label
+                    );
+                    return `${formatPercent(row?.flawed_rate ?? 0)}`;
+                  }),
+                  textposition: "outside",
                   marker: { color: "#dc2626" },
-                  hovertemplate: "%{x}<br>%{y:.1f}% flawed<extra></extra>",
+                  cliponaxis: false,
+                  hovertemplate: "%{x}<br>Flawed samples=%{y}<br>Flawed rate=%{text}<extra></extra>",
                 },
               ]}
               layout={{
-                height: 320,
-                xaxis: { title: { text: "Dataset" } },
-                yaxis: { title: { text: "Flawed rate (%)" } },
+                height: 520,
+                margin: { l: 70, r: 24, t: 40, b: 70 },
+                xaxis: {
+                  title: { text: "Dataset" },
+                  categoryorder: "array",
+                  categoryarray: chartDatasetOrder,
+                },
+                yaxis: { title: { text: "Flawed samples" } },
               }}
-              style={{ height: "320px" }}
+              className="aspect-square"
+              style={{ height: "100%" }}
             />
           </CardContent>
         </Card>
@@ -335,6 +506,7 @@ export default function ComparePage() {
                   y: data.landscape_points.map((point) => point.median_derived_code_length_chars),
                   text: data.landscape_points.map((point) => point.dataset_label),
                   textposition: "top center",
+                  cliponaxis: false,
                   marker: {
                     size: data.landscape_points.map((point) => Math.max(12, Math.sqrt(point.task_count) * 2.5)),
                     color: data.landscape_points.map((point) => FAMILY_COLORS[point.family] ?? "#4b5563"),
@@ -346,37 +518,36 @@ export default function ComparePage() {
                 },
               ]}
               layout={{
-                height: 320,
-                xaxis: { title: { text: "Median prompt/problem length (chars)" } },
-                yaxis: { title: { text: "Median derived code length (chars)" } },
+                height: 520,
+                margin: { l: 70, r: 24, t: 70, b: 70 },
+                shapes: [
+                  {
+                    type: "line",
+                    x0: landscapeAxisRange[0],
+                    y0: landscapeAxisRange[0],
+                    x1: landscapeAxisRange[1],
+                    y1: landscapeAxisRange[1],
+                    line: { color: "#dc2626", width: 1.5, dash: "dash" },
+                  },
+                ],
+                xaxis: {
+                  title: { text: "Median prompt/problem length (chars)" },
+                  range: landscapeAxisRange,
+                },
+                yaxis: {
+                  title: { text: "Median derived code length (chars)" },
+                  range: landscapeAxisRange,
+                  scaleanchor: "x",
+                  scaleratio: 1,
+                },
               }}
-              style={{ height: "320px" }}
+              className="aspect-square"
+              style={{ height: "100%" }}
             />
           </CardContent>
         </Card>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-3">
-        {data.ratio_series.map((series) => (
-          <Card key={series.key}>
-            <CardHeader>
-              <CardTitle className="text-base">{series.label}</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-2">
-              <Plot
-                data={boxPlotTraces(series)}
-                layout={{
-                  height: 320,
-                  showlegend: false,
-                  xaxis: { title: { text: "Dataset" } },
-                  yaxis: { title: { text: series.label } },
-                }}
-                style={{ height: "320px" }}
-              />
-            </CardContent>
-          </Card>
-        ))}
-      </div>
     </div>
   );
 }

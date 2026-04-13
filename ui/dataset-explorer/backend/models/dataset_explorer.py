@@ -126,7 +126,9 @@ class TaskRow(BaseModel):
     entry_point_name: str | None = None
     description_preview: str | None = None
     description_length_chars: int | None = None
+    description_length_tokens: int | None = None
     derived_code_length_chars: int | None = None
+    derived_code_length_tokens: int | None = None
     derived_code_length_lines: int | None = None
     prompt_length_chars: int | None = None
     raw_source_length_chars: int | None = None
