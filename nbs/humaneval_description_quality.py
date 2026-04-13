@@ -85,9 +85,7 @@ def _(ds, task_selector):
                     )
                 }
             ),
-            mo.accordion(
-                {"**Test harness**": mo.md(f"```python\n{_raw.test}```")}
-            ),
+            mo.accordion({"**Test harness**": mo.md(f"```python\n{_raw.test}```")}),
         ]
     )
     return
@@ -102,9 +100,7 @@ def _(ds, task_selector):
     doc_length = measure_length(_docstring)
     code_length = measure_length(_code)
     cr = compression_ratio(_docstring, _code)
-    overlap = lexical_overlap(
-        _raw.prompt_docstring, _raw.gt_solution_without_comments
-    )
+    overlap = lexical_overlap(_raw.prompt_docstring, _raw.gt_solution_without_comments)
     return code_length, cr, doc_length, overlap
 
 
@@ -208,9 +204,7 @@ def _(all_metrics):
         alt.Chart(_chart_data)
         .mark_bar()
         .encode(
-            alt.X(
-                "jaccard:Q", bin=alt.Bin(maxbins=30), title="Jaccard similarity"
-            ),
+            alt.X("jaccard:Q", bin=alt.Bin(maxbins=30), title="Jaccard similarity"),
             alt.Y("count()", title="Count"),
         )
         .properties(
