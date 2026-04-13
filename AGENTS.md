@@ -11,7 +11,11 @@ uv run ruff format .
 uv run ruff check .
 uv run ty check
 uv run pytest
+uv run nl-code-test docker
 ```
+
+`uv run pytest` runs the default non-Docker suite. Run `uv run nl-code-test docker`
+separately to execute the `@pytest.mark.docker` integration tests.
 
 ### Frontend (from ui/dataset-explorer/frontend/)
 
