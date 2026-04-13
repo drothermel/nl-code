@@ -11,10 +11,13 @@
  * Extend `defaultLayout` below to change global defaults (font, margins, colors).
  */
 
-import ReactPlotly from "react-plotly.js";
-import type { Data, Layout, Config } from "plotly.js";
+import type { Config, Data, Layout } from "plotly.js";
+import Plotly from "plotly.js-cartesian-dist-min";
 import type { CSSProperties } from "react";
+import createPlotlyComponent from "react-plotly.js/factory";
 import { cn } from "@/lib/utils";
+
+const ReactPlot = createPlotlyComponent(Plotly);
 
 interface PlotProps {
   data: Data[];
@@ -40,16 +43,10 @@ const defaultConfig: Partial<Config> = {
   responsive: true,
 };
 
-export default function Plot({
-  data,
-  layout,
-  config,
-  className,
-  style,
-}: PlotProps) {
+export default function Plot({ data, layout, config, className, style }: PlotProps) {
   return (
     <div className={cn("w-full", className)} style={style}>
-      <ReactPlotly
+      <ReactPlot
         data={data}
         layout={{ ...defaultLayout, ...layout }}
         config={{ ...defaultConfig, ...config }}

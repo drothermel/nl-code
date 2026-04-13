@@ -1,14 +1,11 @@
-import { useMemo, useState } from "react";
 import { ArrowUpDown, BarChart3 } from "lucide-react";
+import { useMemo, useState } from "react";
 import { useDatasetComparison } from "@/api/datasets";
 import Plot from "@/components/charts/Plot";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type {
-  CrossDatasetSeries,
-  DatasetCompareRow,
-  SummaryStats,
-} from "@/types/datasetExplorer";
+import { COMPARE_UNIT_TITLES, metricUnit } from "@/lib/metrics";
+import type { CrossDatasetSeries, DatasetCompareRow, SummaryStats } from "@/types/datasetExplorer";
 
 const METRIC_COLUMNS = [
   { key: "description_length_chars", label: "Description" },
@@ -34,26 +31,12 @@ const BOX_PLOT_METRIC_KEYS = new Set([
   "derived_code_length_lines",
 ]);
 
-const SERIES_COLORS = [
-  "#0f766e",
-  "#2563eb",
-  "#b45309",
-  "#9333ea",
-  "#dc2626",
-  "#4f46e5",
-];
+const SERIES_COLORS = ["#0f766e", "#2563eb", "#b45309", "#9333ea", "#dc2626", "#4f46e5"];
 
 const FAMILY_COLORS: Record<string, string> = {
   humaneval: "#0f766e",
   pro: "#2563eb",
   classeval: "#b45309",
-};
-
-const UNIT_TITLES: Record<string, string> = {
-  chars: "Character Length Comparisons",
-  tokens: "Token Length Comparisons",
-  lines: "Line Length Comparisons",
-  other: "Other Metric Comparisons",
 };
 
 type SortKey =
@@ -75,11 +58,22 @@ function getRatioStats(row: DatasetCompareRow, key: string): SummaryStats | null
   return row.ratios.find((ratio) => ratio.key === key)?.stats ?? null;
 }
 
+const numberFormatCache = new Map<number, Intl.NumberFormat>();
+
+function getNumberFormat(digits: number) {
+  let fmt = numberFormatCache.get(digits);
+  if (!fmt) {
+    fmt = new Intl.NumberFormat(undefined, {
+      maximumFractionDigits: digits,
+      minimumFractionDigits: digits,
+    });
+    numberFormatCache.set(digits, fmt);
+  }
+  return fmt;
+}
+
 function formatNumber(value: number, digits = 0) {
-  return new Intl.NumberFormat(undefined, {
-    maximumFractionDigits: digits,
-    minimumFractionDigits: digits,
-  }).format(value);
+  return getNumberFormat(digits).format(value);
 }
 
 function formatMetricPair(stats: SummaryStats | null, digits = 0) {
@@ -117,7 +111,11 @@ function sortValue(row: DatasetCompareRow, key: SortKey) {
     case "flawed_rate":
       return row.flawed_rate;
     default:
-      return getMetricStats(row, key)?.median ?? getRatioStats(row, key)?.median ?? Number.NEGATIVE_INFINITY;
+      return (
+        getMetricStats(row, key)?.median ??
+        getRatioStats(row, key)?.median ??
+        Number.NEGATIVE_INFINITY
+      );
   }
 }
 
@@ -134,7 +132,7 @@ function boxPlotTraces(series: CrossDatasetSeries) {
 
 function getSharedYAxisRange(seriesList: CrossDatasetSeries[]) {
   const values = seriesList.flatMap((series) =>
-    series.datasets.flatMap((dataset) => dataset.values)
+    series.datasets.flatMap((dataset) => dataset.values),
   );
   if (!values.length) {
     return undefined;
@@ -145,24 +143,11 @@ function getSharedYAxisRange(seriesList: CrossDatasetSeries[]) {
   return [0, paddedMax] as [number, number];
 }
 
-function metricUnit(metricKey: string) {
-  if (metricKey.endsWith("_length_lines")) {
-    return "lines";
-  }
-  if (metricKey.endsWith("_length_tokens")) {
-    return "tokens";
-  }
-  if (metricKey.endsWith("_length_chars")) {
-    return "chars";
-  }
-  return "other";
-}
-
 function getLandscapeAxisRange(
   points: {
     median_prompt_length_chars: number;
     median_derived_code_length_chars: number;
-  }[]
+  }[],
 ) {
   const values = points.flatMap((point) => [
     point.median_prompt_length_chars,
@@ -236,11 +221,9 @@ export default function ComparePage() {
     return [...data.datasets]
       .sort((left, right) => {
         const leftMedian =
-          getMetricStats(left, "derived_code_length_chars")?.median ??
-          Number.NEGATIVE_INFINITY;
+          getMetricStats(left, "derived_code_length_chars")?.median ?? Number.NEGATIVE_INFINITY;
         const rightMedian =
-          getMetricStats(right, "derived_code_length_chars")?.median ??
-          Number.NEGATIVE_INFINITY;
+          getMetricStats(right, "derived_code_length_chars")?.median ?? Number.NEGATIVE_INFINITY;
         return leftMedian - rightMedian;
       })
       .map((row) => row.dataset.label);
@@ -252,14 +235,16 @@ export default function ComparePage() {
     }
 
     const order = new Map(chartDatasetOrder.map((label, index) => [label, index]));
-    return data.metric_series.map((series) => ({
-      ...series,
-      datasets: [...series.datasets].sort(
-        (left, right) =>
-          (order.get(left.dataset_label) ?? Number.MAX_SAFE_INTEGER) -
-          (order.get(right.dataset_label) ?? Number.MAX_SAFE_INTEGER)
-      ),
-    })).filter((series) => BOX_PLOT_METRIC_KEYS.has(series.key));
+    return data.metric_series
+      .map((series) => ({
+        ...series,
+        datasets: [...series.datasets].sort(
+          (left, right) =>
+            (order.get(left.dataset_label) ?? Number.MAX_SAFE_INTEGER) -
+            (order.get(right.dataset_label) ?? Number.MAX_SAFE_INTEGER),
+        ),
+      }))
+      .filter((series) => BOX_PLOT_METRIC_KEYS.has(series.key));
   }, [chartDatasetOrder, data]);
 
   const groupedMetricSeries = useMemo(() => {
@@ -289,12 +274,12 @@ export default function ComparePage() {
       [...seriesByUnit.entries()].map(([unit, groupedSeries]) => [
         unit,
         getSharedYAxisRange(groupedSeries),
-      ])
+      ]),
     ) as Record<string, [number, number] | undefined>;
   }, [orderedMetricSeries]);
   const landscapeAxisRange = useMemo(
     () => getLandscapeAxisRange(data?.landscape_points ?? []),
-    [data]
+    [data],
   );
 
   function toggleSort(nextKey: SortKey) {
@@ -304,9 +289,7 @@ export default function ComparePage() {
     }
 
     setSortKey(nextKey);
-    setDescending(
-      !["dataset_label", "family", "split"].includes(nextKey)
-    );
+    setDescending(!["dataset_label", "family", "split"].includes(nextKey));
   }
 
   if (isLoading) {
@@ -329,10 +312,9 @@ export default function ComparePage() {
           <h1 className="text-2xl font-semibold tracking-tight">Compare Datasets</h1>
         </div>
         <p className="max-w-4xl text-sm text-muted-foreground">
-          Cross-dataset view of sample counts, length distributions, and
-          compression-style ratios. Ratio charts use character counts from valid
-          derived tasks only and skip zero denominators. Categorical charts are
-          ordered by median derived code length.
+          Cross-dataset view of sample counts, length distributions, and compression-style ratios.
+          Ratio charts use character counts from valid derived tasks only and skip zero
+          denominators. Categorical charts are ordered by median derived code length.
         </p>
       </div>
 
@@ -344,13 +326,69 @@ export default function ComparePage() {
           <table className="w-full min-w-[1600px] text-sm">
             <thead>
               <tr className="border-b text-left align-bottom">
-                <th className="px-3 py-2"><SortHeader label="Dataset" sortKey="dataset_label" activeKey={sortKey} descending={descending} onToggle={toggleSort} /></th>
-                <th className="px-3 py-2"><SortHeader label="Family" sortKey="family" activeKey={sortKey} descending={descending} onToggle={toggleSort} /></th>
-                <th className="px-3 py-2"><SortHeader label="Split" sortKey="split" activeKey={sortKey} descending={descending} onToggle={toggleSort} /></th>
-                <th className="px-3 py-2"><SortHeader label="Valid Raw" sortKey="raw_sample_count" activeKey={sortKey} descending={descending} onToggle={toggleSort} /></th>
-                <th className="px-3 py-2"><SortHeader label="Tasks" sortKey="task_count" activeKey={sortKey} descending={descending} onToggle={toggleSort} /></th>
-                <th className="px-3 py-2"><SortHeader label="Flawed" sortKey="flawed_count" activeKey={sortKey} descending={descending} onToggle={toggleSort} /></th>
-                <th className="px-3 py-2"><SortHeader label="Flawed Rate" sortKey="flawed_rate" activeKey={sortKey} descending={descending} onToggle={toggleSort} /></th>
+                <th className="px-3 py-2">
+                  <SortHeader
+                    label="Dataset"
+                    sortKey="dataset_label"
+                    activeKey={sortKey}
+                    descending={descending}
+                    onToggle={toggleSort}
+                  />
+                </th>
+                <th className="px-3 py-2">
+                  <SortHeader
+                    label="Family"
+                    sortKey="family"
+                    activeKey={sortKey}
+                    descending={descending}
+                    onToggle={toggleSort}
+                  />
+                </th>
+                <th className="px-3 py-2">
+                  <SortHeader
+                    label="Split"
+                    sortKey="split"
+                    activeKey={sortKey}
+                    descending={descending}
+                    onToggle={toggleSort}
+                  />
+                </th>
+                <th className="px-3 py-2">
+                  <SortHeader
+                    label="Valid Raw"
+                    sortKey="raw_sample_count"
+                    activeKey={sortKey}
+                    descending={descending}
+                    onToggle={toggleSort}
+                  />
+                </th>
+                <th className="px-3 py-2">
+                  <SortHeader
+                    label="Tasks"
+                    sortKey="task_count"
+                    activeKey={sortKey}
+                    descending={descending}
+                    onToggle={toggleSort}
+                  />
+                </th>
+                <th className="px-3 py-2">
+                  <SortHeader
+                    label="Flawed"
+                    sortKey="flawed_count"
+                    activeKey={sortKey}
+                    descending={descending}
+                    onToggle={toggleSort}
+                  />
+                </th>
+                <th className="px-3 py-2">
+                  <SortHeader
+                    label="Flawed Rate"
+                    sortKey="flawed_rate"
+                    activeKey={sortKey}
+                    descending={descending}
+                    onToggle={toggleSort}
+                  />
+                </th>
                 {METRIC_COLUMNS.map((column) => (
                   <th key={column.key} className="px-3 py-2">
                     <SortHeader
@@ -384,9 +422,13 @@ export default function ComparePage() {
                   </td>
                   <td className="px-3 py-3 text-xs text-muted-foreground">{row.dataset.family}</td>
                   <td className="px-3 py-3 text-xs text-muted-foreground">{row.dataset.split}</td>
-                  <td className="px-3 py-3 tabular-nums">{formatNumber(row.counts.raw_sample_count)}</td>
+                  <td className="px-3 py-3 tabular-nums">
+                    {formatNumber(row.counts.raw_sample_count)}
+                  </td>
                   <td className="px-3 py-3 tabular-nums">{formatNumber(row.counts.task_count)}</td>
-                  <td className="px-3 py-3 tabular-nums">{formatNumber(row.counts.flawed_count)}</td>
+                  <td className="px-3 py-3 tabular-nums">
+                    {formatNumber(row.counts.flawed_count)}
+                  </td>
                   <td className="px-3 py-3 tabular-nums">{formatPercent(row.flawed_rate)}</td>
                   {METRIC_COLUMNS.map((column) => (
                     <td key={column.key} className="px-3 py-3 tabular-nums">
@@ -413,7 +455,7 @@ export default function ComparePage() {
 
         return (
           <section key={unit} className="space-y-3">
-            <h2 className="text-lg font-semibold tracking-tight">{UNIT_TITLES[unit]}</h2>
+            <h2 className="text-lg font-semibold tracking-tight">{COMPARE_UNIT_TITLES[unit]}</h2>
             <div className="grid gap-6 xl:grid-cols-2">
               {seriesForUnit.map((series) => (
                 <Card key={series.key}>
@@ -459,21 +501,18 @@ export default function ComparePage() {
                   type: "bar",
                   x: chartDatasetOrder,
                   y: chartDatasetOrder.map((label) => {
-                    const row = data.datasets.find(
-                      (dataset) => dataset.dataset.label === label
-                    );
+                    const row = data.datasets.find((dataset) => dataset.dataset.label === label);
                     return row?.counts.flawed_count ?? 0;
                   }),
                   text: chartDatasetOrder.map((label) => {
-                    const row = data.datasets.find(
-                      (dataset) => dataset.dataset.label === label
-                    );
+                    const row = data.datasets.find((dataset) => dataset.dataset.label === label);
                     return `${formatPercent(row?.flawed_rate ?? 0)}`;
                   }),
                   textposition: "outside",
                   marker: { color: "#dc2626" },
                   cliponaxis: false,
-                  hovertemplate: "%{x}<br>Flawed samples=%{y}<br>Flawed rate=%{text}<extra></extra>",
+                  hovertemplate:
+                    "%{x}<br>Flawed samples=%{y}<br>Flawed rate=%{text}<extra></extra>",
                 },
               ]}
               layout={{
@@ -508,11 +547,18 @@ export default function ComparePage() {
                   textposition: "top center",
                   cliponaxis: false,
                   marker: {
-                    size: data.landscape_points.map((point) => Math.max(12, Math.sqrt(point.task_count) * 2.5)),
-                    color: data.landscape_points.map((point) => FAMILY_COLORS[point.family] ?? "#4b5563"),
+                    size: data.landscape_points.map((point) =>
+                      Math.max(12, Math.sqrt(point.task_count) * 2.5),
+                    ),
+                    color: data.landscape_points.map(
+                      (point) => FAMILY_COLORS[point.family] ?? "#4b5563",
+                    ),
                     opacity: 0.8,
                   },
-                  customdata: data.landscape_points.map((point) => [point.family, point.task_count]),
+                  customdata: data.landscape_points.map((point) => [
+                    point.family,
+                    point.task_count,
+                  ]),
                   hovertemplate:
                     "%{text}<br>Family=%{customdata[0]}<br>Tasks=%{customdata[1]}<br>Prompt median=%{x}<br>Code median=%{y}<extra></extra>",
                 },
@@ -547,7 +593,6 @@ export default function ComparePage() {
           </CardContent>
         </Card>
       </div>
-
     </div>
   );
 }

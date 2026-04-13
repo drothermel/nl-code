@@ -1,21 +1,11 @@
-import type { ReactNode } from "react";
 import { AlertTriangle, BarChart3, GitBranch, Hash } from "lucide-react";
+import type { ReactNode } from "react";
 import { useParams } from "react-router-dom";
 import { useOverview } from "@/api/datasets";
 import Plot from "@/components/charts/Plot";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type {
-  MetricDistribution,
-  MetricScatter,
-  ScatterPoint,
-} from "@/types/datasetExplorer";
-
-const UNIT_TITLES: Record<string, string> = {
-  chars: "Character Length Charts",
-  tokens: "Token Length Charts",
-  lines: "Line Length Charts",
-  other: "Other Charts",
-};
+import { metricUnit, UNIT_TITLES } from "@/lib/metrics";
+import type { MetricDistribution, MetricScatter, ScatterPoint } from "@/types/datasetExplorer";
 
 const DISTRIBUTION_ORDER: Record<string, number> = {
   description_length_chars: 0,
@@ -36,15 +26,7 @@ const SCATTER_ORDER: Record<string, number> = {
 
 const HISTOGRAM_BIN_COUNT = 16;
 
-function StatCard({
-  icon,
-  label,
-  value,
-}: {
-  icon: ReactNode;
-  label: string;
-  value: number;
-}) {
+function StatCard({ icon, label, value }: { icon: ReactNode; label: string; value: number }) {
   return (
     <Card>
       <CardHeader className="pb-2">
@@ -109,7 +91,7 @@ function getHistogramBinSize(axisRange: [number, number] | undefined) {
 function getHistogramMaxCount(
   distributions: MetricDistribution[],
   axisRange: [number, number] | undefined,
-  binSize: number
+  binSize: number,
 ) {
   if (!distributions.length || !axisRange) {
     return undefined;
@@ -184,19 +166,6 @@ function ScatterPlotCard({ plot }: { plot: MetricScatter }) {
   );
 }
 
-function metricUnit(metricKey: string) {
-  if (metricKey.endsWith("_length_tokens")) {
-    return "tokens";
-  }
-  if (metricKey.endsWith("_length_lines")) {
-    return "lines";
-  }
-  if (metricKey.endsWith("_length_chars")) {
-    return "chars";
-  }
-  return "other";
-}
-
 function getDistributionUnit(distribution: MetricDistribution) {
   return metricUnit(distribution.key);
 }
@@ -233,9 +202,21 @@ export default function OverviewPage() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
-        <StatCard icon={<Hash className="h-3.5 w-3.5" />} label="Valid Raw Samples" value={data.counts.raw_sample_count} />
-        <StatCard icon={<GitBranch className="h-3.5 w-3.5" />} label="Derived Tasks" value={data.counts.task_count} />
-        <StatCard icon={<AlertTriangle className="h-3.5 w-3.5" />} label="Flawed Raw Samples" value={data.counts.flawed_count} />
+        <StatCard
+          icon={<Hash className="h-3.5 w-3.5" />}
+          label="Valid Raw Samples"
+          value={data.counts.raw_sample_count}
+        />
+        <StatCard
+          icon={<GitBranch className="h-3.5 w-3.5" />}
+          label="Derived Tasks"
+          value={data.counts.task_count}
+        />
+        <StatCard
+          icon={<AlertTriangle className="h-3.5 w-3.5" />}
+          label="Flawed Raw Samples"
+          value={data.counts.flawed_count}
+        />
       </div>
 
       {(["chars", "tokens", "lines", "other"] as const).map((unit) => {
@@ -245,21 +226,21 @@ export default function OverviewPage() {
           .sort(
             (left, right) =>
               (DISTRIBUTION_ORDER[left.key] ?? Number.MAX_SAFE_INTEGER) -
-              (DISTRIBUTION_ORDER[right.key] ?? Number.MAX_SAFE_INTEGER)
+              (DISTRIBUTION_ORDER[right.key] ?? Number.MAX_SAFE_INTEGER),
           );
         const distributionAxisRange = getDistributionAxisRange(distributions);
         const histogramBinSize = getHistogramBinSize(distributionAxisRange);
         const histogramMaxCount = getHistogramMaxCount(
           distributions,
           distributionAxisRange,
-          histogramBinSize
+          histogramBinSize,
         );
         const scatterPlots = [...data.scatter_plots]
           .filter((plot) => getScatterUnit(plot) === unit)
           .sort(
             (left, right) =>
               (SCATTER_ORDER[left.key] ?? Number.MAX_SAFE_INTEGER) -
-              (SCATTER_ORDER[right.key] ?? Number.MAX_SAFE_INTEGER)
+              (SCATTER_ORDER[right.key] ?? Number.MAX_SAFE_INTEGER),
           );
 
         if (!distributions.length && !scatterPlots.length) {
