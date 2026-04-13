@@ -4,6 +4,7 @@ import textwrap
 import pytest
 
 from nl_code.code_parsing import (
+    find_first_function_name,
     find_named_assignment_in_body,
     find_named_function,
     find_named_function_in_module,
@@ -65,6 +66,20 @@ class TestRemoveDocstringsAndComments:
     def test_ends_with_newline(self) -> None:
         result = remove_docstrings_and_comments("x = 1\n")
         assert result.endswith("\n")
+
+
+class TestFindFirstFunctionName:
+    def test_finds_first(self) -> None:
+        source = "def foo():\n    pass\ndef bar():\n    pass\n"
+        assert find_first_function_name(source) == "foo"
+
+    def test_skips_imports(self) -> None:
+        source = "import os\ndef baz():\n    pass\n"
+        assert find_first_function_name(source) == "baz"
+
+    def test_raises_on_no_function(self) -> None:
+        with pytest.raises(ValueError, match="no function definition"):
+            find_first_function_name("x = 1\n")
 
 
 class TestFindNamedFunction:

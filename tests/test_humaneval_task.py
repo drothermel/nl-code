@@ -2,13 +2,11 @@ import pytest
 from pydantic import ValidationError
 
 from nl_code.datasets.humaneval_task import (
-    HumanEvalTask,
     RawHumanEvalTask,
     extract_prompt_comments,
     extract_prompt_docstring,
     merge_prompt_and_solution,
 )
-from nl_code.datasets.task import CompressibleDataset
 
 from conftest import make_humaneval_row
 
@@ -77,26 +75,3 @@ class TestRawHumanEvalTask:
         row["validated"] = True
         task = RawHumanEvalTask.model_validate(row)
         assert task.validated is True
-
-
-class TestHumanEvalTask:
-    def test_construction(self) -> None:
-        task = HumanEvalTask(
-            dataset=CompressibleDataset.HUMAN_EVAL_PLUS,
-            task_id="HumanEval/0",
-            entry_point_name="add",
-            gt_solution="def add(a, b):\n    return a + b\n",
-        )
-        assert task.task_id == "HumanEval/0"
-
-    def test_run_test_on_safe_code(self, valid_raw_task: RawHumanEvalTask) -> None:
-        task = HumanEvalTask(
-            dataset=CompressibleDataset.HUMAN_EVAL_PLUS,
-            task_id="HumanEval/0",
-            entry_point_name="add",
-            gt_solution=valid_raw_task.gt_solution,
-        )
-        assert (
-            task.run_test_on_safe_code(valid_raw_task.gt_solution, valid_raw_task)
-            is True
-        )

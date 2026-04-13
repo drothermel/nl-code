@@ -40,6 +40,50 @@ def make_humaneval_row(
     }
 
 
+def make_humaneval_pro_row(
+    *,
+    id: int = 0,
+    raw_problem: str | None = None,
+    raw_solution: str | None = None,
+    new_problem: str | None = None,
+    new_solution: str | None = None,
+    test_code: str | None = None,
+) -> dict[str, Any]:
+    if raw_problem is None:
+        raw_problem = textwrap.dedent('''\
+            def add(a: int, b: int) -> int:
+                """Add two integers."""
+        ''')
+    if raw_solution is None:
+        raw_solution = "    return a + b\n"
+    if new_problem is None:
+        new_problem = textwrap.dedent("""\
+            # Given a list of pairs, add each pair and return the list of sums.
+            def add_pairs(pairs: list[tuple[int, int]]) -> list[int]:
+        """)
+    if new_solution is None:
+        new_solution = (
+            "    result = []\n"
+            "    for a, b in pairs:\n"
+            "        result.append(add(a, b))\n"
+            "    return result\n"
+        )
+    if test_code is None:
+        test_code = textwrap.dedent("""\
+            assert add_pairs([(1, 2), (3, 4)]) == [3, 7]
+            assert add_pairs([]) == []
+            assert add_pairs([(0, 0)]) == [0]
+        """)
+    return {
+        "id": id,
+        "raw_problem": raw_problem,
+        "raw_solution": raw_solution,
+        "new_problem": new_problem,
+        "new_solution": new_solution,
+        "test_code": test_code,
+    }
+
+
 @pytest.fixture
 def valid_row() -> dict[str, Any]:
     return make_humaneval_row()
@@ -64,9 +108,9 @@ def loaded_dataset(monkeypatch: pytest.MonkeyPatch) -> HumanEvalDataset:
         make_humaneval_row(task_id="HumanEval/1"),
     ]
     monkeypatch.setattr(
-        "nl_code.datasets.humaneval_dataset.load_dataset",
+        "nl_code.datasets.dataset.load_dataset",
         lambda *a, **kw: mock_hf_dataset(rows),
     )
     ds = HumanEvalDataset()
-    ds.load_raw_samples()
+    ds.load()
     return ds

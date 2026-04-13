@@ -14,7 +14,6 @@ from nl_code.code_parsing import (
     merge_code_components,
     remove_docstrings_and_comments,
 )
-from nl_code.datasets.task import Task
 
 
 def merge_prompt_and_solution(prompt: Any, solution: Any) -> str:
@@ -119,8 +118,3 @@ class RawHumanEvalTask(BaseModel):
 
     def run_test_on_gt_solution(self) -> bool:
         return self.run_test(self.gt_solution)
-
-
-class HumanEvalTask(Task):
-    def run_test_on_safe_code(self, code: str, raw_task: RawHumanEvalTask) -> bool:
-        return raw_task.run_test(code)

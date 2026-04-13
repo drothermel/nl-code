@@ -34,7 +34,7 @@ def _():
 @app.cell(hide_code=True)
 def _():
     ds = HumanEvalDataset()
-    ds.load_raw_samples()
+    ds.load()
     mo.md(f"""
     **Loaded {len(ds.raw_samples)} valid tasks**
     ({len(ds.flawed_raw_samples)} flawed, skipped)
