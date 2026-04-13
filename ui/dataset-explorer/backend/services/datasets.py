@@ -64,16 +64,16 @@ class DatasetRegistryEntry(BaseModel):
 
 
 DATASET_REGISTRY: dict[str, DatasetRegistryEntry] = {
-    "human-eval-plus": DatasetRegistryEntry(
-        key="human-eval-plus",
+    "humaneval-plus": DatasetRegistryEntry(
+        key="humaneval-plus",
         dataset_id=CodeDataset.HUMAN_EVAL_PLUS,
         label="HumanEval+",
         family="humaneval",
         dataset_type=HumanEvalDataset,
         split="test",
     ),
-    "human-eval-pro": DatasetRegistryEntry(
-        key="human-eval-pro",
+    "humaneval-pro": DatasetRegistryEntry(
+        key="humaneval-pro",
         dataset_id=CodeDataset.HUMAN_EVAL_PRO,
         label="HumanEval Pro",
         family="pro",

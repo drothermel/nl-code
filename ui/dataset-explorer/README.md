@@ -23,7 +23,7 @@ If a dataset was loaded before code or environment changes, refresh the cached
 copy without restarting the server:
 
 ```bash
-curl -X POST http://127.0.0.1:8000/api/datasets/bigcodebench-lite-pro/refresh
+curl -X POST http://127.0.0.1:8000/api/datasets/humaneval-plus/refresh
 ```
 
 ## Frontend
