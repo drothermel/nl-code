@@ -12,7 +12,7 @@ from nl_code.datasets.pro_task_helpers import (
 )
 
 
-class RawHumanEvalProTask(BaseModel):
+class RawMbppProTask(BaseModel):
     task_id: str
     raw_problem: str
     raw_solution: str

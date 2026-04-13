@@ -9,6 +9,14 @@ def test_code_dataset_humaneval_pro() -> None:
     assert CodeDataset.HUMAN_EVAL_PRO == "CodeEval-Pro/humaneval-pro"
 
 
+def test_code_dataset_mbpp_pro() -> None:
+    assert CodeDataset.MBPP_PRO == "CodeEval-Pro/mbpp-pro"
+
+
+def test_code_dataset_bigcodebench_lite_pro() -> None:
+    assert CodeDataset.BIGCODEBENCH_LITE_PRO == "CodeEval-Pro/bigcodebench-lite-pro"
+
+
 def test_task_construction() -> None:
     task = Task(
         dataset=CodeDataset.HUMAN_EVAL_PLUS,
