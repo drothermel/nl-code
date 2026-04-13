@@ -7,10 +7,10 @@ from nl_code.code_execution.models import (
     TestCase,
 )
 from nl_code.code_execution.runner import (
-    EXEC_MODE_LOCAL,
     _values_equal,
     batch_run_assertion_tests,
     batch_run_test_cases,
+    EXEC_MODE_DOCKER,
     check_compiles,
     run_assertion_test,
     run_function_batch,
@@ -59,7 +59,7 @@ class TestCheckCompiles:
 
 
 # ---------------------------------------------------------------------------
-# Function-call mode (local worker)
+# Function-call mode
 # ---------------------------------------------------------------------------
 
 
@@ -69,7 +69,6 @@ class TestRunFunctionBatch:
             "def double(x):\n    return x * 2\n",
             "double",
             [1, 2, 3],
-            execution_mode=EXEC_MODE_LOCAL,
         )
         assert len(results) == 3
         assert results[0].return_value == 2
@@ -81,7 +80,6 @@ class TestRunFunctionBatch:
             "def f(x):\n    return x\n",
             "f",
             [1],
-            execution_mode=EXEC_MODE_LOCAL,
         )
         assert results[0].compile_success is True
         assert results[0].compile_error is None
@@ -91,7 +89,6 @@ class TestRunFunctionBatch:
             "def foo(x):\n    return x\n",
             "foo",
             [],
-            execution_mode=EXEC_MODE_LOCAL,
         )
         assert results == []
 
@@ -100,20 +97,22 @@ class TestRunFunctionBatch:
             "def boom(x):\n    raise ValueError('nope')\n",
             "boom",
             [1],
-            execution_mode=EXEC_MODE_LOCAL,
         )
         assert len(results) == 1
         assert results[0].error is not None
         assert "ValueError" in results[0].error
 
     def test_timeout(self) -> None:
-        import subprocess
         from unittest.mock import patch
 
         with (
             patch(
-                "nl_code.code_execution.runner.subprocess.run",
-                side_effect=subprocess.TimeoutExpired(cmd="test", timeout=0.01),
+                "nl_code.code_execution.runner._run_docker_worker",
+                side_effect=CodeExecutionInfrastructureError(
+                    stage="docker_timeout",
+                    execution_mode=EXEC_MODE_DOCKER,
+                    detail="container timed out after 0.01s",
+                ),
             ),
             pytest.raises(CodeExecutionInfrastructureError, match="timed out"),
         ):
@@ -122,7 +121,6 @@ class TestRunFunctionBatch:
                 "foo",
                 [1],
                 timeout_seconds=0.01,
-                execution_mode=EXEC_MODE_LOCAL,
             )
 
 
@@ -136,7 +134,6 @@ class TestRunTestCases:
             "def double(x):\n    return x * 2\n",
             "double",
             test_cases,
-            execution_mode=EXEC_MODE_LOCAL,
         )
         assert rate == 1.0
         assert all(r.passed for r in results)
@@ -150,7 +147,6 @@ class TestRunTestCases:
             "def double(x):\n    return x * 2\n",
             "double",
             test_cases,
-            execution_mode=EXEC_MODE_LOCAL,
         )
         assert rate == 0.5
         assert results[0].passed is True
@@ -161,7 +157,6 @@ class TestRunTestCases:
             "def foo(x):\n    return x\n",
             "foo",
             [],
-            execution_mode=EXEC_MODE_LOCAL,
         )
         assert results == []
         assert rate == 0.0
@@ -172,13 +167,12 @@ class TestRunTestCases:
             "def f(x):\n    return x\n",
             "f",
             test_cases,
-            execution_mode=EXEC_MODE_LOCAL,
         )
         assert results[0].compile_success is True
 
 
 # ---------------------------------------------------------------------------
-# Assertion mode (local worker)
+# Assertion mode
 # ---------------------------------------------------------------------------
 
 
@@ -187,7 +181,6 @@ class TestRunAssertionTest:
         result = run_assertion_test(
             "def add(a, b):\n    return a + b\n",
             "assert add(1, 2) == 3\n",
-            execution_mode=EXEC_MODE_LOCAL,
         )
         assert result.passed is True
         assert result.error is None
@@ -196,14 +189,13 @@ class TestRunAssertionTest:
         result = run_assertion_test(
             "def add(a, b):\n    return a - b\n",
             "assert add(1, 2) == 3\n",
-            execution_mode=EXEC_MODE_LOCAL,
         )
         assert result.passed is False
         assert "AssertionError" in (result.error or "")
 
 
 # ---------------------------------------------------------------------------
-# Unittest mode (local worker)
+# Unittest mode
 # ---------------------------------------------------------------------------
 
 
@@ -220,7 +212,6 @@ class TestRunUnittestTest:
             code,
             test_code,
             ["TestCalc"],
-            execution_mode=EXEC_MODE_LOCAL,
         )
         assert result.all_passed is True
         assert result.total_tests_run == 1
@@ -237,14 +228,13 @@ class TestRunUnittestTest:
             code,
             test_code,
             ["TestCalc"],
-            execution_mode=EXEC_MODE_LOCAL,
         )
         assert result.all_passed is False
         assert result.total_tests_failed == 1
 
 
 # ---------------------------------------------------------------------------
-# Batch API (local worker)
+# Batch API
 # ---------------------------------------------------------------------------
 
 
@@ -267,7 +257,6 @@ class TestBatchRunTestCases:
         ]
         results = batch_run_test_cases(
             items,
-            execution_mode=EXEC_MODE_LOCAL,
         )
         assert len(results) == 2
         tc_results_0, rate_0 = results[0]
@@ -277,7 +266,7 @@ class TestBatchRunTestCases:
         assert rate_1 == 1.0
 
     def test_empty(self) -> None:
-        assert batch_run_test_cases([], execution_mode=EXEC_MODE_LOCAL) == []
+        assert batch_run_test_cases([]) == []
 
 
 class TestBatchRunAssertionTests:
@@ -294,24 +283,7 @@ class TestBatchRunAssertionTests:
         ]
         results = batch_run_assertion_tests(
             items,
-            execution_mode=EXEC_MODE_LOCAL,
         )
         assert len(results) == 2
         assert results[0].passed is True
         assert results[1].passed is False
-
-
-# ---------------------------------------------------------------------------
-# Execution mode validation
-# ---------------------------------------------------------------------------
-
-
-class TestExecutionModeValidation:
-    def test_invalid_mode_raises(self) -> None:
-        with pytest.raises(ValueError, match="Invalid execution_mode"):
-            run_function_batch(
-                "def f(x): return x",
-                "f",
-                [1],
-                execution_mode="invalid",
-            )

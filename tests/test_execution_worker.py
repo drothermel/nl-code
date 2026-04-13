@@ -58,6 +58,27 @@ class TestBoundedStdoutCapture:
         assert cap.getvalue() == "hello"
 
 
+class TestDockerOnlyGuard:
+    def test_rejects_missing_runner_flag(self) -> None:
+        stdout_capture = io.StringIO()
+        mock_stdin = MagicMock()
+        mock_stdin.buffer = io.BytesIO(b"{}")
+
+        with (
+            patch.object(sys, "stdin", mock_stdin),
+            patch.object(sys, "stdout", stdout_capture),
+            patch(
+                "nl_code.code_execution.worker._is_running_in_container",
+                return_value=True,
+            ),
+        ):
+            exit_code = main(set_limits=False)
+
+        payload = json.loads(stdout_capture.getvalue())
+        assert exit_code == 1
+        assert "NL_CODE_EVAL_IN_DOCKER" in payload["error"]
+
+
 def _run_worker(request: dict) -> dict:
     """Run worker main() with a mock stdin/stdout and return parsed JSON."""
     request_bytes = json.dumps(request).encode("utf-8")
@@ -66,8 +87,12 @@ def _run_worker(request: dict) -> dict:
     stdout_capture = io.StringIO()
 
     with (
+        patch.dict("os.environ", {"NL_CODE_EVAL_IN_DOCKER": "1"}),
         patch.object(sys, "stdin", mock_stdin),
         patch.object(sys, "stdout", stdout_capture),
+        patch(
+            "nl_code.code_execution.worker._is_running_in_container", return_value=True
+        ),
     ):
         main(set_limits=False)
 
@@ -248,6 +273,17 @@ class TestAssertionMode:
         assert result["compile_success"] is False
         assert result["compile_error"] is not None
 
+    def test_dunder_access_is_allowed(self) -> None:
+        result = _run_worker(
+            {
+                "mode": "assertion",
+                "code": "class Foo:\n    pass\n",
+                "test_code": "assert Foo().__class__.__name__ == 'Foo'\n",
+            }
+        )
+        assert result["passed"] is True
+        assert result["error"] is None
+
 
 # ---------------------------------------------------------------------------
 # Unittest mode
@@ -324,6 +360,44 @@ class TestUnittestMode:
         assert result["all_passed"] is False
         assert "SyntaxError" in (result.get("error") or "")
 
+    def test_dunder_access_is_allowed(self) -> None:
+        result = _run_worker(
+            {
+                "mode": "unittest",
+                "code": "class Foo:\n    pass\n",
+                "test_code": (
+                    "import unittest\n"
+                    "class TestFoo(unittest.TestCase):\n"
+                    "    def test_name(self):\n"
+                    "        self.assertEqual(Foo().__class__.__name__, 'Foo')\n"
+                ),
+                "test_class_names": ["TestFoo"],
+            }
+        )
+        assert result["all_passed"] is True
+        assert result["error"] is None
+
+    def test_executes_inside_temp_dir(self) -> None:
+        result = _run_worker(
+            {
+                "mode": "unittest",
+                "code": (
+                    "from pathlib import Path\n"
+                    "Path('artifact.txt').write_text('ok', encoding='utf-8')\n"
+                ),
+                "test_code": (
+                    "import unittest\n"
+                    "from pathlib import Path\n"
+                    "class TestFoo(unittest.TestCase):\n"
+                    "    def test_artifact(self):\n"
+                    "        self.assertTrue(Path('artifact.txt').is_file())\n"
+                ),
+                "test_class_names": ["TestFoo"],
+            }
+        )
+        assert result["all_passed"] is True
+        assert result["error"] is None
+
 
 # ---------------------------------------------------------------------------
 # Batch mode
@@ -385,3 +459,34 @@ class TestBatchMode:
         assert result["results"][0]["results"][0]["error"] is not None
         # Second item succeeds
         assert result["results"][1]["results"][0]["return_value"] == 42
+
+    def test_cleans_batch_cwd_between_items(self) -> None:
+        result = _run_worker(
+            {
+                "mode": "batch",
+                "timeout_per_item": 5,
+                "items": [
+                    {
+                        "mode": "assertion",
+                        "code": (
+                            "from pathlib import Path\n"
+                            "Path('leftover.txt').write_text('x', encoding='utf-8')\n"
+                        ),
+                        "test_code": "assert True\n",
+                    },
+                    {
+                        "mode": "function_call",
+                        "code": (
+                            "from pathlib import Path\n"
+                            "def exists(_):\n"
+                            "    return Path('leftover.txt').exists()\n"
+                        ),
+                        "function_name": "exists",
+                        "input_values": [0],
+                    },
+                ],
+            }
+        )
+        assert result["error"] is None
+        assert result["results"][0]["passed"] is True
+        assert result["results"][1]["results"][0]["return_value"] is False

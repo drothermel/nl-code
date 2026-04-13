@@ -1,8 +1,8 @@
 """Sandbox worker for isolated Python code execution.
 
 Reads a JSON request from stdin, executes Python code in a restricted
-environment, writes a JSON result to stdout. Designed to run as a subprocess
-(local or inside a Docker container) with resource limits.
+environment, writes a JSON result to stdout. Designed to run inside a Docker
+container with resource limits.
 
 Supported modes:
   function_call — call a named function with inputs, return values
@@ -40,6 +40,7 @@ logger = logging.getLogger(__name__)
 # Shallow copy for namespace isolation: exec()'d code gets its own builtins
 # dict rather than a mutable reference to the live module dict.
 _EXEC_BUILTINS: dict[str, Any] = dict(builtins.__dict__)
+_DOCKER_EXECUTION_FLAG = "NL_CODE_EVAL_IN_DOCKER"
 
 _DISALLOWED_NODES = (
     ast.AsyncWith,
@@ -77,6 +78,35 @@ def _stdin_limit_bytes() -> int:
 
 def _stdout_limit_bytes() -> int:
     return int(os.getenv("NL_CODE_EVAL_MAX_STDOUT_BYTES", "1048576"))
+
+
+class DockerOnlyExecutionError(RuntimeError):
+    """Raised when the worker is executed outside the supported Docker path."""
+
+
+def _is_running_in_container() -> bool:
+    if os.path.exists("/.dockerenv"):
+        return True
+
+    cgroup_paths = ("/proc/1/cgroup", "/proc/self/cgroup")
+    for cgroup_path in cgroup_paths:
+        try:
+            with open(cgroup_path, encoding="utf-8") as handle:
+                content = handle.read()
+        except OSError:
+            continue
+        if any(marker in content for marker in ("docker", "containerd", "kubepods")):
+            return True
+    return False
+
+
+def _require_docker_execution() -> None:
+    if os.getenv(_DOCKER_EXECUTION_FLAG) != "1":
+        raise DockerOnlyExecutionError(
+            f"worker requires {_DOCKER_EXECUTION_FLAG}=1 from the Docker runner"
+        )
+    if not _is_running_in_container():
+        raise DockerOnlyExecutionError("worker must run inside a Docker container")
 
 
 def _set_resource_limits(*, skip_cpu: bool = False) -> None:
@@ -371,17 +401,6 @@ def _handle_assertion(req: dict[str, Any]) -> dict[str, Any]:
     test_code = req["test_code"]
     combined = code + "\n\n" + test_code
 
-    try:
-        _validate_code_ast(combined)
-    except (SyntaxError, ValueError) as exc:
-        return {
-            "passed": False,
-            "error": f"{type(exc).__name__}: {exc}",
-            "stdout": "",
-            "compile_success": False,
-            "compile_error": f"{type(exc).__name__}: {exc}",
-        }
-
     exec_ns: dict[str, Any] = {"__builtins__": _EXEC_BUILTINS}
     stdout_capture = _BoundedStdoutCapture(_stdout_limit_bytes())
     try:
@@ -431,25 +450,14 @@ def _handle_unittest(req: dict[str, Any]) -> dict[str, Any]:
     test_class_names = req["test_class_names"]
     combined = code + "\n\n" + test_code
 
-    try:
-        _validate_code_ast(combined)
-    except (SyntaxError, ValueError) as exc:
-        return {
-            "all_passed": False,
-            "total_tests_run": 0,
-            "total_tests_passed": 0,
-            "total_tests_failed": 0,
-            "total_tests_errored": 0,
-            "per_test_class": [],
-            "error": f"{type(exc).__name__}: {exc}",
-        }
-
     with tempfile.TemporaryDirectory() as tmp_dir:
         namespace: dict[str, Any] = {
             "__builtins__": _EXEC_BUILTINS,
             "__file__": os.path.join(tmp_dir, "__eval__.py"),
         }
+        old_cwd = os.getcwd()
         try:
+            os.chdir(tmp_dir)
             exec(combined, namespace)  # noqa: S102
         except SyntaxError as exc:
             return {
@@ -471,61 +479,68 @@ def _handle_unittest(req: dict[str, Any]) -> dict[str, Any]:
                 "per_test_class": [],
                 "error": f"{type(exc).__name__}: {exc}",
             }
+        finally:
+            os.chdir(old_cwd)
 
         per_test_class: list[dict[str, Any]] = []
-        for raw_name in test_class_names:
-            test_class_name = raw_name.strip()
-            test_cls = namespace.get(test_class_name)
-            if test_cls is None or not (
-                isinstance(test_cls, type) and issubclass(test_cls, unittest.TestCase)
-            ):
+        os.chdir(tmp_dir)
+        try:
+            for raw_name in test_class_names:
+                test_class_name = raw_name.strip()
+                test_cls = namespace.get(test_class_name)
+                if test_cls is None or not (
+                    isinstance(test_cls, type)
+                    and issubclass(test_cls, unittest.TestCase)
+                ):
+                    per_test_class.append(
+                        {
+                            "test_class_name": test_class_name,
+                            "tests_run": 0,
+                            "tests_passed": 0,
+                            "tests_failed": 0,
+                            "tests_errored": 0,
+                            "failures": [f"Test class {test_class_name!r} not found"],
+                            "errors": [],
+                            "passed": False,
+                        }
+                    )
+                    continue
+
+                loader = unittest.TestLoader()
+                suite = loader.loadTestsFromTestCase(test_cls)
+                stream = io.StringIO()
+                runner = unittest.TextTestRunner(stream=stream, verbosity=0)
+                result = runner.run(suite)
+
+                failures = [f"{tc}: {msg}" for tc, msg in result.failures]
+                errors = [f"{tc}: {msg}" for tc, msg in result.errors]
+                tests_skipped = len(result.skipped)
+                tests_passed = (
+                    result.testsRun
+                    - len(result.failures)
+                    - len(result.errors)
+                    - tests_skipped
+                )
+
                 per_test_class.append(
                     {
                         "test_class_name": test_class_name,
-                        "tests_run": 0,
-                        "tests_passed": 0,
-                        "tests_failed": 0,
-                        "tests_errored": 0,
-                        "failures": [f"Test class {test_class_name!r} not found"],
-                        "errors": [],
-                        "passed": False,
+                        "tests_run": result.testsRun,
+                        "tests_passed": tests_passed,
+                        "tests_failed": len(result.failures),
+                        "tests_errored": len(result.errors),
+                        "tests_skipped": tests_skipped,
+                        "failures": failures,
+                        "errors": errors,
+                        "passed": (
+                            len(result.failures) == 0
+                            and len(result.errors) == 0
+                            and tests_passed > 0
+                        ),
                     }
                 )
-                continue
-
-            loader = unittest.TestLoader()
-            suite = loader.loadTestsFromTestCase(test_cls)
-            stream = io.StringIO()
-            runner = unittest.TextTestRunner(stream=stream, verbosity=0)
-            result = runner.run(suite)
-
-            failures = [f"{tc}: {msg}" for tc, msg in result.failures]
-            errors = [f"{tc}: {msg}" for tc, msg in result.errors]
-            tests_skipped = len(result.skipped)
-            tests_passed = (
-                result.testsRun
-                - len(result.failures)
-                - len(result.errors)
-                - tests_skipped
-            )
-
-            per_test_class.append(
-                {
-                    "test_class_name": test_class_name,
-                    "tests_run": result.testsRun,
-                    "tests_passed": tests_passed,
-                    "tests_failed": len(result.failures),
-                    "tests_errored": len(result.errors),
-                    "tests_skipped": tests_skipped,
-                    "failures": failures,
-                    "errors": errors,
-                    "passed": (
-                        len(result.failures) == 0
-                        and len(result.errors) == 0
-                        and tests_passed > 0
-                    ),
-                }
-            )
+        finally:
+            os.chdir(old_cwd)
 
         total_run = sum(r["tests_run"] for r in per_test_class)
         total_passed = sum(r["tests_passed"] for r in per_test_class)
@@ -558,20 +573,19 @@ def _alarm_handler(signum: int, frame: Any) -> None:
     raise _ItemTimeoutError("item execution timed out")
 
 
-def _cleanup_tmp() -> None:
-    """Clear temp directory contents between batch items."""
-    tmp = tempfile.gettempdir()
+def _cleanup_dir(path: str) -> None:
+    """Clear a specific directory's contents without removing the directory."""
     try:
-        entries = os.listdir(tmp)
+        entries = os.listdir(path)
     except OSError:
         return
     for entry in entries:
-        path = os.path.join(tmp, entry)
+        entry_path = os.path.join(path, entry)
         try:
-            if os.path.isdir(path):
-                shutil.rmtree(path, ignore_errors=True)
+            if os.path.isdir(entry_path):
+                shutil.rmtree(entry_path, ignore_errors=True)
             else:
-                os.remove(path)
+                os.remove(entry_path)
         except OSError:
             pass
 
@@ -603,19 +617,27 @@ def _handle_batch(req: dict[str, Any]) -> dict[str, Any]:
     signal.signal(signal.SIGALRM, _alarm_handler)
 
     results: list[dict[str, Any]] = []
+    original_cwd = os.getcwd()
     try:
-        for item in items:
-            signal.alarm(timeout_per_item)
+        with tempfile.TemporaryDirectory(prefix="nl_code_batch_") as batch_cwd:
             try:
-                result = _dispatch_item(item)
-                results.append(result)
-            except _ItemTimeoutError:
-                results.append({"error": "item execution timed out"})
-            except Exception as exc:
-                results.append({"error": f"{type(exc).__name__}: {exc}"})
+                os.chdir(batch_cwd)
+                for item in items:
+                    signal.alarm(timeout_per_item)
+                    try:
+                        os.chdir(batch_cwd)
+                        result = _dispatch_item(item)
+                        results.append(result)
+                    except _ItemTimeoutError:
+                        results.append({"error": "item execution timed out"})
+                    except Exception as exc:
+                        results.append({"error": f"{type(exc).__name__}: {exc}"})
+                    finally:
+                        signal.alarm(0)
+                        os.chdir(batch_cwd)
+                        _cleanup_dir(batch_cwd)
             finally:
-                signal.alarm(0)
-                _cleanup_tmp()
+                os.chdir(original_cwd)
     finally:
         signal.signal(signal.SIGALRM, old_handler)
 
@@ -629,6 +651,7 @@ def _handle_batch(req: dict[str, Any]) -> dict[str, Any]:
 
 def main(*, set_limits: bool = True) -> int:
     try:
+        _require_docker_execution()
         raw = _read_stdin_bounded(_stdin_limit_bytes())
         req = json.loads(raw)
 
@@ -658,6 +681,10 @@ def main(*, set_limits: bool = True) -> int:
 
         print(json.dumps(payload))
         return 0
+    except DockerOnlyExecutionError as exc:
+        payload = _error_payload(str(exc))
+        print(json.dumps(payload))
+        return 1
     except OversizedPayloadError as exc:
         payload = _error_payload(
             {

@@ -1,8 +1,7 @@
-"""Code execution runner with Docker (default) and local subprocess modes.
+"""Code execution runner with Docker worker isolation.
 
-Docker mode requires the ``dr-docker`` package (install with
-``pip install nl-code[docker]``). Local mode uses a subprocess with the
-system Python interpreter.
+Docker execution requires the ``dr-docker`` package (install with
+``pip install nl-code[docker]``).
 
 Error contract:
   - Infrastructure problems RAISE ``CodeExecutionInfrastructureError``.
@@ -17,7 +16,6 @@ import logging
 import math
 import os
 import subprocess
-import sys
 from pathlib import Path
 from typing import Any, cast
 
@@ -43,10 +41,10 @@ logger = logging.getLogger(__name__)
 ExecutionError = CodeExecutionInfrastructureError
 
 EXEC_MODE_DOCKER = "docker_worker"
-EXEC_MODE_LOCAL = "local_worker"
-_VALID_EXEC_MODES = {EXEC_MODE_DOCKER, EXEC_MODE_LOCAL}
-
 _DEFAULT_STREAM_LIMIT = 1_048_576  # 1 MB
+_WORKER_MOUNT_DIR = "/sandbox"
+_WORKER_CONTAINER_PATH = f"{_WORKER_MOUNT_DIR}/worker.py"
+_WORKER_WORKING_DIR = "/tmp"
 
 
 # ---------------------------------------------------------------------------
@@ -77,6 +75,55 @@ _PYTHON_RUNTIME_CONFIG = _WorkerRuntimeConfig(
     fsize_bytes=10_485_760,  # 10 MB
     nofile=1024,
 )
+
+
+def _parse_memory_bytes(value: str) -> int:
+    normalized = value.strip().lower()
+    multipliers = {
+        "k": 1024,
+        "m": 1024**2,
+        "g": 1024**3,
+    }
+    suffix = normalized[-1:]
+    if suffix in multipliers:
+        return int(float(normalized[:-1]) * multipliers[suffix])
+    return int(normalized)
+
+
+def _runtime_config(*, docker_image: str | None) -> _WorkerRuntimeConfig:
+    return _PYTHON_RUNTIME_CONFIG.model_copy(
+        update={
+            "docker_image": docker_image,
+            "tmpfs_size": os.getenv(
+                "NL_CODE_EVAL_DOCKER_TMPFS_SIZE",
+                _PYTHON_RUNTIME_CONFIG.tmpfs_size,
+            ),
+            "pids_limit": _parse_int_env(
+                "NL_CODE_EVAL_DOCKER_PIDS_LIMIT",
+                _PYTHON_RUNTIME_CONFIG.pids_limit,
+            ),
+            "memory": os.getenv(
+                "NL_CODE_EVAL_DOCKER_MEMORY",
+                _PYTHON_RUNTIME_CONFIG.memory,
+            ),
+            "cpus": _parse_float_env(
+                "NL_CODE_EVAL_DOCKER_CPUS",
+                _PYTHON_RUNTIME_CONFIG.cpus,
+            ),
+            "tmpfs_exec": _parse_bool_env(
+                "NL_CODE_EVAL_DOCKER_TMPFS_EXEC",
+                _PYTHON_RUNTIME_CONFIG.tmpfs_exec,
+            ),
+            "fsize_bytes": _parse_int_env(
+                "NL_CODE_EVAL_DOCKER_FSIZE_BYTES",
+                _PYTHON_RUNTIME_CONFIG.fsize_bytes,
+            ),
+            "nofile": _parse_int_env(
+                "NL_CODE_EVAL_DOCKER_NOFILE",
+                _PYTHON_RUNTIME_CONFIG.nofile,
+            ),
+        }
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -128,28 +175,43 @@ def _parse_int_env(name: str, default: int) -> int:
         return default
 
 
+def _parse_float_env(name: str, default: float) -> float:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    try:
+        return float(raw)
+    except ValueError:
+        logger.warning("Invalid float for %s=%r, using default %s", name, raw, default)
+        return default
+
+
+def _parse_bool_env(name: str, default: bool) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    normalized = raw.strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    logger.warning("Invalid boolean for %s=%r, using default %s", name, raw, default)
+    return default
+
+
 def _worker_script_path() -> Path:
     return Path(__file__).resolve().parent / "worker.py"
 
 
-def _require_worker_script(*, execution_mode: str) -> Path:
+def _require_worker_script() -> Path:
     worker = _worker_script_path()
     if not worker.is_file():
         raise CodeExecutionInfrastructureError(
             stage="worker_script_missing",
-            execution_mode=execution_mode,
+            execution_mode=EXEC_MODE_DOCKER,
             detail=f"worker script not found at {worker}",
         )
     return worker
-
-
-def _normalize_execution_mode(execution_mode: str) -> str:
-    if execution_mode not in _VALID_EXEC_MODES:
-        raise ValueError(
-            f"Invalid execution_mode={execution_mode!r}. "
-            f"Expected one of: {sorted(_VALID_EXEC_MODES)}"
-        )
-    return execution_mode
 
 
 def _values_equal(actual: Any, expected: Any, rel_tol: float = 1e-9) -> bool:
@@ -225,7 +287,7 @@ def _build_docker_runtime_request(
         _ErrorCode,
     ) = _import_dr_docker()
 
-    worker = _require_worker_script(execution_mode=EXEC_MODE_DOCKER)
+    worker = _require_worker_script()
     worker_dir = worker.parent.resolve()
     if not worker_dir.is_dir():
         raise CodeExecutionInfrastructureError(
@@ -235,16 +297,53 @@ def _build_docker_runtime_request(
         )
 
     image = runtime.docker_image or DEFAULT_CODE_EVAL_IMAGE
+    try:
+        memory_bytes = _parse_memory_bytes(runtime.memory)
+    except ValueError as exc:
+        raise CodeExecutionInfrastructureError(
+            stage="worker_runtime_config",
+            execution_mode=EXEC_MODE_DOCKER,
+            detail=f"invalid Docker memory limit {runtime.memory!r}: {exc}",
+        ) from exc
+
     return DockerRuntimeRequest(
         image=image,
-        command=["-I", "-S", "/sandbox/code_eval_worker.py"],
+        command=["-I", "-S", _WORKER_CONTAINER_PATH],
         entrypoint="python3",
+        env={
+            "NL_CODE_EVAL_IN_DOCKER": "1",
+            "NL_CODE_EVAL_MAX_STDIN_BYTES": str(
+                _parse_int_env("NL_CODE_EVAL_MAX_STDIN_BYTES", _DEFAULT_STREAM_LIMIT)
+            ),
+            "NL_CODE_EVAL_MAX_STDOUT_BYTES": str(
+                _parse_int_env("NL_CODE_EVAL_MAX_STDOUT_BYTES", _DEFAULT_STREAM_LIMIT)
+            ),
+            "NL_CODE_EVAL_CPU_SECONDS": str(
+                _parse_int_env(
+                    "NL_CODE_EVAL_CPU_SECONDS",
+                    max(1, math.ceil(timeout_seconds)),
+                )
+            ),
+            "NL_CODE_EVAL_MEMORY_BYTES": str(
+                _parse_int_env(
+                    "NL_CODE_EVAL_MEMORY_BYTES",
+                    memory_bytes,
+                )
+            ),
+            "NL_CODE_EVAL_FILE_BYTES": str(
+                _parse_int_env("NL_CODE_EVAL_FILE_BYTES", runtime.fsize_bytes)
+            ),
+            "NL_CODE_EVAL_NPROC": str(
+                _parse_int_env("NL_CODE_EVAL_NPROC", runtime.pids_limit)
+            ),
+        },
         timeout_seconds=max(1, math.ceil(timeout_seconds)),
+        working_dir=_WORKER_WORKING_DIR,
         stdin_payload=stdin_payload,
         mounts=[
             DockerMount(
                 source=str(worker_dir),
-                target="/sandbox",
+                target=_WORKER_MOUNT_DIR,
                 read_only=True,
             ),
         ],
@@ -267,17 +366,17 @@ def _build_docker_runtime_request(
 
 
 # ---------------------------------------------------------------------------
-# Worker invocation (Docker and local)
+# Worker invocation
 # ---------------------------------------------------------------------------
 
 
-def _serialize_request(req: dict[str, Any], execution_mode: str) -> bytes:
+def _serialize_request(req: dict[str, Any]) -> bytes:
     try:
         return json.dumps(req).encode("utf-8")
     except (TypeError, ValueError) as exc:
         raise CodeExecutionInfrastructureError(
             stage="worker_request_serialization",
-            execution_mode=execution_mode,
+            execution_mode=EXEC_MODE_DOCKER,
             detail=f"Failed to serialize worker request: {exc}",
         ) from exc
 
@@ -333,57 +432,26 @@ def _run_docker_worker(
     )
 
 
-def _run_local_worker(
-    req_bytes: bytes,
-    timeout_seconds: float,
-) -> subprocess.CompletedProcess[str]:
-    worker = _require_worker_script(execution_mode=EXEC_MODE_LOCAL)
-    cmd = [sys.executable, "-I", "-S", str(worker)]
-    try:
-        result = subprocess.run(
-            cmd,
-            input=req_bytes,
-            capture_output=True,
-            timeout=timeout_seconds,
-        )
-    except subprocess.TimeoutExpired as exc:
-        raise CodeExecutionInfrastructureError(
-            stage="worker_timeout",
-            execution_mode=EXEC_MODE_LOCAL,
-            detail=f"worker timed out after {timeout_seconds}s",
-        ) from exc
-    return subprocess.CompletedProcess(
-        args=cmd,
-        returncode=result.returncode,
-        stdout=result.stdout.decode("utf-8", errors="replace"),
-        stderr=result.stderr.decode("utf-8", errors="replace"),
-    )
-
-
 def _run_worker(
     req: dict[str, Any],
     timeout_seconds: float,
-    execution_mode: str,
     runtime: _WorkerRuntimeConfig,
     *,
     stream_limit: int = _DEFAULT_STREAM_LIMIT,
 ) -> subprocess.CompletedProcess[str]:
-    req_bytes = _serialize_request(req, execution_mode)
-    if execution_mode == EXEC_MODE_DOCKER:
-        return _run_docker_worker(
-            req_bytes, timeout_seconds, runtime, stream_limit=stream_limit
-        )
-    return _run_local_worker(req_bytes, timeout_seconds)
+    req_bytes = _serialize_request(req)
+    return _run_docker_worker(
+        req_bytes, timeout_seconds, runtime, stream_limit=stream_limit
+    )
 
 
 def _parse_worker_json(
     proc: subprocess.CompletedProcess[str],
-    execution_mode: str,
 ) -> dict[str, Any]:
     if not proc.stdout.strip():
         raise CodeExecutionInfrastructureError(
             stage="worker_payload_parse",
-            execution_mode=execution_mode,
+            execution_mode=EXEC_MODE_DOCKER,
             detail=(
                 f"worker returned no output "
                 f"(rc={proc.returncode}, stderr={proc.stderr[:200]})"
@@ -394,19 +462,19 @@ def _parse_worker_json(
     except json.JSONDecodeError as exc:
         raise CodeExecutionInfrastructureError(
             stage="worker_payload_parse",
-            execution_mode=execution_mode,
+            execution_mode=EXEC_MODE_DOCKER,
             detail=f"invalid JSON from worker: {exc}",
         ) from exc
     if not isinstance(payload, dict):
         raise CodeExecutionInfrastructureError(
             stage="worker_payload_parse",
-            execution_mode=execution_mode,
+            execution_mode=EXEC_MODE_DOCKER,
             detail="worker returned non-object JSON",
         )
     if proc.returncode != 0:
         raise CodeExecutionInfrastructureError(
             stage="worker_nonzero_exit",
-            execution_mode=execution_mode,
+            execution_mode=EXEC_MODE_DOCKER,
             detail=(
                 f"worker exited with rc={proc.returncode}: {proc.stderr.strip()[:200]}"
             ),
@@ -444,26 +512,25 @@ def _execution_result_from_payload(
 def _parse_function_call_results(
     payload: dict[str, Any],
     input_values: list[Any],
-    execution_mode: str,
 ) -> list[ExecutionResult]:
     top_error = payload.get("error")
     if top_error:
         raise CodeExecutionInfrastructureError(
             stage="worker_payload_error",
-            execution_mode=execution_mode,
+            execution_mode=EXEC_MODE_DOCKER,
             detail=str(top_error),
         )
     raw_results = payload.get("results")
     if not isinstance(raw_results, list):
         raise CodeExecutionInfrastructureError(
             stage="worker_payload_parse",
-            execution_mode=execution_mode,
+            execution_mode=EXEC_MODE_DOCKER,
             detail="missing results list in worker response",
         )
     if len(raw_results) != len(input_values):
         raise CodeExecutionInfrastructureError(
             stage="worker_payload_mismatched_batch_count",
-            execution_mode=execution_mode,
+            execution_mode=EXEC_MODE_DOCKER,
             detail=(f"expected {len(input_values)} results, got {len(raw_results)}"),
         )
     results: list[ExecutionResult] = []
@@ -471,12 +538,10 @@ def _parse_function_call_results(
         if not isinstance(raw, dict):
             raise CodeExecutionInfrastructureError(
                 stage="worker_payload_invalid_per_input",
-                execution_mode=execution_mode,
+                execution_mode=EXEC_MODE_DOCKER,
                 detail=f"result at index {i} is {type(raw).__name__}, expected dict",
             )
-        results.append(
-            _execution_result_from_payload(iv, cast(dict[str, Any], raw))
-        )
+        results.append(_execution_result_from_payload(iv, cast(dict[str, Any], raw)))
     return results
 
 
@@ -500,11 +565,9 @@ def run_function_batch(
     input_values: list[Any],
     timeout_seconds: float = 60.0,
     *,
-    execution_mode: str = EXEC_MODE_DOCKER,
     docker_image: str | None = None,
 ) -> list[ExecutionResult]:
     """Execute a function with multiple inputs in an isolated environment."""
-    execution_mode = _normalize_execution_mode(execution_mode)
     if not input_values:
         return []
 
@@ -514,10 +577,10 @@ def run_function_batch(
         "function_name": function_name,
         "input_values": input_values,
     }
-    runtime = _PYTHON_RUNTIME_CONFIG.model_copy(update={"docker_image": docker_image})
-    proc = _run_worker(req, timeout_seconds, execution_mode, runtime)
-    payload = _parse_worker_json(proc, execution_mode)
-    return _parse_function_call_results(payload, input_values, execution_mode)
+    runtime = _runtime_config(docker_image=docker_image)
+    proc = _run_worker(req, timeout_seconds, runtime)
+    payload = _parse_worker_json(proc)
+    return _parse_function_call_results(payload, input_values)
 
 
 def run_test_cases(
@@ -526,7 +589,6 @@ def run_test_cases(
     test_cases: list[TestCase],
     timeout_seconds: float = 30.0,
     *,
-    execution_mode: str = EXEC_MODE_DOCKER,
     docker_image: str | None = None,
 ) -> tuple[list[TestCaseResult], float]:
     """Run test cases and return (results, pass_rate)."""
@@ -539,7 +601,6 @@ def run_test_cases(
         function_name,
         input_values,
         timeout_seconds,
-        execution_mode=execution_mode,
         docker_image=docker_image,
     )
 
@@ -579,19 +640,17 @@ def run_assertion_test(
     test_code: str,
     timeout_seconds: float = 30.0,
     *,
-    execution_mode: str = EXEC_MODE_DOCKER,
     docker_image: str | None = None,
 ) -> AssertionTestResult:
     """Run code with assertion-based test code (Pro datasets)."""
-    execution_mode = _normalize_execution_mode(execution_mode)
     req: dict[str, Any] = {
         "mode": "assertion",
         "code": code,
         "test_code": test_code,
     }
-    runtime = _PYTHON_RUNTIME_CONFIG.model_copy(update={"docker_image": docker_image})
-    proc = _run_worker(req, timeout_seconds, execution_mode, runtime)
-    payload = _parse_worker_json(proc, execution_mode)
+    runtime = _runtime_config(docker_image=docker_image)
+    proc = _run_worker(req, timeout_seconds, runtime)
+    payload = _parse_worker_json(proc)
     return AssertionTestResult(
         passed=payload.get("passed", False),
         error=payload.get("error"),
@@ -607,20 +666,18 @@ def run_unittest_test(
     test_class_names: list[str],
     timeout_seconds: float = 30.0,
     *,
-    execution_mode: str = EXEC_MODE_DOCKER,
     docker_image: str | None = None,
 ) -> UnittestResult:
     """Run code with unittest test classes (ClassEval)."""
-    execution_mode = _normalize_execution_mode(execution_mode)
     req: dict[str, Any] = {
         "mode": "unittest",
         "code": code,
         "test_code": test_code,
         "test_class_names": test_class_names,
     }
-    runtime = _PYTHON_RUNTIME_CONFIG.model_copy(update={"docker_image": docker_image})
-    proc = _run_worker(req, timeout_seconds, execution_mode, runtime)
-    payload = _parse_worker_json(proc, execution_mode)
+    runtime = _runtime_config(docker_image=docker_image)
+    proc = _run_worker(req, timeout_seconds, runtime)
+    payload = _parse_worker_json(proc)
 
     if payload.get("error"):
         return UnittestResult(
@@ -655,18 +712,15 @@ def run_unittest_test(
 def _run_batch_chunk(
     items: list[dict[str, Any]],
     timeout_per_item: float,
-    execution_mode: str,
     docker_image: str | None,
-    chunk_mode: str,
 ) -> list[dict[str, Any]]:
     """Send a chunk of items to a single worker and return raw results."""
-    execution_mode = _normalize_execution_mode(execution_mode)
     req: dict[str, Any] = {
         "mode": "batch",
         "timeout_per_item": int(timeout_per_item),
         "items": items,
     }
-    runtime = _PYTHON_RUNTIME_CONFIG.model_copy(update={"docker_image": docker_image})
+    runtime = _runtime_config(docker_image=docker_image)
     # Docker timeout: generous budget for the full chunk
     docker_timeout = timeout_per_item * len(items) * 1.5 + 10
     # Scale stream limits for batch
@@ -675,16 +729,15 @@ def _run_batch_chunk(
     proc = _run_worker(
         req,
         docker_timeout,
-        execution_mode,
         runtime,
         stream_limit=stream_limit,
     )
-    payload = _parse_worker_json(proc, execution_mode)
+    payload = _parse_worker_json(proc)
 
     if payload.get("error"):
         raise CodeExecutionInfrastructureError(
             stage="worker_payload_error",
-            execution_mode=execution_mode,
+            execution_mode=EXEC_MODE_DOCKER,
             detail=str(payload["error"]),
         )
 
@@ -692,20 +745,20 @@ def _run_batch_chunk(
     if not isinstance(raw_results, list):
         raise CodeExecutionInfrastructureError(
             stage="worker_payload_parse",
-            execution_mode=execution_mode,
+            execution_mode=EXEC_MODE_DOCKER,
             detail="missing results list in batch response",
         )
     if len(raw_results) != len(items):
         raise CodeExecutionInfrastructureError(
             stage="worker_payload_mismatched_batch_count",
-            execution_mode=execution_mode,
+            execution_mode=EXEC_MODE_DOCKER,
             detail=(f"expected {len(items)} batch results, got {len(raw_results)}"),
         )
     for i, entry in enumerate(raw_results):
         if not isinstance(entry, dict):
             raise CodeExecutionInfrastructureError(
                 stage="worker_payload_invalid_per_input",
-                execution_mode=execution_mode,
+                execution_mode=EXEC_MODE_DOCKER,
                 detail=f"batch result at index {i} is {type(entry).__name__}, expected dict",
             )
     return raw_results
@@ -720,7 +773,6 @@ def batch_run_test_cases(
     timeout_per_item: float = 30.0,
     *,
     chunk_size: int = 200,
-    execution_mode: str = EXEC_MODE_DOCKER,
     docker_image: str | None = None,
 ) -> list[tuple[list[TestCaseResult], float]]:
     """Run test cases for many code samples, batched into containers."""
@@ -744,9 +796,7 @@ def batch_run_test_cases(
         raw_results = _run_batch_chunk(
             chunk,
             timeout_per_item,
-            execution_mode,
             docker_image,
-            "function_call",
         )
         # Map chunk offset to original items for test case matching
         offset = chunk_idx * chunk_size
@@ -832,7 +882,6 @@ def batch_run_assertion_tests(
     timeout_per_item: float = 30.0,
     *,
     chunk_size: int = 200,
-    execution_mode: str = EXEC_MODE_DOCKER,
     docker_image: str | None = None,
 ) -> list[AssertionTestResult]:
     """Run assertion tests for many code samples, batched into containers."""
@@ -846,9 +895,7 @@ def batch_run_assertion_tests(
 
     all_results: list[AssertionTestResult] = []
     for chunk in _chunk_list(worker_items, chunk_size):
-        raw_results = _run_batch_chunk(
-            chunk, timeout_per_item, execution_mode, docker_image, "assertion"
-        )
+        raw_results = _run_batch_chunk(chunk, timeout_per_item, docker_image)
         for raw in raw_results:
             all_results.append(
                 AssertionTestResult(
@@ -868,7 +915,6 @@ def batch_run_unittest_tests(
     timeout_per_item: float = 30.0,
     *,
     chunk_size: int = 200,
-    execution_mode: str = EXEC_MODE_DOCKER,
     docker_image: str | None = None,
 ) -> list[UnittestResult]:
     """Run unittest tests for many code samples, batched into containers."""
@@ -887,9 +933,7 @@ def batch_run_unittest_tests(
 
     all_results: list[UnittestResult] = []
     for chunk in _chunk_list(worker_items, chunk_size):
-        raw_results = _run_batch_chunk(
-            chunk, timeout_per_item, execution_mode, docker_image, "unittest"
-        )
+        raw_results = _run_batch_chunk(chunk, timeout_per_item, docker_image)
         for raw in raw_results:
             if raw.get("error") and not raw.get("per_test_class"):
                 all_results.append(

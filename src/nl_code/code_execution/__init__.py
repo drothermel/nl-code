@@ -1,4 +1,4 @@
-"""Code execution with Docker isolation and local subprocess fallback."""
+"""Code execution with Docker isolation."""
 
 from nl_code.code_execution.models import (
     DEFAULT_CODE_EVAL_IMAGE as DEFAULT_CODE_EVAL_IMAGE,
@@ -16,7 +16,6 @@ from nl_code.code_execution.models import (
 )
 from nl_code.code_execution.runner import (
     EXEC_MODE_DOCKER as EXEC_MODE_DOCKER,
-    EXEC_MODE_LOCAL as EXEC_MODE_LOCAL,
     batch_run_assertion_tests as batch_run_assertion_tests,
     batch_run_test_cases as batch_run_test_cases,
     batch_run_unittest_tests as batch_run_unittest_tests,
