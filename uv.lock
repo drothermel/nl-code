@@ -1714,7 +1714,7 @@ requires-dist = [
     { name = "beautifulsoup4", marker = "extra == 'bigcodebench'", specifier = ">=4.12" },
     { name = "datasets", specifier = ">=3.0.0" },
     { name = "dr-docker", specifier = "==0.4.1" },
-    { name = "dr-docker", marker = "extra == 'docker'", specifier = ">=0.4.0" },
+    { name = "dr-docker", marker = "extra == 'docker'", specifier = ">=0.4.1" },
     { name = "fastapi", specifier = ">=0.135.3" },
     { name = "gensim", marker = "extra == 'bigcodebench'", specifier = ">=4.3" },
     { name = "holidays", marker = "extra == 'bigcodebench'", specifier = ">=0.60" },
