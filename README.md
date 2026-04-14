@@ -62,7 +62,7 @@ A FastAPI + React app for browsing and comparing datasets. Run from `ui/dataset-
 
 ## Headless validation runs
 
-Some dataset validation tasks import `matplotlib`. Suppress GUI windows with:
+General dataset validation/debugging commands that import `matplotlib` should run headlessly with:
 
 ```bash
 MPLBACKEND=Agg uv run python ...
@@ -79,6 +79,8 @@ uv run python -m nl_code.datasets.cache_cli rebuild mbpp-pro
 uv run python -m nl_code.datasets.cache_cli rebuild class-eval
 uv run python -m nl_code.datasets.cache_cli rebuild bigcodebench-lite-pro
 ```
+
+`cache_cli rebuild` sets `MPLBACKEND=Agg` automatically.
 
 Current observed results with the default execution image and env limits:
 
