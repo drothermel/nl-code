@@ -475,14 +475,14 @@ wheels = [
 
 [[package]]
 name = "dr-docker"
-version = "0.4.4"
+version = "0.4.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/1f/83/9f2bf8362ce89a763a2ffdcae4946cbd5f34a3560481004d3c7c53242f4f/dr_docker-0.4.4.tar.gz", hash = "sha256:02f4e3bb1955d9df1c97edade6721358e0496ce6e0b2db53fd488d0a5fc7268d", size = 51302 }
+sdist = { url = "https://files.pythonhosted.org/packages/51/3a/4d2d113d7b1cd15c60ce0f3cf52679647609630ee714b3e9f82a9f0a839b/dr_docker-0.4.5.tar.gz", hash = "sha256:c2ee6aba4297de97e3c679137e41b647939ff9e8b164682369a608e955485146", size = 54111 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/21/2e/99b306ee7beb3496df041700092dc2de8b533f7bd742a553ced2a1c83156/dr_docker-0.4.4-py3-none-any.whl", hash = "sha256:c7fdd97be9c8cfb5d9c18918e07aca942a860ff3d721b22b9e91350fce54237a", size = 19165 },
+    { url = "https://files.pythonhosted.org/packages/34/08/0d6e873c862c136f6a86f2c4ae66116036eaf3367ab6c83c3dec630ff9c5/dr_docker-0.4.5-py3-none-any.whl", hash = "sha256:2e268eb7c69ead188ecdec021f2b853e01741e626f99a00748953ebb6e42b753", size = 21727 },
 ]
 
 [[package]]
@@ -1713,7 +1713,7 @@ dev = [
 requires-dist = [
     { name = "beautifulsoup4", marker = "extra == 'bigcodebench'", specifier = ">=4.12" },
     { name = "datasets", specifier = ">=3.0.0" },
-    { name = "dr-docker", specifier = "==0.4.4" },
+    { name = "dr-docker", specifier = "==0.4.5" },
     { name = "dr-docker", marker = "extra == 'docker'", specifier = ">=0.4.4" },
     { name = "fastapi", specifier = ">=0.135.3" },
     { name = "gensim", marker = "extra == 'bigcodebench'", specifier = ">=4.3" },
