@@ -63,6 +63,20 @@ class TestCheckCompiles:
         assert "SyntaxError" in err
 
 
+class TestRuntimeConfig:
+    def test_uses_dr_docker_env_overrides(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("DR_DOCKER_MEMORY", "2g")
+        monkeypatch.setenv("DR_DOCKER_PIDS_LIMIT", "99")
+        monkeypatch.setenv("DR_DOCKER_TMPFS_EXEC", "true")
+
+        runtime = _runtime_config(docker_image=None)
+
+        assert runtime.worker_policy.memory == "2g"
+        assert runtime.worker_policy.pids_limit == 99
+        assert runtime.worker_policy.nproc == 99
+        assert runtime.worker_policy.tmpfs_exec is True
+
+
 # ---------------------------------------------------------------------------
 # Function-call mode
 # ---------------------------------------------------------------------------

@@ -58,57 +58,16 @@ class _WorkerRuntimeConfig(BaseModel):
     worker_policy: Any
 
 
-def _parse_memory_bytes(value: str) -> int:
-    normalized = value.strip().lower()
-    multipliers = {
-        "k": 1024,
-        "m": 1024**2,
-        "g": 1024**3,
-    }
-    suffix = normalized[-1:]
-    if suffix in multipliers:
-        return int(float(normalized[:-1]) * multipliers[suffix])
-    return int(normalized)
-
-
 def _runtime_config(*, docker_image: str | None) -> _WorkerRuntimeConfig:
-    WorkerRuntimePolicy = _import_dr_docker()[7]
-
-    default_policy = WorkerRuntimePolicy.small_isolated()
-    pids_limit = _parse_int_env(
-        "NL_CODE_DOCKER_PIDS_LIMIT",
-        default_policy.pids_limit,
-    )
-    worker_policy = default_policy.model_copy(
-        update={
-            "memory": os.getenv(
-                "NL_CODE_DOCKER_MEMORY",
-                default_policy.memory,
-            ),
-            "cpus": _parse_float_env(
-                "NL_CODE_DOCKER_CPUS",
-                default_policy.cpus,
-            ),
-            "pids_limit": pids_limit,
-            "tmpfs_size": os.getenv(
-                "NL_CODE_DOCKER_TMPFS_SIZE",
-                default_policy.tmpfs_size,
-            ),
-            "tmpfs_exec": _parse_bool_env(
-                "NL_CODE_DOCKER_TMPFS_EXEC",
-                default_policy.tmpfs_exec,
-            ),
-            "fsize_bytes": _parse_int_env(
-                "NL_CODE_DOCKER_FSIZE_BYTES",
-                default_policy.fsize_bytes,
-            ),
-            "nofile": _parse_int_env(
-                "NL_CODE_DOCKER_NOFILE",
-                default_policy.nofile,
-            ),
-            "nproc": pids_limit,
-        },
-    )
+    WorkerRuntimePolicy = _import_dr_docker()[3]
+    try:
+        worker_policy = WorkerRuntimePolicy.small_isolated().with_env_overrides()
+    except ValueError as exc:
+        raise CodeExecutionInfrastructureError(
+            stage="worker_runtime_config",
+            execution_mode=EXEC_MODE_DOCKER,
+            detail=str(exc),
+        ) from exc
     return _WorkerRuntimeConfig(
         docker_image=docker_image,
         worker_policy=worker_policy,
@@ -164,30 +123,6 @@ def _parse_int_env(name: str, default: int) -> int:
         return default
 
 
-def _parse_float_env(name: str, default: float) -> float:
-    raw = os.getenv(name)
-    if raw is None:
-        return default
-    try:
-        return float(raw)
-    except ValueError:
-        logger.warning("Invalid float for %s=%r, using default %s", name, raw, default)
-        return default
-
-
-def _parse_bool_env(name: str, default: bool) -> bool:
-    raw = os.getenv(name)
-    if raw is None:
-        return default
-    normalized = raw.strip().lower()
-    if normalized in {"1", "true", "yes", "on"}:
-        return True
-    if normalized in {"0", "false", "no", "off"}:
-        return False
-    logger.warning("Invalid boolean for %s=%r, using default %s", name, raw, default)
-    return default
-
-
 def _worker_script_path() -> Path:
     return Path(__file__).resolve().parent / "worker.py"
 
@@ -222,13 +157,10 @@ def _import_dr_docker() -> tuple[Any, ...]:
     """Lazy-import dr-docker types. Raises ImportError with install hint."""
     try:
         from dr_docker import (
-            DockerMount,
-            DockerRuntimeRequest,
             ErrorCode,
-            ResourceLimits,
+            JsonWorkerExecutionConfig,
             RuntimePrimitiveError,
             SubprocessDockerAdapter,
-            TmpfsMount,
             WorkerRuntimePolicy,
             build_mounted_worker_request,
             execute_batch_in_container,
@@ -242,10 +174,6 @@ def _import_dr_docker() -> tuple[Any, ...]:
         ) from exc
     return (
         SubprocessDockerAdapter,
-        DockerRuntimeRequest,
-        DockerMount,
-        TmpfsMount,
-        ResourceLimits,
         ErrorCode,
         RuntimePrimitiveError,
         WorkerRuntimePolicy,
@@ -253,6 +181,7 @@ def _import_dr_docker() -> tuple[Any, ...]:
         mount_worker_file,
         execute_batch_in_container,
         execute_in_runtime_or_raise,
+        JsonWorkerExecutionConfig,
     )
 
 
@@ -282,10 +211,6 @@ def _build_docker_runtime_request(
 ) -> Any:
     (
         _Adapter,
-        _DockerRuntimeRequest,
-        _DockerMount,
-        _TmpfsMount,
-        _ResourceLimits,
         _ErrorCode,
         _RuntimePrimitiveError,
         _WorkerRuntimePolicy,
@@ -293,6 +218,7 @@ def _build_docker_runtime_request(
         mount_worker_file,
         _execute_batch_in_container,
         _execute_in_runtime_or_raise,
+        JsonWorkerExecutionConfig,
     ) = _import_dr_docker()
 
     worker = _require_worker_script()
@@ -306,45 +232,20 @@ def _build_docker_runtime_request(
     )
     image = runtime.docker_image or DEFAULT_CODE_EVAL_IMAGE
     try:
-        memory_bytes = _parse_memory_bytes(runtime.worker_policy.memory)
+        worker_execution_config = (
+            JsonWorkerExecutionConfig.from_runtime_policy(
+                runtime.worker_policy,
+                timeout_seconds=timeout_seconds,
+            ).with_env_overrides()
+        )
     except ValueError as exc:
         raise CodeExecutionInfrastructureError(
             stage="worker_runtime_config",
             execution_mode=EXEC_MODE_DOCKER,
-            detail=f"invalid Docker memory limit {runtime.worker_policy.memory!r}: {exc}",
+            detail=str(exc),
         ) from exc
 
-    env = {
-        "NL_CODE_EVAL_IN_DOCKER": "1",
-        "NL_CODE_EVAL_MAX_STDIN_BYTES": str(
-            _parse_int_env("NL_CODE_EVAL_MAX_STDIN_BYTES", _DEFAULT_STREAM_LIMIT)
-        ),
-        "NL_CODE_EVAL_MAX_STDOUT_BYTES": str(
-            _parse_int_env("NL_CODE_EVAL_MAX_STDOUT_BYTES", _DEFAULT_STREAM_LIMIT)
-        ),
-        "NL_CODE_EVAL_CPU_SECONDS": str(
-            _parse_int_env(
-                "NL_CODE_EVAL_CPU_SECONDS",
-                max(1, math.ceil(timeout_seconds)),
-            )
-        ),
-        "NL_CODE_EVAL_MEMORY_BYTES": str(
-            _parse_int_env(
-                "NL_CODE_EVAL_MEMORY_BYTES",
-                memory_bytes,
-            )
-        ),
-        "NL_CODE_EVAL_FILE_BYTES": str(
-            _parse_int_env(
-                "NL_CODE_EVAL_FILE_BYTES",
-                runtime.worker_policy.fsize_bytes,
-            )
-        ),
-        "NL_CODE_EVAL_NPROC": str(
-            _parse_int_env("NL_CODE_EVAL_NPROC", runtime.worker_policy.nproc)
-        ),
-        "NL_CODE_EVAL_SKIP_LIMITS": os.getenv("NL_CODE_EVAL_SKIP_LIMITS", "false"),
-    }
+    env = worker_execution_config.to_env()
     if docker_env:
         env.update(docker_env)
 
@@ -382,9 +283,9 @@ def _run_docker_worker(
     stream_limit: int = _DEFAULT_STREAM_LIMIT,
     docker_env: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
-    _ErrorCode = _import_dr_docker()[5]
-    RuntimePrimitiveError = _import_dr_docker()[6]
-    execute_in_runtime_or_raise = _import_dr_docker()[11]
+    _ErrorCode = _import_dr_docker()[1]
+    RuntimePrimitiveError = _import_dr_docker()[2]
+    execute_in_runtime_or_raise = _import_dr_docker()[7]
 
     docker_request = _build_docker_runtime_request(
         stdin_payload=req_bytes,
@@ -740,20 +641,9 @@ def _run_batch_chunk(
 ) -> list[dict[str, Any]]:
     """Send a chunk of items to a single worker and return raw results."""
     runtime = _runtime_config(docker_image=docker_image)
-    (
-        _Adapter,
-        _DockerRuntimeRequest,
-        _DockerMount,
-        _TmpfsMount,
-        _ResourceLimits,
-        ErrorCode,
-        RuntimePrimitiveError,
-        _WorkerRuntimePolicy,
-        _build_mounted_worker_request,
-        _mount_worker_file,
-        execute_batch_in_container,
-        _execute_in_runtime_or_raise,
-    ) = _import_dr_docker()
+    ErrorCode = _import_dr_docker()[1]
+    RuntimePrimitiveError = _import_dr_docker()[2]
+    execute_batch_in_container = _import_dr_docker()[6]
 
     def build_request(batch_items: list[dict[str, Any]]) -> Any:
         req: dict[str, Any] = {

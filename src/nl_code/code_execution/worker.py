@@ -35,10 +35,11 @@ import unittest
 from typing import Any, Callable, cast
 
 from dr_docker.workers.json_stdio import (
+    DEFAULT_WORKER_IN_CONTAINER_ENV_VAR,
     BoundedTextCapture as _BoundedStdoutCapture,
     DockerOnlyExecutionError,
+    JsonWorkerExecutionConfig,
     OversizedPayloadError,
-    apply_resource_limits as _apply_resource_limits,
     is_running_in_container as _upstream_is_running_in_container,
     read_stdin_bounded as _read_stdin_bounded,
 )
@@ -48,7 +49,6 @@ logger = logging.getLogger(__name__)
 # Shallow copy for namespace isolation: exec()'d code gets its own builtins
 # dict rather than a mutable reference to the live module dict.
 _EXEC_BUILTINS: dict[str, Any] = dict(builtins.__dict__)
-_DOCKER_EXECUTION_FLAG = "NL_CODE_EVAL_IN_DOCKER"
 
 _DISALLOWED_NODES = (
     ast.AsyncWith,
@@ -81,11 +81,15 @@ def _validate_code_ast(code: str) -> None:
 
 
 def _stdin_limit_bytes() -> int:
-    return int(os.getenv("NL_CODE_EVAL_MAX_STDIN_BYTES", "1048576"))
+    return _worker_execution_config().stdin_limit_bytes
 
 
 def _stdout_limit_bytes() -> int:
-    return int(os.getenv("NL_CODE_EVAL_MAX_STDOUT_BYTES", "1048576"))
+    return _worker_execution_config().stdout_limit_bytes
+
+
+def _worker_execution_config() -> JsonWorkerExecutionConfig:
+    return JsonWorkerExecutionConfig.from_env()
 
 
 def _is_running_in_container() -> bool:
@@ -93,27 +97,18 @@ def _is_running_in_container() -> bool:
 
 
 def _require_docker_execution() -> None:
-    if os.getenv(_DOCKER_EXECUTION_FLAG) != "1":
+    if os.getenv(DEFAULT_WORKER_IN_CONTAINER_ENV_VAR) != "1":
         raise DockerOnlyExecutionError(
-            f"worker requires {_DOCKER_EXECUTION_FLAG}=1 from the Docker runner"
+            "worker requires "
+            f"{DEFAULT_WORKER_IN_CONTAINER_ENV_VAR}=1 from the Docker runner"
         )
     if not _is_running_in_container():
         raise DockerOnlyExecutionError("worker must run inside a Docker container")
 
 
 def _set_resource_limits(*, skip_cpu: bool = False) -> None:
-    cpu_seconds = int(os.getenv("NL_CODE_EVAL_CPU_SECONDS", "2"))
-    memory_bytes = int(os.getenv("NL_CODE_EVAL_MEMORY_BYTES", "268435456"))
-    file_bytes = int(os.getenv("NL_CODE_EVAL_FILE_BYTES", "1048576"))
-    process_count = int(os.getenv("NL_CODE_EVAL_NPROC", "64"))
     try:
-        _apply_resource_limits(
-            cpu_seconds=cpu_seconds,
-            memory_bytes=memory_bytes,
-            file_bytes=file_bytes,
-            nproc=process_count,
-            skip_cpu=skip_cpu,
-        )
+        _worker_execution_config().apply_resource_limits(skip_cpu=skip_cpu)
     except RuntimeError as exc:
         logger.debug("Unable to apply resource limits: %s", exc)
 
@@ -579,11 +574,7 @@ def main(*, set_limits: bool = True) -> int:
 
         mode = req.get("mode", "function_call")
 
-        skip = os.getenv("NL_CODE_EVAL_SKIP_LIMITS", "").strip().lower() in {
-            "1",
-            "true",
-            "yes",
-        }
+        skip = _worker_execution_config().skip_limits
         if set_limits and not skip and mode != "batch":
             _set_resource_limits()
 

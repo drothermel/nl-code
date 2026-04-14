@@ -76,7 +76,7 @@ class TestDockerOnlyGuard:
 
         payload = json.loads(stdout_capture.getvalue())
         assert exit_code == 1
-        assert "NL_CODE_EVAL_IN_DOCKER" in payload["error"]
+        assert "DR_DOCKER_WORKER_IN_CONTAINER" in payload["error"]
 
 
 def _run_worker(request: dict) -> dict:
@@ -87,7 +87,7 @@ def _run_worker(request: dict) -> dict:
     stdout_capture = io.StringIO()
 
     with (
-        patch.dict("os.environ", {"NL_CODE_EVAL_IN_DOCKER": "1"}),
+        patch.dict("os.environ", {"DR_DOCKER_WORKER_IN_CONTAINER": "1"}),
         patch.object(sys, "stdin", mock_stdin),
         patch.object(sys, "stdout", stdout_capture),
         patch(
