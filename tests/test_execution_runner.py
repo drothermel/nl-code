@@ -1,6 +1,8 @@
 import pytest
 import subprocess
 
+from dr_docker import ErrorCode, ErrorEnvelope, RuntimePrimitiveError
+
 from nl_code.code_execution.models import (
     AssertionBatchItem,
     CodeExecutionInfrastructureError,
@@ -8,6 +10,8 @@ from nl_code.code_execution.models import (
     TestCase,
 )
 from nl_code.code_execution.runner import (
+    _run_docker_worker,
+    _runtime_config,
     _values_equal,
     batch_run_assertion_tests,
     batch_run_test_cases,
@@ -124,6 +128,64 @@ class TestRunFunctionBatch:
                 [1],
                 timeout_seconds=0.01,
             )
+
+
+@pytest.mark.docker
+class TestRunDockerWorker:
+    def test_maps_runtime_timeout_from_dr_docker(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        def fake_execute_in_runtime_or_raise(adapter: object, request: object) -> object:
+            del adapter, request
+            raise RuntimePrimitiveError(
+                ErrorEnvelope(
+                    code=ErrorCode.TIMEOUT,
+                    message="Container timed out after 12s",
+                    retriable=True,
+                )
+            )
+
+        monkeypatch.setattr(
+            "dr_docker.execute_in_runtime_or_raise",
+            fake_execute_in_runtime_or_raise,
+        )
+
+        with pytest.raises(CodeExecutionInfrastructureError) as exc_info:
+            _run_docker_worker(
+                b"{}",
+                12.0,
+                _runtime_config(docker_image=None),
+            )
+
+        assert exc_info.value.stage == "docker_timeout"
+        assert exc_info.value.detail == "Container timed out after 12s"
+
+    def test_maps_runtime_internal_error_from_dr_docker(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def fake_execute_in_runtime_or_raise(adapter: object, request: object) -> object:
+            del adapter, request
+            raise RuntimePrimitiveError(
+                ErrorEnvelope(
+                    code=ErrorCode.INTERNAL_ERROR,
+                    message="unexpected adapter contract violation",
+                )
+            )
+
+        monkeypatch.setattr(
+            "dr_docker.execute_in_runtime_or_raise",
+            fake_execute_in_runtime_or_raise,
+        )
+
+        with pytest.raises(CodeExecutionInfrastructureError) as exc_info:
+            _run_docker_worker(
+                b"{}",
+                12.0,
+                _runtime_config(docker_image=None),
+            )
+
+        assert exc_info.value.stage == "docker_runtime_error"
+        assert exc_info.value.detail == (
+            "internal_error: unexpected adapter contract violation"
+        )
 
 
 @pytest.mark.docker

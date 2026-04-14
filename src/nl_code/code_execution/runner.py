@@ -241,6 +241,7 @@ def _import_dr_docker() -> tuple[Any, ...]:
             SubprocessDockerAdapter,
             TmpfsMount,
             execute_batch_in_container,
+            execute_in_runtime_or_raise,
         )
     except ImportError as exc:
         raise ImportError(
@@ -256,6 +257,7 @@ def _import_dr_docker() -> tuple[Any, ...]:
         ErrorCode,
         RuntimePrimitiveError,
         execute_batch_in_container,
+        execute_in_runtime_or_raise,
     )
 
 
@@ -292,6 +294,7 @@ def _build_docker_runtime_request(
         _ErrorCode,
         _RuntimePrimitiveError,
         _execute_batch_in_container,
+        _execute_in_runtime_or_raise,
     ) = _import_dr_docker()
 
     worker = _require_worker_script()
@@ -402,6 +405,8 @@ def _run_docker_worker(
     docker_env: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[str]:
     _ErrorCode = _import_dr_docker()[5]
+    RuntimePrimitiveError = _import_dr_docker()[6]
+    execute_in_runtime_or_raise = _import_dr_docker()[8]
 
     docker_request = _build_docker_runtime_request(
         stdin_payload=req_bytes,
@@ -411,32 +416,15 @@ def _run_docker_worker(
     )
     adapter = _make_adapter(stream_limit=stream_limit)
     try:
-        result = adapter.execute_in_runtime(docker_request)
+        result = execute_in_runtime_or_raise(adapter, docker_request)
+    except RuntimePrimitiveError as exc:
+        _raise_code_execution_infra_from_runtime_error(exc, error_code_type=_ErrorCode)
     except Exception as exc:  # noqa: BLE001
         raise CodeExecutionInfrastructureError(
             stage="worker_subprocess_error",
             execution_mode=EXEC_MODE_DOCKER,
             detail=f"{type(exc).__name__}: {exc}",
         ) from exc
-
-    if result.error and result.error.code == _ErrorCode.UNAVAILABLE:
-        raise CodeExecutionInfrastructureError(
-            stage=_docker_unavailable_stage(result.error.message),
-            execution_mode=EXEC_MODE_DOCKER,
-            detail=result.error.message,
-        )
-    if result.error and result.error.code == _ErrorCode.TIMEOUT:
-        raise CodeExecutionInfrastructureError(
-            stage="docker_timeout",
-            execution_mode=EXEC_MODE_DOCKER,
-            detail=f"container timed out after {timeout_seconds}s",
-        )
-    if result.error and result.exit_code is None:
-        raise CodeExecutionInfrastructureError(
-            stage="docker_runtime_error",
-            execution_mode=EXEC_MODE_DOCKER,
-            detail=f"{result.error.code.value}: {result.error.message}",
-        )
 
     return subprocess.CompletedProcess(
         args=["docker", "run"],
@@ -510,6 +498,28 @@ def _completed_process_from_runtime_result(
         stdout=runtime_result.stdout,
         stderr=runtime_result.stderr,
     )
+
+
+def _raise_code_execution_infra_from_runtime_error(
+    exc: Any, *, error_code_type: Any
+) -> None:
+    if exc.error.code == error_code_type.UNAVAILABLE:
+        raise CodeExecutionInfrastructureError(
+            stage=_docker_unavailable_stage(exc.error.message),
+            execution_mode=EXEC_MODE_DOCKER,
+            detail=exc.error.message,
+        ) from exc
+    if exc.error.code == error_code_type.TIMEOUT:
+        raise CodeExecutionInfrastructureError(
+            stage="docker_timeout",
+            execution_mode=EXEC_MODE_DOCKER,
+            detail=exc.error.message,
+        ) from exc
+    raise CodeExecutionInfrastructureError(
+        stage="docker_runtime_error",
+        execution_mode=EXEC_MODE_DOCKER,
+        detail=f"{exc.error.code.value}: {exc.error.message}",
+    ) from exc
 
 
 # ---------------------------------------------------------------------------
@@ -761,6 +771,7 @@ def _run_batch_chunk(
         ErrorCode,
         RuntimePrimitiveError,
         execute_batch_in_container,
+        _execute_in_runtime_or_raise,
     ) = _import_dr_docker()
 
     def build_request(batch_items: list[dict[str, Any]]) -> Any:
@@ -811,23 +822,7 @@ def _run_batch_chunk(
             parse_results=parse_results,
         )
     except RuntimePrimitiveError as exc:
-        if exc.error.code == ErrorCode.UNAVAILABLE:
-            raise CodeExecutionInfrastructureError(
-                stage=_docker_unavailable_stage(exc.error.message),
-                execution_mode=EXEC_MODE_DOCKER,
-                detail=exc.error.message,
-            ) from exc
-        if exc.error.code == ErrorCode.TIMEOUT:
-            raise CodeExecutionInfrastructureError(
-                stage="docker_timeout",
-                execution_mode=EXEC_MODE_DOCKER,
-                detail=exc.error.message,
-            ) from exc
-        raise CodeExecutionInfrastructureError(
-            stage="docker_runtime_error",
-            execution_mode=EXEC_MODE_DOCKER,
-            detail=f"{exc.error.code.value}: {exc.error.message}",
-        ) from exc
+        _raise_code_execution_infra_from_runtime_error(exc, error_code_type=ErrorCode)
     except ValueError as exc:
         raise CodeExecutionInfrastructureError(
             stage="worker_payload_mismatched_batch_count",
