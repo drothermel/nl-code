@@ -67,19 +67,27 @@ Some dataset validation tasks import `matplotlib`. Suppress GUI windows with:
 MPLBACKEND=Agg uv run python ...
 ```
 
-## Rebuild Note
+## Rebuild Dataset Caches
 
-After rebuilding the execution image from `docker/scientific.Dockerfile`, the
-real Docker-backed cache rebuild for HumanEval+ completes with:
+Run the Docker-backed cache rebuilds with:
 
 ```bash
 uv run python -m nl_code.datasets.cache_cli rebuild humaneval-plus
-# humaneval-plus: cached 163 tasks (163 raw, 1 flawed)
+uv run python -m nl_code.datasets.cache_cli rebuild humaneval-pro
+uv run python -m nl_code.datasets.cache_cli rebuild mbpp-pro
+uv run python -m nl_code.datasets.cache_cli rebuild class-eval
+uv run python -m nl_code.datasets.cache_cli rebuild bigcodebench-lite-pro
 ```
 
-The remaining flawed sample is currently `HumanEval/32`, which fails as a
-dataset-level test issue rather than a Docker/runtime issue:
+Current observed results with the default execution image and env limits:
 
 ```text
-dataset_failure: TypeError: Value after * must be an iterable, not float
+humaneval-plus: cached 163 tasks (163 raw, 1 flawed)
+humaneval-pro: cached 164 tasks (164 raw, 0 flawed)
+mbpp-pro: cached 375 tasks (375 raw, 3 flawed)
+class-eval: cached 98 tasks (98 raw, 2 flawed)
+bigcodebench-lite-pro: cached 54 tasks (54 raw, 3 flawed)
 ```
+
+The remaining flawed samples above are dataset-level failures, not Docker
+runtime failures.
