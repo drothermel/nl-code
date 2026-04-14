@@ -237,8 +237,10 @@ def _import_dr_docker() -> tuple[Any, ...]:
             DockerRuntimeRequest,
             ErrorCode,
             ResourceLimits,
+            RuntimePrimitiveError,
             SubprocessDockerAdapter,
             TmpfsMount,
+            execute_batch_in_container,
         )
     except ImportError as exc:
         raise ImportError(
@@ -252,6 +254,8 @@ def _import_dr_docker() -> tuple[Any, ...]:
         TmpfsMount,
         ResourceLimits,
         ErrorCode,
+        RuntimePrimitiveError,
+        execute_batch_in_container,
     )
 
 
@@ -286,6 +290,8 @@ def _build_docker_runtime_request(
         TmpfsMount,
         ResourceLimits,
         _ErrorCode,
+        _RuntimePrimitiveError,
+        _execute_batch_in_container,
     ) = _import_dr_docker()
 
     worker = _require_worker_script()
@@ -493,6 +499,17 @@ def _parse_worker_json(
             ),
         )
     return payload
+
+
+def _completed_process_from_runtime_result(
+    runtime_result: Any,
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.CompletedProcess(
+        args=["docker", "run"],
+        returncode=runtime_result.exit_code or 0,
+        stdout=runtime_result.stdout,
+        stderr=runtime_result.stderr,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -734,54 +751,89 @@ def _run_batch_chunk(
     docker_env: dict[str, str] | None = None,
 ) -> list[dict[str, Any]]:
     """Send a chunk of items to a single worker and return raw results."""
-    req: dict[str, Any] = {
-        "mode": "batch",
-        "timeout_per_item": int(timeout_per_item),
-        "items": items,
-    }
     runtime = _runtime_config(docker_image=docker_image)
-    # Docker timeout: generous budget for the full chunk
-    docker_timeout = timeout_per_item * len(items) * 1.5 + 10
-    # Scale stream limits for batch
-    stream_limit = max(10_485_760, len(items) * 51_200)
+    (
+        _Adapter,
+        _DockerRuntimeRequest,
+        _DockerMount,
+        _TmpfsMount,
+        _ResourceLimits,
+        ErrorCode,
+        RuntimePrimitiveError,
+        execute_batch_in_container,
+    ) = _import_dr_docker()
 
-    proc = _run_worker(
-        req,
-        docker_timeout,
-        runtime,
-        stream_limit=stream_limit,
-        docker_env=docker_env,
-    )
-    payload = _parse_worker_json(proc)
-
-    if payload.get("error"):
-        raise CodeExecutionInfrastructureError(
-            stage="worker_payload_error",
-            execution_mode=EXEC_MODE_DOCKER,
-            detail=str(payload["error"]),
+    def build_request(batch_items: list[dict[str, Any]]) -> Any:
+        req: dict[str, Any] = {
+            "mode": "batch",
+            "timeout_per_item": int(timeout_per_item),
+            "items": batch_items,
+        }
+        docker_timeout = timeout_per_item * len(batch_items) * 1.5 + 10
+        return _build_docker_runtime_request(
+            stdin_payload=_serialize_request(req),
+            timeout_seconds=docker_timeout,
+            runtime=runtime,
+            docker_env=docker_env,
         )
 
-    raw_results = payload.get("results")
-    if not isinstance(raw_results, list):
-        raise CodeExecutionInfrastructureError(
-            stage="worker_payload_parse",
-            execution_mode=EXEC_MODE_DOCKER,
-            detail="missing results list in batch response",
+    def parse_results(runtime_result: Any) -> list[dict[str, Any]]:
+        payload = _parse_worker_json(_completed_process_from_runtime_result(runtime_result))
+
+        if payload.get("error"):
+            raise CodeExecutionInfrastructureError(
+                stage="worker_payload_error",
+                execution_mode=EXEC_MODE_DOCKER,
+                detail=str(payload["error"]),
+            )
+
+        raw_results = payload.get("results")
+        if not isinstance(raw_results, list):
+            raise CodeExecutionInfrastructureError(
+                stage="worker_payload_parse",
+                execution_mode=EXEC_MODE_DOCKER,
+                detail="missing results list in batch response",
+            )
+        for i, entry in enumerate(raw_results):
+            if not isinstance(entry, dict):
+                raise CodeExecutionInfrastructureError(
+                    stage="worker_payload_invalid_per_input",
+                    execution_mode=EXEC_MODE_DOCKER,
+                    detail=f"batch result at index {i} is {type(entry).__name__}, expected dict",
+                )
+        return [cast(dict[str, Any], entry) for entry in raw_results]
+
+    try:
+        return execute_batch_in_container(
+            items,
+            adapter=_make_adapter(stream_limit=max(10_485_760, len(items) * 51_200)),
+            build_request=build_request,
+            parse_results=parse_results,
         )
-    if len(raw_results) != len(items):
+    except RuntimePrimitiveError as exc:
+        if exc.error.code == ErrorCode.UNAVAILABLE:
+            raise CodeExecutionInfrastructureError(
+                stage=_docker_unavailable_stage(exc.error.message),
+                execution_mode=EXEC_MODE_DOCKER,
+                detail=exc.error.message,
+            ) from exc
+        if exc.error.code == ErrorCode.TIMEOUT:
+            raise CodeExecutionInfrastructureError(
+                stage="docker_timeout",
+                execution_mode=EXEC_MODE_DOCKER,
+                detail=exc.error.message,
+            ) from exc
+        raise CodeExecutionInfrastructureError(
+            stage="docker_runtime_error",
+            execution_mode=EXEC_MODE_DOCKER,
+            detail=f"{exc.error.code.value}: {exc.error.message}",
+        ) from exc
+    except ValueError as exc:
         raise CodeExecutionInfrastructureError(
             stage="worker_payload_mismatched_batch_count",
             execution_mode=EXEC_MODE_DOCKER,
-            detail=(f"expected {len(items)} batch results, got {len(raw_results)}"),
-        )
-    for i, entry in enumerate(raw_results):
-        if not isinstance(entry, dict):
-            raise CodeExecutionInfrastructureError(
-                stage="worker_payload_invalid_per_input",
-                execution_mode=EXEC_MODE_DOCKER,
-                detail=f"batch result at index {i} is {type(entry).__name__}, expected dict",
-            )
-    return raw_results
+            detail=str(exc),
+        ) from exc
 
 
 def _chunk_list(lst: list[Any], size: int) -> list[list[Any]]:

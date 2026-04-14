@@ -19,7 +19,7 @@ dependencies = [
 
 [project.optional-dependencies]
 docker = [
-    "dr-docker>=0.4.1",
+    "dr-docker>=0.4.2",
 ]
 bigcodebench = [
     "numpy>=1.26",

@@ -325,3 +325,93 @@ class TestBatchRunAssertionTests:
         assert len(results) == 2
         assert results[0].passed is True
         assert results[1].passed is False
+
+    def test_uses_dr_docker_batch_container_helper(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        captured_items: list[dict[str, object]] | None = None
+
+        def fake_execute_batch_in_container(
+            items: list[dict[str, object]],
+            *,
+            adapter: object,
+            build_request: object,
+            parse_results: object,
+        ) -> list[dict[str, object]]:
+            nonlocal captured_items
+            captured_items = items
+            assert adapter is not None
+            assert callable(build_request)
+            assert callable(parse_results)
+            runtime_result = type(
+                "FakeRuntimeResult",
+                (),
+                {
+                    "exit_code": 0,
+                    "stdout": (
+                        '{"results": ['
+                        '{"passed": true, "error": null, "stdout": "", '
+                        '"compile_success": true, "compile_error": null}'
+                        "]}"
+                    ),
+                    "stderr": "",
+                },
+            )()
+            return parse_results(runtime_result)
+
+        monkeypatch.setattr(
+            "dr_docker.execute_batch_in_container",
+            fake_execute_batch_in_container,
+        )
+
+        results = batch_run_assertion_tests(
+            [
+                AssertionBatchItem(
+                    code="def f(x):\n    return x + 1\n",
+                    test_code="assert f(1) == 2\n",
+                )
+            ]
+        )
+
+        assert captured_items == [
+            {
+                "mode": "assertion",
+                "code": "def f(x):\n    return x + 1\n",
+                "test_code": "assert f(1) == 2\n",
+            }
+        ]
+        assert len(results) == 1
+        assert results[0].passed is True
+
+    def test_batch_count_mismatch_from_dr_docker_is_mapped_to_infra_error(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def fake_execute_batch_in_container(
+            items: list[dict[str, object]],
+            *,
+            adapter: object,
+            build_request: object,
+            parse_results: object,
+        ) -> list[dict[str, object]]:
+            raise ValueError("Batch result count mismatch: expected 2, got 1")
+
+        monkeypatch.setattr(
+            "dr_docker.execute_batch_in_container",
+            fake_execute_batch_in_container,
+        )
+
+        with pytest.raises(CodeExecutionInfrastructureError) as exc_info:
+            batch_run_assertion_tests(
+                [
+                    AssertionBatchItem(
+                        code="def f(x):\n    return x + 1\n",
+                        test_code="assert f(1) == 2\n",
+                    ),
+                    AssertionBatchItem(
+                        code="def g(x):\n    return x + 1\n",
+                        test_code="assert g(1) == 2\n",
+                    ),
+                ]
+            )
+
+        assert exc_info.value.stage == "worker_payload_mismatched_batch_count"
