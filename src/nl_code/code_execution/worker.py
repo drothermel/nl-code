@@ -30,10 +30,18 @@ import os
 import resource
 import shutil
 import signal
-import sys
 import tempfile
 import unittest
 from typing import Any, Callable, cast
+
+from dr_docker.workers.json_stdio import (
+    BoundedTextCapture as _BoundedStdoutCapture,
+    DockerOnlyExecutionError,
+    OversizedPayloadError,
+    apply_resource_limits as _apply_resource_limits,
+    is_running_in_container as _upstream_is_running_in_container,
+    read_stdin_bounded as _read_stdin_bounded,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -80,24 +88,8 @@ def _stdout_limit_bytes() -> int:
     return int(os.getenv("NL_CODE_EVAL_MAX_STDOUT_BYTES", "1048576"))
 
 
-class DockerOnlyExecutionError(RuntimeError):
-    """Raised when the worker is executed outside the supported Docker path."""
-
-
 def _is_running_in_container() -> bool:
-    if os.path.exists("/.dockerenv"):
-        return True
-
-    cgroup_paths = ("/proc/1/cgroup", "/proc/self/cgroup")
-    for cgroup_path in cgroup_paths:
-        try:
-            with open(cgroup_path, encoding="utf-8") as handle:
-                content = handle.read()
-        except OSError:
-            continue
-        if any(marker in content for marker in ("docker", "containerd", "kubepods")):
-            return True
-    return False
+    return _upstream_is_running_in_container()
 
 
 def _require_docker_execution() -> None:
@@ -114,32 +106,16 @@ def _set_resource_limits(*, skip_cpu: bool = False) -> None:
     memory_bytes = int(os.getenv("NL_CODE_EVAL_MEMORY_BYTES", "268435456"))
     file_bytes = int(os.getenv("NL_CODE_EVAL_FILE_BYTES", "1048576"))
     process_count = int(os.getenv("NL_CODE_EVAL_NPROC", "64"))
-
-    limits: list[tuple[int, int, int]] = [
-        (resource.RLIMIT_AS, memory_bytes, memory_bytes),
-        (resource.RLIMIT_FSIZE, file_bytes, file_bytes),
-        (resource.RLIMIT_NPROC, process_count, process_count),
-    ]
-    if not skip_cpu:
-        limits.insert(0, (resource.RLIMIT_CPU, cpu_seconds, cpu_seconds))
-
-    for limit_name, soft, hard in limits:
-        _current_soft, current_hard = resource.getrlimit(limit_name)
-        if current_hard == resource.RLIM_INFINITY:
-            target_soft, target_hard = soft, hard
-        else:
-            target_soft = min(soft, current_hard)
-            target_hard = min(hard, current_hard)
-        try:
-            resource.setrlimit(limit_name, (target_soft, target_hard))
-        except (OSError, ValueError) as exc:
-            logger.debug(
-                "Unable to apply resource limit %s=%s/%s: %s",
-                limit_name,
-                target_soft,
-                target_hard,
-                exc,
-            )
+    try:
+        _apply_resource_limits(
+            cpu_seconds=cpu_seconds,
+            memory_bytes=memory_bytes,
+            file_bytes=file_bytes,
+            nproc=process_count,
+            skip_cpu=skip_cpu,
+        )
+    except RuntimeError as exc:
+        logger.debug("Unable to apply resource limits: %s", exc)
 
 
 def _set_batch_cpu_limit(total_seconds: int) -> None:
@@ -166,60 +142,6 @@ def _as_jsonable(value: Any) -> Any:
     except TypeError:
         return repr(value)
     return value
-
-
-class OversizedPayloadError(ValueError):
-    def __init__(self, max_bytes: int, actual_bytes: int) -> None:
-        super().__init__(
-            f"stdin payload exceeds limit ({actual_bytes} > {max_bytes} bytes)"
-        )
-        self.max_bytes = max_bytes
-        self.actual_bytes = actual_bytes
-
-
-def _read_stdin_bounded(max_bytes: int) -> str:
-    buffer = getattr(sys.stdin, "buffer", None)
-    if buffer is not None:
-        raw_bytes = buffer.read(max_bytes + 1)
-    else:
-        raw_bytes = sys.stdin.read(max_bytes + 1).encode("utf-8")
-    actual_bytes = len(raw_bytes)
-    if actual_bytes > max_bytes:
-        raise OversizedPayloadError(max_bytes=max_bytes, actual_bytes=actual_bytes)
-    return raw_bytes.decode("utf-8")
-
-
-class _BoundedStdoutCapture:
-    def __init__(self, limit_bytes: int) -> None:
-        self._limit_bytes = limit_bytes
-        self._used_bytes = 0
-        self._parts: list[str] = []
-        self.truncated = False
-
-    def write(self, value: str) -> int:
-        encoded = value.encode("utf-8")
-        remaining = self._limit_bytes - self._used_bytes
-        if remaining <= 0:
-            self.truncated = True
-            return len(value)
-
-        if len(encoded) <= remaining:
-            self._parts.append(value)
-            self._used_bytes += len(encoded)
-            return len(value)
-
-        self.truncated = True
-        kept = encoded[:remaining].decode("utf-8", errors="ignore")
-        if kept:
-            self._parts.append(kept)
-            self._used_bytes += len(kept.encode("utf-8"))
-        return len(value)
-
-    def flush(self) -> None:
-        return None
-
-    def getvalue(self) -> str:
-        return "".join(self._parts)
 
 
 # ---------------------------------------------------------------------------

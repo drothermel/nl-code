@@ -31,8 +31,9 @@ docker build -t nl-code/code-eval-scientific:v1 -f docker/scientific.Dockerfile 
 ```
 
 This is the default runtime image used by the execution pipeline. The Dockerfile
-installs the `bigcodebench` dependency set directly from `pyproject.toml`, so
-the image stays aligned with the repo's declared scientific requirements.
+installs both the `bigcodebench` dependency set and the pinned `dr-docker`
+runtime dependency directly from `pyproject.toml`, so the image stays aligned
+with the repo's declared execution requirements.
 
 ### Run The Docker Test Tier
 

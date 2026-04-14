@@ -20,8 +20,31 @@ requirements = pyproject["project"]["optional-dependencies"]["bigcodebench"]
 print("\n".join(requirements))
 PY
 
-RUN pip install --no-cache-dir -r /tmp/bigcodebench-requirements.txt \
-    && rm -rf /root/.cache/pip /tmp/bigcodebench-requirements.txt /tmp/nl-code
+RUN python - <<'PY' > /tmp/dr-docker-requirements.txt
+from pathlib import Path
+import tomllib
+
+pyproject = tomllib.loads(Path("/tmp/nl-code/pyproject.toml").read_text())
+requirements = [
+    requirement
+    for requirement in pyproject["project"]["dependencies"]
+    if requirement.startswith("dr-docker")
+]
+if len(requirements) != 1:
+    raise SystemExit(
+        f"expected exactly one dr-docker requirement, found {len(requirements)}"
+    )
+print(requirements[0])
+PY
+
+RUN pip install --no-cache-dir \
+        -r /tmp/bigcodebench-requirements.txt \
+        -r /tmp/dr-docker-requirements.txt \
+    && rm -rf \
+        /root/.cache/pip \
+        /tmp/bigcodebench-requirements.txt \
+        /tmp/dr-docker-requirements.txt \
+        /tmp/nl-code
 
 # Preload NLTK resources needed by ClassEval tasks so evaluation does not
 # attempt network downloads inside the sandbox at runtime.
