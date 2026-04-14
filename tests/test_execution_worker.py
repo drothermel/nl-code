@@ -398,6 +398,27 @@ class TestUnittestMode:
         assert result["all_passed"] is True
         assert result["error"] is None
 
+    def test_skipped_only_suite_is_treated_as_passed(self) -> None:
+        result = _run_worker(
+            {
+                "mode": "unittest",
+                "code": "class Feature:\n    pass\n",
+                "test_code": (
+                    "import unittest\n"
+                    "class TestFeature(unittest.TestCase):\n"
+                    "    @unittest.skip('runtime-specific skip')\n"
+                    "    def test_skipped(self):\n"
+                    "        self.fail('should not run')\n"
+                ),
+                "test_class_names": ["TestFeature"],
+            }
+        )
+        assert result["all_passed"] is True
+        assert result["total_tests_run"] == 1
+        assert result["total_tests_passed"] == 0
+        assert result["per_test_class"][0]["tests_skipped"] == 1
+        assert result["per_test_class"][0]["passed"] is True
+
 
 # ---------------------------------------------------------------------------
 # Batch mode
@@ -490,3 +511,27 @@ class TestBatchMode:
         assert result["error"] is None
         assert result["results"][0]["passed"] is True
         assert result["results"][1]["results"][0]["return_value"] is False
+
+    def test_fractional_timeout_per_item_is_enforced(self) -> None:
+        result = _run_worker(
+            {
+                "mode": "batch",
+                "timeout_per_item": 0.05,
+                "items": [
+                    {
+                        "mode": "assertion",
+                        "code": ("import time\ndef f():\n    time.sleep(0.2)\n"),
+                        "test_code": "f()\n",
+                    },
+                    {
+                        "mode": "function_call",
+                        "code": "def g(x):\n    return x + 1\n",
+                        "function_name": "g",
+                        "input_values": [1],
+                    },
+                ],
+            }
+        )
+        assert result["error"] is None
+        assert result["results"][0]["error"] == "item execution timed out"
+        assert result["results"][1]["results"][0]["return_value"] == 2

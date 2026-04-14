@@ -26,6 +26,7 @@ import contextlib
 import io
 import json
 import logging
+import math
 import os
 import resource
 import shutil
@@ -113,13 +114,14 @@ def _set_resource_limits(*, skip_cpu: bool = False) -> None:
         logger.debug("Unable to apply resource limits: %s", exc)
 
 
-def _set_batch_cpu_limit(total_seconds: int) -> None:
+def _set_batch_cpu_limit(total_seconds: float) -> None:
     """Set RLIMIT_CPU to a generous total for batch execution."""
+    target_seconds = max(1, math.ceil(total_seconds))
     _current_soft, current_hard = resource.getrlimit(resource.RLIMIT_CPU)
     if current_hard == resource.RLIM_INFINITY:
-        target = total_seconds
+        target = target_seconds
     else:
-        target = min(total_seconds, current_hard)
+        target = min(target_seconds, current_hard)
     try:
         resource.setrlimit(resource.RLIMIT_CPU, (target, target))
     except (OSError, ValueError) as exc:
@@ -178,6 +180,8 @@ def _load_function_from_code(
     try:
         with contextlib.redirect_stdout(stdout_capture):
             exec(code, exec_ns, exec_ns)  # noqa: S102
+    except _ItemTimeoutError:
+        raise
     except Exception as exc:
         return None, stdout_capture, f"{type(exc).__name__}: {exc}"
 
@@ -218,6 +222,8 @@ def _execute_loaded_function(
             "compile_success": True,
             "compile_error": None,
         }
+    except _ItemTimeoutError:
+        raise
     except Exception as exc:
         return _error_payload(
             f"{type(exc).__name__}: {exc}",
@@ -346,6 +352,8 @@ def _handle_assertion(req: dict[str, Any]) -> dict[str, Any]:
             "compile_success": False,
             "compile_error": f"SyntaxError: {exc}",
         }
+    except _ItemTimeoutError:
+        raise
     except Exception as exc:
         return {
             "passed": False,
@@ -386,6 +394,8 @@ def _handle_unittest(req: dict[str, Any]) -> dict[str, Any]:
                 "per_test_class": [],
                 "error": f"SyntaxError: {exc}",
             }
+        except _ItemTimeoutError:
+            raise
         except Exception as exc:
             return {
                 "all_passed": False,
@@ -450,9 +460,7 @@ def _handle_unittest(req: dict[str, Any]) -> dict[str, Any]:
                         "failures": failures,
                         "errors": errors,
                         "passed": (
-                            len(result.failures) == 0
-                            and len(result.errors) == 0
-                            and tests_passed > 0
+                            len(result.failures) == 0 and len(result.errors) == 0
                         ),
                     }
                 )
@@ -525,7 +533,7 @@ def _handle_batch(req: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(items, list):
         raise TypeError("batch items must be a list")
 
-    timeout_per_item = int(req.get("timeout_per_item", 30))
+    timeout_per_item = float(req.get("timeout_per_item", 30))
 
     # Set generous CPU budget for the full batch
     _set_batch_cpu_limit(timeout_per_item * len(items))
@@ -540,7 +548,7 @@ def _handle_batch(req: dict[str, Any]) -> dict[str, Any]:
             try:
                 os.chdir(batch_cwd)
                 for item in items:
-                    signal.alarm(timeout_per_item)
+                    signal.setitimer(signal.ITIMER_REAL, timeout_per_item)
                     try:
                         os.chdir(batch_cwd)
                         result = _dispatch_item(item)
@@ -550,7 +558,7 @@ def _handle_batch(req: dict[str, Any]) -> dict[str, Any]:
                     except Exception as exc:
                         results.append({"error": f"{type(exc).__name__}: {exc}"})
                     finally:
-                        signal.alarm(0)
+                        signal.setitimer(signal.ITIMER_REAL, 0.0)
                         os.chdir(batch_cwd)
                         _cleanup_dir(batch_cwd)
             finally:

@@ -17,7 +17,7 @@ import math
 import os
 import subprocess
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Never, cast
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
@@ -91,7 +91,7 @@ class WorkerRequestModel(BaseModel):
     test_class_names: list[str] | None = None
     # batch fields
     items: list[dict[str, Any]] | None = None
-    timeout_per_item: int | None = None
+    timeout_per_item: float | None = None
 
     @model_validator(mode="after")
     def _validate_shape(self) -> WorkerRequestModel:
@@ -232,12 +232,10 @@ def _build_docker_runtime_request(
     )
     image = runtime.docker_image or DEFAULT_CODE_EVAL_IMAGE
     try:
-        worker_execution_config = (
-            JsonWorkerExecutionConfig.from_runtime_policy(
-                runtime.worker_policy,
-                timeout_seconds=timeout_seconds,
-            ).with_env_overrides()
-        )
+        worker_execution_config = JsonWorkerExecutionConfig.from_runtime_policy(
+            runtime.worker_policy,
+            timeout_seconds=timeout_seconds,
+        ).with_env_overrides()
     except ValueError as exc:
         raise CodeExecutionInfrastructureError(
             stage="worker_runtime_config",
@@ -381,7 +379,7 @@ def _completed_process_from_runtime_result(
 
 def _raise_code_execution_infra_from_runtime_error(
     exc: Any, *, error_code_type: Any
-) -> None:
+) -> Never:
     if exc.error.code == error_code_type.UNAVAILABLE:
         raise CodeExecutionInfrastructureError(
             stage=_docker_unavailable_stage(exc.error.message),
@@ -537,7 +535,7 @@ def run_test_cases(
                     passed=False,
                     error=er.error,
                     compile_success=er.compile_success,
-                    compile_error=er.compile_error or er.error,
+                    compile_error=er.compile_error,
                 )
             )
         else:
@@ -648,7 +646,7 @@ def _run_batch_chunk(
     def build_request(batch_items: list[dict[str, Any]]) -> Any:
         req: dict[str, Any] = {
             "mode": "batch",
-            "timeout_per_item": int(timeout_per_item),
+            "timeout_per_item": timeout_per_item,
             "items": batch_items,
         }
         docker_timeout = timeout_per_item * len(batch_items) * 1.5 + 10
@@ -660,7 +658,9 @@ def _run_batch_chunk(
         )
 
     def parse_results(runtime_result: Any) -> list[dict[str, Any]]:
-        payload = _parse_worker_json(_completed_process_from_runtime_result(runtime_result))
+        payload = _parse_worker_json(
+            _completed_process_from_runtime_result(runtime_result)
+        )
 
         if payload.get("error"):
             raise CodeExecutionInfrastructureError(

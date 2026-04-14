@@ -1,5 +1,8 @@
-import pytest
+import json
 import subprocess
+from collections.abc import Callable
+
+import pytest
 
 from dr_docker import ErrorCode, ErrorEnvelope, RuntimePrimitiveError
 
@@ -64,7 +67,9 @@ class TestCheckCompiles:
 
 
 class TestRuntimeConfig:
-    def test_uses_dr_docker_env_overrides(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_uses_dr_docker_env_overrides(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         monkeypatch.setenv("DR_DOCKER_MEMORY", "2g")
         monkeypatch.setenv("DR_DOCKER_PIDS_LIMIT", "99")
         monkeypatch.setenv("DR_DOCKER_TMPFS_EXEC", "true")
@@ -146,8 +151,12 @@ class TestRunFunctionBatch:
 
 @pytest.mark.docker
 class TestRunDockerWorker:
-    def test_maps_runtime_timeout_from_dr_docker(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        def fake_execute_in_runtime_or_raise(adapter: object, request: object) -> object:
+    def test_maps_runtime_timeout_from_dr_docker(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def fake_execute_in_runtime_or_raise(
+            adapter: object, request: object
+        ) -> object:
             del adapter, request
             raise RuntimePrimitiveError(
                 ErrorEnvelope(
@@ -175,7 +184,9 @@ class TestRunDockerWorker:
     def test_maps_runtime_internal_error_from_dr_docker(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        def fake_execute_in_runtime_or_raise(adapter: object, request: object) -> object:
+        def fake_execute_in_runtime_or_raise(
+            adapter: object, request: object
+        ) -> object:
             del adapter, request
             raise RuntimePrimitiveError(
                 ErrorEnvelope(
@@ -248,6 +259,18 @@ class TestRunTestCases:
             test_cases,
         )
         assert results[0].compile_success is True
+
+    def test_runtime_errors_do_not_populate_compile_error(self) -> None:
+        test_cases = [TestCase(input_value=1, expected_output=1)]
+        results, _ = run_test_cases(
+            "def f(x):\n    raise ValueError('bad')\n",
+            "f",
+            test_cases,
+        )
+        assert results[0].passed is False
+        assert "ValueError" in (results[0].error or "")
+        assert results[0].compile_success is True
+        assert results[0].compile_error is None
 
 
 # ---------------------------------------------------------------------------
@@ -411,8 +434,8 @@ class TestBatchRunAssertionTests:
             items: list[dict[str, object]],
             *,
             adapter: object,
-            build_request: object,
-            parse_results: object,
+            build_request: Callable[[list[dict[str, object]]], object],
+            parse_results: Callable[[object], list[dict[str, object]]],
         ) -> list[dict[str, object]]:
             nonlocal captured_items
             captured_items = items
@@ -458,6 +481,73 @@ class TestBatchRunAssertionTests:
         ]
         assert len(results) == 1
         assert results[0].passed is True
+
+    def test_preserves_fractional_timeout_per_item(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        captured_stdin_payload: bytes | None = None
+
+        def fake_build_docker_runtime_request(
+            *,
+            stdin_payload: bytes,
+            timeout_seconds: float,
+            runtime: object,
+            docker_env: dict[str, str] | None = None,
+        ) -> object:
+            nonlocal captured_stdin_payload
+            del timeout_seconds, runtime, docker_env
+            captured_stdin_payload = stdin_payload
+            return object()
+
+        def fake_execute_batch_in_container(
+            items: list[dict[str, object]],
+            *,
+            adapter: object,
+            build_request: Callable[[list[dict[str, object]]], object],
+            parse_results: Callable[[object], list[dict[str, object]]],
+        ) -> list[dict[str, object]]:
+            del adapter
+            request = build_request(items)
+            assert request is not None
+            runtime_result = type(
+                "FakeRuntimeResult",
+                (),
+                {
+                    "exit_code": 0,
+                    "stdout": (
+                        '{"results": ['
+                        '{"passed": true, "error": null, "stdout": "", '
+                        '"compile_success": true, "compile_error": null}'
+                        "]}"
+                    ),
+                    "stderr": "",
+                },
+            )()
+            return parse_results(runtime_result)
+
+        monkeypatch.setattr(
+            "nl_code.code_execution.runner._build_docker_runtime_request",
+            fake_build_docker_runtime_request,
+        )
+        monkeypatch.setattr(
+            "dr_docker.execute_batch_in_container",
+            fake_execute_batch_in_container,
+        )
+
+        results = batch_run_assertion_tests(
+            [
+                AssertionBatchItem(
+                    code="def f(x):\n    return x + 1\n",
+                    test_code="assert f(1) == 2\n",
+                )
+            ],
+            timeout_per_item=0.5,
+        )
+
+        assert len(results) == 1
+        assert results[0].passed is True
+        assert captured_stdin_payload is not None
+        assert json.loads(captured_stdin_payload)["timeout_per_item"] == 0.5
 
     def test_batch_count_mismatch_from_dr_docker_is_mapped_to_infra_error(
         self, monkeypatch: pytest.MonkeyPatch
