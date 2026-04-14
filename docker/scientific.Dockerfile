@@ -23,6 +23,17 @@ PY
 RUN pip install --no-cache-dir -r /tmp/bigcodebench-requirements.txt \
     && rm -rf /root/.cache/pip /tmp/bigcodebench-requirements.txt /tmp/nl-code
 
+# Preload NLTK resources needed by ClassEval tasks so evaluation does not
+# attempt network downloads inside the sandbox at runtime.
+ENV NLTK_DATA=/usr/local/share/nltk_data
+RUN python -m nltk.downloader -d "${NLTK_DATA}" \
+    averaged_perceptron_tagger \
+    averaged_perceptron_tagger_eng \
+    punkt \
+    punkt_tab \
+    wordnet \
+    omw-1.4
+
 RUN useradd -m -s /bin/bash evaluser \
     && mkdir -p /sandbox \
     && chown evaluser:evaluser /sandbox

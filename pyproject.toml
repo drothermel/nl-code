@@ -33,6 +33,13 @@ bigcodebench = [
     "python-dateutil>=2.9",
     "holidays>=0.60",
     "regex>=2024.4",
+    "beautifulsoup4>=4.12",
+    "python-docx>=1.1",
+    "openpyxl>=3.1",
+    "gensim>=4.3",
+    "nltk>=3.9",
+    "PyPDF2>=3.0",
+    "reportlab>=4.2",
 ]
 
 [project.scripts]
