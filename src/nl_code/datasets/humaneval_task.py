@@ -1,7 +1,4 @@
-import ast
-
-from collections.abc import Callable
-from typing import Any, Self, cast
+from typing import Any, Self
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -14,6 +11,7 @@ from nl_code.code_parsing import (
     merge_code_components,
     remove_docstrings_and_comments,
 )
+from nl_code.code_execution.runner import run_assertion_test
 
 
 def merge_prompt_and_solution(prompt: Any, solution: Any) -> str:
@@ -83,38 +81,18 @@ class RawHumanEvalTask(BaseModel):
 
     @model_validator(mode="after")
     def validate_eval_task(self) -> Self:
-        if self.validated:
-            return self
         if self.test_results is not None and len(self.test_inputs) != len(
             self.test_results
         ):
             raise ValueError("test inputs and results must have the same length")
-
-        find_named_function(self.gt_solution, self.entry_point)
-        ast.parse(self.gt_solution_without_comments)
-        ast.parse(self.test)
-
-        try:
-            passes = self.run_test_on_gt_solution()
-        except Exception as exc:
-            raise ValueError(
-                "ground-truth solution raised an unexpected test error"
-            ) from exc
-
-        if not passes:
-            raise ValueError("ground-truth solution does not pass its tests")
-        self.validated = True
         return self
 
+    def assertion_test_code(self) -> str:
+        return f"{self.test}\n\ncheck({self.entry_point})\n"
+
     def run_test(self, code: str) -> bool:
-        namespace: dict[str, object] = {}
-        exec(merge_code_components(code, self.test), namespace)
-        try:
-            check_fxn = cast(Callable[[object], object], namespace["check"])
-            check_fxn(namespace[self.entry_point])
-        except AssertionError:
-            return False
-        return True
+        result = run_assertion_test(code, self.assertion_test_code())
+        return result.passed
 
     def run_test_on_gt_solution(self) -> bool:
         return self.run_test(self.gt_solution)

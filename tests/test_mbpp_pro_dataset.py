@@ -5,6 +5,8 @@ from nl_code.datasets.mbpp_pro_dataset import MbppProDataset
 
 from conftest import make_mbpp_pro_row, prime_dataset_cache
 
+pytestmark = pytest.mark.docker
+
 
 @pytest.mark.usefixtures("dataset_cache_dir")
 class TestMbppProDataset:
@@ -35,7 +37,9 @@ class TestMbppProDataset:
         assert len(ds.raw_samples) == 1
         assert len(ds.flawed_raw_samples) == 1
         assert "MbppPro/99" in ds.flawed_raw_samples
-        assert isinstance(ds.flawed_raw_samples["MbppPro/99"], FlawedSample)
+        flawed = ds.flawed_raw_samples["MbppPro/99"]
+        assert isinstance(flawed, FlawedSample)
+        assert flawed.error.startswith("dataset_failure:")
 
     def test_uses_train_split(self) -> None:
         ds = MbppProDataset()

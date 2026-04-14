@@ -62,14 +62,22 @@ class TestValidateGeneratedCode:
 
     def test_skips_tests_on_syntax_error(self) -> None:
         test_cases = [TestCase(input_value=1, expected_output=1)]
-        result = validate_generated_code("def foo(:\n", "foo", test_cases=test_cases)
+        result = validate_generated_code(
+            "def foo(:\n",
+            "foo",
+            test_cases=test_cases,
+        )
         assert result.is_valid_syntax is False
         assert result.test_case_results == []
         assert result.test_pass_rate is None
 
     def test_skips_tests_on_missing_function(self) -> None:
         test_cases = [TestCase(input_value=1, expected_output=1)]
-        result = validate_generated_code("x = 1\n", "foo", test_cases=test_cases)
+        result = validate_generated_code(
+            "x = 1\n",
+            "foo",
+            test_cases=test_cases,
+        )
         assert result.has_expected_function is False
         assert result.test_case_results == []
         assert result.test_pass_rate is None

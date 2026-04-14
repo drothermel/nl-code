@@ -29,7 +29,9 @@ def validate_generated_code(
     raw_output: str,
     function_name: str,
     test_cases: list[TestCase] | None = None,
-    timeout_seconds: float = 10.0,
+    timeout_seconds: float = 30.0,
+    *,
+    docker_image: str | None = None,
 ) -> ValidationResult:
     """Validate generated Python code through the full pipeline.
 
@@ -53,7 +55,11 @@ def validate_generated_code(
     pass_rate: float | None = None
     if is_valid and has_function and test_cases:
         tc_results, pass_rate = run_test_cases(
-            extracted, function_name, test_cases, timeout_seconds
+            extracted,
+            function_name,
+            test_cases,
+            timeout_seconds,
+            docker_image=docker_image,
         )
 
     return ValidationResult(

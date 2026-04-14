@@ -1,9 +1,12 @@
 import pytest
 
+from nl_code.code_execution.models import AssertionBatchItem, AssertionTestResult
 from nl_code.datasets.bigcodebench_lite_pro_dataset import BigCodeBenchLiteProDataset
 from nl_code.datasets.dataset import FlawedSample
 
 from conftest import make_bigcodebench_lite_pro_row, prime_dataset_cache
+
+pytestmark = pytest.mark.docker
 
 
 @pytest.mark.usefixtures("dataset_cache_dir")
@@ -39,7 +42,9 @@ class TestBigCodeBenchLiteProDataset:
         assert len(ds.raw_samples) == 1
         assert len(ds.flawed_raw_samples) == 1
         assert "BigCodeBenchLitePro/99" in ds.flawed_raw_samples
-        assert isinstance(ds.flawed_raw_samples["BigCodeBenchLitePro/99"], FlawedSample)
+        flawed = ds.flawed_raw_samples["BigCodeBenchLitePro/99"]
+        assert isinstance(flawed, FlawedSample)
+        assert flawed.error.startswith("dataset_failure:")
 
     def test_uses_train_split(self) -> None:
         ds = BigCodeBenchLiteProDataset()
@@ -52,3 +57,26 @@ class TestBigCodeBenchLiteProDataset:
         ds = prime_dataset_cache(BigCodeBenchLiteProDataset(), rows, monkeypatch)
 
         assert "BigCodeBenchLitePro/456" in ds.tasks
+
+    def test_gt_rebuild_sets_headless_matplotlib_env(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        captured_envs: list[dict[str, str] | None] = []
+
+        def fake_batch_run(
+            items: list[AssertionBatchItem], **kwargs: dict[str, str] | None
+        ) -> list[AssertionTestResult]:
+            captured_envs.append(kwargs.get("docker_env"))
+            return [AssertionTestResult(passed=True) for _ in range(len(items))]
+
+        monkeypatch.setattr(
+            "nl_code.datasets.bigcodebench_lite_pro_dataset.batch_run_assertion_tests",
+            fake_batch_run,
+        )
+        prime_dataset_cache(
+            BigCodeBenchLiteProDataset(),
+            [make_bigcodebench_lite_pro_row(id="BigCodeBench/23")],
+            monkeypatch,
+        )
+
+        assert captured_envs == [{"MPLBACKEND": "Agg"}]

@@ -71,6 +71,34 @@ class Dataset(BaseModel):
     def _to_task(self, task_id: str, raw: BaseModel) -> Task:
         raise NotImplementedError
 
+    def _verify_ground_truth_samples(
+        self,
+        raw_samples: dict[str, BaseModel],
+        raw_inputs: dict[str, dict[str, Any]],
+    ) -> tuple[dict[str, BaseModel], dict[str, FlawedSample]]:
+        return raw_samples, {}
+
+    def _dataset_failure(
+        self,
+        *,
+        detail: str,
+        raw_input: dict[str, Any],
+    ) -> FlawedSample:
+        return FlawedSample(error=f"dataset_failure: {detail}", raw_input=raw_input)
+
+    def _docker_failure(
+        self,
+        *,
+        detail: str,
+        raw_input: dict[str, Any],
+    ) -> FlawedSample:
+        return FlawedSample(error=f"docker_failure: {detail}", raw_input=raw_input)
+
+    def _mark_raw_validated(self, raw: BaseModel) -> BaseModel:
+        if "validated" not in type(raw).model_fields:
+            return raw
+        return raw.model_copy(update={"validated": True})
+
     def load(self, hf_id: str | None = None, *, force_reparse: bool = False) -> Self:
         if not force_reparse:
             if hf_id is not None:
@@ -137,19 +165,22 @@ class Dataset(BaseModel):
 
         raw_samples: dict[str, BaseModel] = {}
         flawed_raw_samples: dict[str, FlawedSample] = {}
+        raw_inputs: dict[str, dict[str, Any]] = {}
 
         for index, row in enumerate(rows, start=1):
+            row_dict = dict(row)
             try:
-                task_id = self._extract_task_id(dict(row))
+                task_id = self._extract_task_id(row_dict)
             except (KeyError, TypeError):
                 task_id = f"row-{index}"
 
             try:
-                raw_samples[task_id] = self._parse_row(dict(row))
+                raw_samples[task_id] = self._parse_row(row_dict)
+                raw_inputs[task_id] = row_dict
             except (ValidationError, KeyError, TypeError, ValueError) as exc:
                 flawed_raw_samples[task_id] = FlawedSample(
                     error=str(exc),
-                    raw_input=dict(row),
+                    raw_input=row_dict,
                 )
                 logger.warning("Skipping flawed task %s: %s", task_id, exc)
 
@@ -164,17 +195,23 @@ class Dataset(BaseModel):
                     )
                     next_progress_pct += 10
 
-        self.raw_samples = raw_samples
+        verified_raw_samples, gt_flawed_samples = self._verify_ground_truth_samples(
+            raw_samples,
+            raw_inputs,
+        )
+        flawed_raw_samples.update(gt_flawed_samples)
+
+        self.raw_samples = verified_raw_samples
         self.flawed_raw_samples = flawed_raw_samples
 
         tasks: dict[str, Task] = {}
-        for task_id, raw in raw_samples.items():
+        for task_id, raw in verified_raw_samples.items():
             try:
                 tasks[task_id] = self._to_task(task_id, raw)
             except Exception as exc:
                 flawed_raw_samples[task_id] = FlawedSample(
                     error=f"_to_task failed: {exc}",
-                    raw_input={"task_id": task_id},
+                    raw_input=raw_inputs.get(task_id, {"task_id": task_id}),
                 )
                 logger.warning("Failed to convert task %s: %s", task_id, exc)
         self.tasks = tasks

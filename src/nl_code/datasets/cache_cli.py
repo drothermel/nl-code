@@ -1,4 +1,5 @@
 from collections.abc import Iterable
+import os
 
 import typer
 
@@ -26,6 +27,7 @@ def rebuild(
         False, help="Use only locally available HF artifacts."
     ),
 ) -> None:
+    os.environ.setdefault("MPLBACKEND", "Agg")
     for key in _resolve_dataset_keys(dataset_key):
         dataset = DATASET_TYPES_BY_KEY[key].model_construct()
         typer.echo(f"Rebuilding {key}...")

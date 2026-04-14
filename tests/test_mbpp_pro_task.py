@@ -1,9 +1,10 @@
 import pytest
-from pydantic import ValidationError
 
 from nl_code.datasets.mbpp_pro_task import RawMbppProTask
 
 from conftest import make_mbpp_pro_row
+
+pytestmark = pytest.mark.docker
 
 
 class TestRawMbppProTask:
@@ -12,7 +13,7 @@ class TestRawMbppProTask:
         row["task_id"] = "MbppPro/0"
         task = RawMbppProTask.model_validate(row)
         assert task.task_id == "MbppPro/0"
-        assert task.validated is True
+        assert task.validated is False
 
     def test_gt_solution_contains_both_functions(self) -> None:
         row = make_mbpp_pro_row()
@@ -62,13 +63,14 @@ class TestRawMbppProTask:
         bad_code = "def add_pairs(pairs):\n    return []\n"
         assert task.run_test(bad_code) is False
 
-    def test_validation_rejects_failing_solution(self) -> None:
+    def test_construction_allows_failing_solution(self) -> None:
         row = make_mbpp_pro_row(
             new_solution="    return []\n",
         )
         row["task_id"] = "MbppPro/0"
-        with pytest.raises(ValidationError):
-            RawMbppProTask.model_validate(row)
+        task = RawMbppProTask.model_validate(row)
+        assert task.validated is False
+        assert task.run_test_on_gt_solution() is False
 
     def test_validated_flag_skips_validation(self) -> None:
         row = make_mbpp_pro_row(

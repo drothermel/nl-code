@@ -1,12 +1,9 @@
-import ast
-import io
-import os
-import tempfile
-import unittest
-
 from typing import Any, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from nl_code.code_execution.models import UnittestResult
+from nl_code.code_execution.runner import run_unittest_test
 
 
 class MethodDependencies(BaseModel):
@@ -183,6 +180,7 @@ class RawClassEvalTask(BaseModel):
     validated: bool = False
     postprocess_solution: bool = False
     postprocess_test: bool = False
+    auto_fail_reason: str | None = None
 
     gt_code: str = Field(
         default_factory=lambda data: _build_gt_code(
@@ -192,128 +190,49 @@ class RawClassEvalTask(BaseModel):
 
     @model_validator(mode="after")
     def validate_eval_task(self) -> Self:
-        if self.validated:
-            return self
-
-        # Apply per-task fixes before validation
         (
             self.solution_code,
             self.test,
             self.test_classes,
             self.postprocess_solution,
             self.postprocess_test,
-            auto_fail_reason,
+            self.auto_fail_reason,
         ) = _apply_fixes(self.task_id, self.solution_code, self.test, self.test_classes)
-
-        if auto_fail_reason:
-            raise ValueError(f"known dataset issue: {auto_fail_reason}")
 
         # Recompute gt_code if solution was modified
         if self.postprocess_solution:
             self.gt_code = _build_gt_code(self.import_statement, self.solution_code)
-
-        ast.parse(self.gt_code)
-        ast.parse(self.test)
-
-        try:
-            result = self.run_test_on_gt_solution()
-        except Exception as exc:
-            raise ValueError(
-                "ground-truth solution raised an unexpected test error"
-            ) from exc
-
-        if not result.all_passed:
-            raise ValueError("ground-truth solution does not pass its tests")
-        self.validated = True
         return self
 
     def run_test(self, code: str) -> ClassEvalTestResult:
-        parts = [p for p in (code, self.test) if p]
-        full_source = "\n\n".join(parts)
-
-        # Provide __file__ so tests using os.path.dirname(__file__) work in exec()
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            return self._run_test_in_dir(full_source, tmp_dir)
-
-    def _run_test_in_dir(self, full_source: str, tmp_dir: str) -> ClassEvalTestResult:
-        namespace: dict[str, object] = {
-            "__file__": os.path.join(tmp_dir, "__classeval__.py"),
-        }
-        try:
-            exec(full_source, namespace)  # noqa: S102
-        except Exception as exc:
-            return ClassEvalTestResult(
-                all_passed=False,
-                total_tests_run=0,
-                total_tests_passed=0,
-                total_tests_failed=0,
-                total_tests_errored=0,
-                per_test_class=[],
-                error=f"{type(exc).__name__}: {exc}",
-            )
-
-        per_test_class: list[ClassEvalTestDetail] = []
-        for raw_name in self.test_classes:
-            test_class_name = raw_name.strip()
-            test_cls = namespace.get(test_class_name)
-            if test_cls is None or not (
-                isinstance(test_cls, type) and issubclass(test_cls, unittest.TestCase)
-            ):
-                per_test_class.append(
-                    ClassEvalTestDetail(
-                        test_class_name=test_class_name,
-                        tests_run=0,
-                        tests_passed=0,
-                        tests_failed=0,
-                        tests_errored=0,
-                        failures=[f"Test class {test_class_name!r} not found"],
-                        errors=[],
-                        passed=False,
-                    )
-                )
-                continue
-
-            loader = unittest.TestLoader()
-            suite = loader.loadTestsFromTestCase(test_cls)
-            stream = io.StringIO()
-            runner = unittest.TextTestRunner(stream=stream, verbosity=0)
-            result = runner.run(suite)
-
-            failures = [f"{tc}: {msg}" for tc, msg in result.failures]
-            errors = [f"{tc}: {msg}" for tc, msg in result.errors]
-            tests_passed = result.testsRun - len(result.failures) - len(result.errors)
-
-            per_test_class.append(
-                ClassEvalTestDetail(
-                    test_class_name=test_class_name,
-                    tests_run=result.testsRun,
-                    tests_passed=tests_passed,
-                    tests_failed=len(result.failures),
-                    tests_errored=len(result.errors),
-                    failures=failures,
-                    errors=errors,
-                    passed=(
-                        len(result.failures) == 0
-                        and len(result.errors) == 0
-                        and result.testsRun > 0
-                    ),
-                )
-            )
-
-        total_run = sum(r.tests_run for r in per_test_class)
-        total_passed = sum(r.tests_passed for r in per_test_class)
-        total_failed = sum(r.tests_failed for r in per_test_class)
-        total_errored = sum(r.tests_errored for r in per_test_class)
-
-        return ClassEvalTestResult(
-            all_passed=all(r.passed for r in per_test_class)
-            and len(per_test_class) > 0,
-            total_tests_run=total_run,
-            total_tests_passed=total_passed,
-            total_tests_failed=total_failed,
-            total_tests_errored=total_errored,
-            per_test_class=per_test_class,
-        )
+        result = run_unittest_test(code, self.test, self.test_classes)
+        return _class_eval_result_from_unittest_result(result)
 
     def run_test_on_gt_solution(self) -> ClassEvalTestResult:
         return self.run_test(self.gt_code)
+
+
+def _class_eval_result_from_unittest_result(
+    result: UnittestResult,
+) -> ClassEvalTestResult:
+    return ClassEvalTestResult(
+        all_passed=result.all_passed,
+        total_tests_run=result.total_tests_run,
+        total_tests_passed=result.total_tests_passed,
+        total_tests_failed=result.total_tests_failed,
+        total_tests_errored=result.total_tests_errored,
+        per_test_class=[
+            ClassEvalTestDetail(
+                test_class_name=detail.test_class_name,
+                tests_run=detail.tests_run,
+                tests_passed=detail.tests_passed,
+                tests_failed=detail.tests_failed,
+                tests_errored=detail.tests_errored,
+                failures=detail.failures,
+                errors=detail.errors,
+                passed=detail.passed,
+            )
+            for detail in result.per_test_class
+        ],
+        error=result.error,
+    )

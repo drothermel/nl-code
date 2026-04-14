@@ -1,12 +1,29 @@
+import json
+import subprocess
+from collections.abc import Callable
+
 import pytest
 
-from nl_code.code_execution.models import TestCase
+from dr_docker import ErrorCode, ErrorEnvelope, RuntimePrimitiveError
+
+from nl_code.code_execution.models import (
+    AssertionBatchItem,
+    CodeExecutionInfrastructureError,
+    FunctionCallBatchItem,
+    TestCase,
+)
 from nl_code.code_execution.runner import (
-    ExecutionError,
+    _run_docker_worker,
+    _runtime_config,
     _values_equal,
+    batch_run_assertion_tests,
+    batch_run_test_cases,
+    EXEC_MODE_DOCKER,
     check_compiles,
+    run_assertion_test,
     run_function_batch,
     run_test_cases,
+    run_unittest_test,
 )
 
 
@@ -25,6 +42,9 @@ class TestValuesEqual:
 
     def test_int_float_cross(self) -> None:
         assert _values_equal(1, 1.0) is True
+
+    def test_float_int_cross(self) -> None:
+        assert _values_equal(1.0, 1) is True
 
     def test_string_equal(self) -> None:
         assert _values_equal("a", "a") is True
@@ -46,6 +66,28 @@ class TestCheckCompiles:
         assert "SyntaxError" in err
 
 
+class TestRuntimeConfig:
+    def test_uses_dr_docker_env_overrides(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("DR_DOCKER_MEMORY", "2g")
+        monkeypatch.setenv("DR_DOCKER_PIDS_LIMIT", "99")
+        monkeypatch.setenv("DR_DOCKER_TMPFS_EXEC", "true")
+
+        runtime = _runtime_config(docker_image=None)
+
+        assert runtime.worker_policy.memory == "2g"
+        assert runtime.worker_policy.pids_limit == 99
+        assert runtime.worker_policy.nproc == 99
+        assert runtime.worker_policy.tmpfs_exec is True
+
+
+# ---------------------------------------------------------------------------
+# Function-call mode
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.docker
 class TestRunFunctionBatch:
     def test_basic(self) -> None:
         results = run_function_batch(
@@ -58,8 +100,21 @@ class TestRunFunctionBatch:
         assert results[1].return_value == 4
         assert results[2].return_value == 6
 
+    def test_compile_success_field(self) -> None:
+        results = run_function_batch(
+            "def f(x):\n    return x\n",
+            "f",
+            [1],
+        )
+        assert results[0].compile_success is True
+        assert results[0].compile_error is None
+
     def test_empty_inputs(self) -> None:
-        results = run_function_batch("def foo(x):\n    return x\n", "foo", [])
+        results = run_function_batch(
+            "def foo(x):\n    return x\n",
+            "foo",
+            [],
+        )
         assert results == []
 
     def test_runtime_error(self) -> None:
@@ -73,23 +128,92 @@ class TestRunFunctionBatch:
         assert "ValueError" in results[0].error
 
     def test_timeout(self) -> None:
-        # Use a subprocess-level timeout (sleep in a forked process to avoid
-        # the worker's RLIMIT_CPU from killing it before the timeout fires).
-        import subprocess
         from unittest.mock import patch
 
         with (
             patch(
-                "nl_code.code_execution.runner.subprocess.run",
-                side_effect=subprocess.TimeoutExpired(cmd="test", timeout=0.01),
+                "nl_code.code_execution.runner._run_docker_worker",
+                side_effect=CodeExecutionInfrastructureError(
+                    stage="docker_timeout",
+                    execution_mode=EXEC_MODE_DOCKER,
+                    detail="container timed out after 0.01s",
+                ),
             ),
-            pytest.raises(ExecutionError, match="timeout"),
+            pytest.raises(CodeExecutionInfrastructureError, match="timed out"),
         ):
             run_function_batch(
-                "def foo(x):\n    return x\n", "foo", [1], timeout_seconds=0.01
+                "def foo(x):\n    return x\n",
+                "foo",
+                [1],
+                timeout_seconds=0.01,
             )
 
 
+@pytest.mark.docker
+class TestRunDockerWorker:
+    def test_maps_runtime_timeout_from_dr_docker(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def fake_execute_in_runtime_or_raise(
+            adapter: object, request: object
+        ) -> object:
+            del adapter, request
+            raise RuntimePrimitiveError(
+                ErrorEnvelope(
+                    code=ErrorCode.TIMEOUT,
+                    message="Container timed out after 12s",
+                    retriable=True,
+                )
+            )
+
+        monkeypatch.setattr(
+            "dr_docker.execute_in_runtime_or_raise",
+            fake_execute_in_runtime_or_raise,
+        )
+
+        with pytest.raises(CodeExecutionInfrastructureError) as exc_info:
+            _run_docker_worker(
+                b"{}",
+                12.0,
+                _runtime_config(docker_image=None),
+            )
+
+        assert exc_info.value.stage == "docker_timeout"
+        assert exc_info.value.detail == "Container timed out after 12s"
+
+    def test_maps_runtime_internal_error_from_dr_docker(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def fake_execute_in_runtime_or_raise(
+            adapter: object, request: object
+        ) -> object:
+            del adapter, request
+            raise RuntimePrimitiveError(
+                ErrorEnvelope(
+                    code=ErrorCode.INTERNAL_ERROR,
+                    message="unexpected adapter contract violation",
+                )
+            )
+
+        monkeypatch.setattr(
+            "dr_docker.execute_in_runtime_or_raise",
+            fake_execute_in_runtime_or_raise,
+        )
+
+        with pytest.raises(CodeExecutionInfrastructureError) as exc_info:
+            _run_docker_worker(
+                b"{}",
+                12.0,
+                _runtime_config(docker_image=None),
+            )
+
+        assert exc_info.value.stage == "docker_runtime_error"
+        assert exc_info.value.detail == (
+            "internal_error: unexpected adapter contract violation"
+        )
+
+
+@pytest.mark.docker
 class TestRunTestCases:
     def test_all_pass(self) -> None:
         test_cases = [
@@ -119,6 +243,341 @@ class TestRunTestCases:
         assert results[1].passed is False
 
     def test_empty_cases(self) -> None:
-        results, rate = run_test_cases("def foo(x):\n    return x\n", "foo", [])
+        results, rate = run_test_cases(
+            "def foo(x):\n    return x\n",
+            "foo",
+            [],
+        )
         assert results == []
         assert rate == 0.0
+
+    def test_compile_fields_propagated(self) -> None:
+        test_cases = [TestCase(input_value=1, expected_output=1)]
+        results, _ = run_test_cases(
+            "def f(x):\n    return x\n",
+            "f",
+            test_cases,
+        )
+        assert results[0].compile_success is True
+
+    def test_runtime_errors_do_not_populate_compile_error(self) -> None:
+        test_cases = [TestCase(input_value=1, expected_output=1)]
+        results, _ = run_test_cases(
+            "def f(x):\n    raise ValueError('bad')\n",
+            "f",
+            test_cases,
+        )
+        assert results[0].passed is False
+        assert "ValueError" in (results[0].error or "")
+        assert results[0].compile_success is True
+        assert results[0].compile_error is None
+
+
+# ---------------------------------------------------------------------------
+# Assertion mode
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.docker
+class TestRunAssertionTest:
+    def test_passing(self) -> None:
+        result = run_assertion_test(
+            "def add(a, b):\n    return a + b\n",
+            "assert add(1, 2) == 3\n",
+        )
+        assert result.passed is True
+        assert result.error is None
+
+    def test_failing(self) -> None:
+        result = run_assertion_test(
+            "def add(a, b):\n    return a - b\n",
+            "assert add(1, 2) == 3\n",
+        )
+        assert result.passed is False
+        assert "AssertionError" in (result.error or "")
+
+    def test_passes_docker_env_through(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        captured_env: dict[str, str] | None = None
+
+        def fake_run_worker(
+            req: dict[str, object],
+            timeout_seconds: float,
+            runtime: object,
+            *,
+            stream_limit: int = 0,
+            docker_env: dict[str, str] | None = None,
+        ) -> subprocess.CompletedProcess[str]:
+            nonlocal captured_env
+            captured_env = docker_env
+            return subprocess.CompletedProcess(
+                args=["docker", "run"],
+                returncode=0,
+                stdout='{"passed": true, "error": null, "stdout": "", "compile_success": true, "compile_error": null}',
+                stderr="",
+            )
+
+        monkeypatch.setattr(
+            "nl_code.code_execution.runner._run_worker", fake_run_worker
+        )
+        result = run_assertion_test(
+            "def add(a, b):\n    return a + b\n",
+            "assert add(1, 2) == 3\n",
+            docker_env={"MPLBACKEND": "Agg"},
+        )
+        assert result.passed is True
+        assert captured_env == {"MPLBACKEND": "Agg"}
+
+
+# ---------------------------------------------------------------------------
+# Unittest mode
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.docker
+class TestRunUnittestTest:
+    def test_passing(self) -> None:
+        code = "class Calc:\n    def add(self, a, b):\n        return a + b\n"
+        test_code = (
+            "import unittest\n"
+            "class TestCalc(unittest.TestCase):\n"
+            "    def test_add(self):\n"
+            "        self.assertEqual(Calc().add(1, 2), 3)\n"
+        )
+        result = run_unittest_test(
+            code,
+            test_code,
+            ["TestCalc"],
+        )
+        assert result.all_passed is True
+        assert result.total_tests_run == 1
+
+    def test_failing(self) -> None:
+        code = "class Calc:\n    def add(self, a, b):\n        return 0\n"
+        test_code = (
+            "import unittest\n"
+            "class TestCalc(unittest.TestCase):\n"
+            "    def test_add(self):\n"
+            "        self.assertEqual(Calc().add(1, 2), 3)\n"
+        )
+        result = run_unittest_test(
+            code,
+            test_code,
+            ["TestCalc"],
+        )
+        assert result.all_passed is False
+        assert result.total_tests_failed == 1
+
+
+# ---------------------------------------------------------------------------
+# Batch API
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.docker
+class TestBatchRunTestCases:
+    def test_basic(self) -> None:
+        items = [
+            FunctionCallBatchItem(
+                code="def f(x):\n    return x + 1\n",
+                function_name="f",
+                test_cases=[
+                    TestCase(input_value=1, expected_output=2),
+                    TestCase(input_value=5, expected_output=6),
+                ],
+            ),
+            FunctionCallBatchItem(
+                code="def g(x):\n    return x * 2\n",
+                function_name="g",
+                test_cases=[TestCase(input_value=3, expected_output=6)],
+            ),
+        ]
+        results = batch_run_test_cases(
+            items,
+        )
+        assert len(results) == 2
+        tc_results_0, rate_0 = results[0]
+        assert rate_0 == 1.0
+        assert len(tc_results_0) == 2
+        tc_results_1, rate_1 = results[1]
+        assert rate_1 == 1.0
+
+    def test_empty(self) -> None:
+        assert batch_run_test_cases([]) == []
+
+
+@pytest.mark.docker
+class TestBatchRunAssertionTests:
+    def test_basic(self) -> None:
+        items = [
+            AssertionBatchItem(
+                code="def f(x):\n    return x + 1\n",
+                test_code="assert f(1) == 2\n",
+            ),
+            AssertionBatchItem(
+                code="def g(x):\n    return x - 1\n",
+                test_code="assert g(1) == 99\n",
+            ),
+        ]
+        results = batch_run_assertion_tests(
+            items,
+        )
+        assert len(results) == 2
+        assert results[0].passed is True
+        assert results[1].passed is False
+
+    def test_uses_dr_docker_batch_container_helper(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        captured_items: list[dict[str, object]] | None = None
+
+        def fake_execute_batch_in_container(
+            items: list[dict[str, object]],
+            *,
+            adapter: object,
+            build_request: Callable[[list[dict[str, object]]], object],
+            parse_results: Callable[[object], list[dict[str, object]]],
+        ) -> list[dict[str, object]]:
+            nonlocal captured_items
+            captured_items = items
+            assert adapter is not None
+            assert callable(build_request)
+            assert callable(parse_results)
+            runtime_result = type(
+                "FakeRuntimeResult",
+                (),
+                {
+                    "exit_code": 0,
+                    "stdout": (
+                        '{"results": ['
+                        '{"passed": true, "error": null, "stdout": "", '
+                        '"compile_success": true, "compile_error": null}'
+                        "]}"
+                    ),
+                    "stderr": "",
+                },
+            )()
+            return parse_results(runtime_result)
+
+        monkeypatch.setattr(
+            "dr_docker.execute_batch_in_container",
+            fake_execute_batch_in_container,
+        )
+
+        results = batch_run_assertion_tests(
+            [
+                AssertionBatchItem(
+                    code="def f(x):\n    return x + 1\n",
+                    test_code="assert f(1) == 2\n",
+                )
+            ]
+        )
+
+        assert captured_items == [
+            {
+                "mode": "assertion",
+                "code": "def f(x):\n    return x + 1\n",
+                "test_code": "assert f(1) == 2\n",
+            }
+        ]
+        assert len(results) == 1
+        assert results[0].passed is True
+
+    def test_preserves_fractional_timeout_per_item(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        captured_stdin_payload: bytes | None = None
+
+        def fake_build_docker_runtime_request(
+            *,
+            stdin_payload: bytes,
+            timeout_seconds: float,
+            runtime: object,
+            docker_env: dict[str, str] | None = None,
+        ) -> object:
+            nonlocal captured_stdin_payload
+            del timeout_seconds, runtime, docker_env
+            captured_stdin_payload = stdin_payload
+            return object()
+
+        def fake_execute_batch_in_container(
+            items: list[dict[str, object]],
+            *,
+            adapter: object,
+            build_request: Callable[[list[dict[str, object]]], object],
+            parse_results: Callable[[object], list[dict[str, object]]],
+        ) -> list[dict[str, object]]:
+            del adapter
+            request = build_request(items)
+            assert request is not None
+            runtime_result = type(
+                "FakeRuntimeResult",
+                (),
+                {
+                    "exit_code": 0,
+                    "stdout": (
+                        '{"results": ['
+                        '{"passed": true, "error": null, "stdout": "", '
+                        '"compile_success": true, "compile_error": null}'
+                        "]}"
+                    ),
+                    "stderr": "",
+                },
+            )()
+            return parse_results(runtime_result)
+
+        monkeypatch.setattr(
+            "nl_code.code_execution.runner._build_docker_runtime_request",
+            fake_build_docker_runtime_request,
+        )
+        monkeypatch.setattr(
+            "dr_docker.execute_batch_in_container",
+            fake_execute_batch_in_container,
+        )
+
+        results = batch_run_assertion_tests(
+            [
+                AssertionBatchItem(
+                    code="def f(x):\n    return x + 1\n",
+                    test_code="assert f(1) == 2\n",
+                )
+            ],
+            timeout_per_item=0.5,
+        )
+
+        assert len(results) == 1
+        assert results[0].passed is True
+        assert captured_stdin_payload is not None
+        assert json.loads(captured_stdin_payload)["timeout_per_item"] == 0.5
+
+    def test_batch_count_mismatch_from_dr_docker_is_mapped_to_infra_error(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        def fake_execute_batch_in_container(
+            items: list[dict[str, object]],
+            *,
+            adapter: object,
+            build_request: object,
+            parse_results: object,
+        ) -> list[dict[str, object]]:
+            raise ValueError("Batch result count mismatch: expected 2, got 1")
+
+        monkeypatch.setattr(
+            "dr_docker.execute_batch_in_container",
+            fake_execute_batch_in_container,
+        )
+
+        with pytest.raises(CodeExecutionInfrastructureError) as exc_info:
+            batch_run_assertion_tests(
+                [
+                    AssertionBatchItem(
+                        code="def f(x):\n    return x + 1\n",
+                        test_code="assert f(1) == 2\n",
+                    ),
+                    AssertionBatchItem(
+                        code="def g(x):\n    return x + 1\n",
+                        test_code="assert g(1) == 2\n",
+                    ),
+                ]
+            )
+
+        assert exc_info.value.stage == "worker_payload_mismatched_batch_count"

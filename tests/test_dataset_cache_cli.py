@@ -1,3 +1,5 @@
+import os
+
 import pytest
 from typer.testing import CliRunner
 
@@ -8,10 +10,12 @@ from nl_code.datasets.humaneval_dataset import HumanEvalDataset
 from conftest import fail_on_hf, make_humaneval_row, mock_hf_dataset
 
 runner = CliRunner()
+pytestmark = pytest.mark.docker
 
 
 @pytest.mark.usefixtures("dataset_cache_dir")
 def test_cli_rebuild_status_and_clear(monkeypatch) -> None:
+    monkeypatch.delenv("MPLBACKEND", raising=False)
     monkeypatch.setattr(
         "nl_code.datasets.dataset.load_dataset",
         lambda *_args, **_kwargs: mock_hf_dataset([make_humaneval_row()]),
@@ -20,6 +24,7 @@ def test_cli_rebuild_status_and_clear(monkeypatch) -> None:
     rebuild_result = runner.invoke(app, ["rebuild", "humaneval-plus"])
 
     assert rebuild_result.exit_code == 0
+    assert os.environ["MPLBACKEND"] == "Agg"
     manifest = read_manifest(HumanEvalDataset().dataset_id, HumanEvalDataset().split)
     assert manifest is not None
     assert manifest.task_count == 1
