@@ -99,6 +99,28 @@ class Dataset(BaseModel):
             return raw
         return raw.model_copy(update={"validated": True})
 
+    def _normalize_index(self, index: int, size: int, *, collection_name: str) -> int:
+        normalized_index = index + size if index < 0 else index
+        if normalized_index < 0 or normalized_index >= size:
+            raise IndexError(
+                f"{collection_name} index {index} out of range for {size} items"
+            )
+        return normalized_index
+
+    def get_task_at_index(self, index: int) -> Task:
+        normalized_index = self._normalize_index(
+            index, len(self.tasks), collection_name="task"
+        )
+        task_id = list(self.tasks)[normalized_index]
+        return self.tasks[task_id]
+
+    def get_raw_sample_at_index(self, index: int) -> BaseModel:
+        normalized_index = self._normalize_index(
+            index, len(self.raw_samples), collection_name="raw sample"
+        )
+        task_id = list(self.raw_samples)[normalized_index]
+        return self.raw_samples[task_id]
+
     def load(self, hf_id: str | None = None, *, force_reparse: bool = False) -> Self:
         if not force_reparse:
             if hf_id is not None:
