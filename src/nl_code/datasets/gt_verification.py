@@ -3,7 +3,9 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import TypeVar
 
-from dr_docker import run_batch_with_failure_isolation as _run_batch_with_failure_isolation
+from dr_docker import (
+    run_batch_with_failure_isolation as _run_batch_with_failure_isolation,
+)
 
 from nl_code.code_execution.models import CodeExecutionInfrastructureError
 
