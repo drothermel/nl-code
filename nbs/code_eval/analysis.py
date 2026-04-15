@@ -114,7 +114,23 @@ with app.setup:
 @app.function(hide_code=True)
 def render_example(dataset_name: str, requested_i: int, dataset):
     tasks = list(dataset.tasks.values())
-    actual_i = min(requested_i, len(tasks) - 1)
+    if not tasks:
+        return mo.vstack(
+            [
+                mo.md(f"**{dataset_name}**"),
+                mo.md("_No tasks available._"),
+                mo.accordion(
+                    {
+                        "Analysis": mo.md(
+                            "```python\n{'error': 'Dataset has no tasks'}\n```"
+                        )
+                    },
+                    lazy=True,
+                ),
+            ]
+        )
+
+    actual_i = max(0, min(requested_i, len(tasks) - 1))
     task = tasks[actual_i]
     analysis_results = analyze_code_sample(task, task.gt_solution)
     header = f"**{dataset_name}** (Sample `{actual_i}`)"
