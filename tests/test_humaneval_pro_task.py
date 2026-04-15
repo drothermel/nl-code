@@ -13,6 +13,11 @@ class TestRawHumanEvalProTask:
         row["task_id"] = "HumanEvalPro/0"
         task = RawHumanEvalProTask.model_validate(row)
         assert task.task_id == "HumanEvalPro/0"
+        assert task.source__raw_problem == row["raw_problem"]
+        assert task.source__raw_solution == row["raw_solution"]
+        assert task.source__new_problem == row["new_problem"]
+        assert task.source__new_solution == row["new_solution"]
+        assert task.source__test_code == row["test_code"]
         assert task.validated is False
 
     def test_gt_solution_contains_both_functions(self) -> None:

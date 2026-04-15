@@ -32,7 +32,9 @@ class HumanEvalProDataset(Dataset):
         items_by_task_id = [
             (
                 task_id,
-                AssertionBatchItem(code=raw.gt_solution, test_code=raw.test_code),
+                AssertionBatchItem(
+                    code=raw.gt_solution, test_code=raw.source__test_code
+                ),
             )
             for task_id, raw_base in raw_samples.items()
             for raw in [raw_base]

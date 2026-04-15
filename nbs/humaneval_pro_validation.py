@@ -36,6 +36,12 @@ def _():
     return (ds,)
 
 
+@app.cell
+def _(ds):
+    mo.inspect(ds, value=False, methods=True)
+    return
+
+
 @app.cell(column=1)
 def _(ds):
     ds.model_fields
@@ -44,7 +50,17 @@ def _(ds):
 
 @app.cell
 def _(ds):
-    mo.inspect(ds, value=False, methods=True)
+    sample = ds.get_raw_sample_at_index(0)
+    sample
+    return (sample,)
+
+
+@app.cell
+def _(sample):
+    mo.inspect(
+        sample,
+        value=False,
+    )
     return
 
 
@@ -54,6 +70,77 @@ def _():
 
 
 @app.cell(column=2, hide_code=True)
+def _(sample):
+    mo.vstack(
+        [mo.md("## Source Fields")]
+        + [
+            mo.accordion(
+                {
+                    field: mo.vstack(
+                        [
+                            mo.md(f"### {field}"),
+                            mo.ui.code_editor(value),
+                        ]
+                    )
+                }
+            )
+            for field, value in sample.model_dump().items()
+            if field.startswith("source__")
+        ]
+    )
+    return
+
+
+@app.cell
+def _():
+    return
+
+
+@app.cell(column=3, hide_code=True)
+def _(sample):
+    mo.vstack(
+        [
+            mo.md("## New Entrypoint"),
+            mo.md(f"`{sample.new_entry_point}`"),
+        ]
+    )
+    return
+
+
+@app.cell(hide_code=True)
+def _(sample):
+    mo.vstack(
+        [
+            mo.md("## New Description"),
+            mo.md(sample.new_description),
+        ]
+    )
+    return
+
+
+@app.cell(hide_code=True)
+def _(sample):
+    mo.vstack(
+        [
+            mo.md("## GT Solution"),
+            mo.ui.code_editor(sample.gt_solution),
+        ]
+    )
+    return
+
+
+@app.cell(hide_code=True)
+def _(sample):
+    mo.vstack(
+        [
+            mo.md("## GT Solution Without Comments"),
+            mo.ui.code_editor(sample.gt_solution_without_comments),
+        ]
+    )
+    return
+
+
+@app.cell(column=4, hide_code=True)
 def _():
     mo.md(r"""
     (leave space)
