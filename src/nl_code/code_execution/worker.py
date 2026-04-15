@@ -114,18 +114,21 @@ def _set_resource_limits(*, skip_cpu: bool = False) -> None:
         logger.debug("Unable to apply resource limits: %s", exc)
 
 
-def _set_batch_cpu_limit(total_seconds: float) -> None:
-    """Set RLIMIT_CPU to a generous total for batch execution."""
-    target_seconds = max(1, math.ceil(total_seconds))
-    _current_soft, current_hard = resource.getrlimit(resource.RLIMIT_CPU)
+def _set_batch_cpu_limit(total_seconds: float) -> tuple[int, int]:
+    """Temporarily raise the CPU soft limit for batch execution."""
+    usage = resource.getrusage(resource.RUSAGE_SELF)
+    cpu_seconds_used = usage.ru_utime + usage.ru_stime
+    target_seconds = max(1, math.ceil(cpu_seconds_used + total_seconds))
+    current_soft, current_hard = resource.getrlimit(resource.RLIMIT_CPU)
     if current_hard == resource.RLIM_INFINITY:
-        target = target_seconds
+        target_soft = target_seconds
     else:
-        target = min(target_seconds, current_hard)
+        target_soft = min(target_seconds, current_hard)
     try:
-        resource.setrlimit(resource.RLIMIT_CPU, (target, target))
+        resource.setrlimit(resource.RLIMIT_CPU, (target_soft, current_hard))
     except (OSError, ValueError) as exc:
-        logger.debug("Unable to apply batch CPU limit %s: %s", target, exc)
+        logger.debug("Unable to apply batch CPU limit %s: %s", target_soft, exc)
+    return current_soft, current_hard
 
 
 # ---------------------------------------------------------------------------
@@ -535,8 +538,8 @@ def _handle_batch(req: dict[str, Any]) -> dict[str, Any]:
 
     timeout_per_item = float(req.get("timeout_per_item", 30))
 
-    # Set generous CPU budget for the full batch
-    _set_batch_cpu_limit(timeout_per_item * len(items))
+    # Temporarily raise the CPU soft limit for the full batch.
+    old_cpu_limit = _set_batch_cpu_limit(timeout_per_item * len(items))
 
     old_handler = signal.getsignal(signal.SIGALRM)
     signal.signal(signal.SIGALRM, _alarm_handler)
@@ -565,6 +568,10 @@ def _handle_batch(req: dict[str, Any]) -> dict[str, Any]:
                 os.chdir(original_cwd)
     finally:
         signal.signal(signal.SIGALRM, old_handler)
+        try:
+            resource.setrlimit(resource.RLIMIT_CPU, old_cpu_limit)
+        except (OSError, ValueError) as exc:
+            logger.debug("Unable to restore batch CPU limit %s: %s", old_cpu_limit, exc)
 
     return {"results": results, "error": None}
 
