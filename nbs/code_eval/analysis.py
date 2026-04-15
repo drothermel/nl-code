@@ -5,8 +5,26 @@ app = marimo.App(width="columns")
 
 with app.setup:
     import marimo as mo
-    from datasets import load_dataset
+    from pprint import pformat
 
+    from pydantic import BaseModel
+
+    from nl_code.code_analysis import (
+        analyze_code_style,
+        analyze_function,
+        check_function_exists,
+        check_has_assert,
+        check_has_print,
+        check_has_raise,
+        check_has_return,
+        check_python_syntax,
+        count_control_structures,
+        extract_from_code_fences,
+        extract_inline_comments,
+        extract_string_literals,
+        get_parameter_names,
+        get_return_type_annotation,
+    )
     from nl_code.datasets.bigcodebench_lite_pro_dataset import (
         BigCodeBenchLiteProDataset,
     )
@@ -14,131 +32,183 @@ with app.setup:
     from nl_code.datasets.humaneval_dataset import HumanEvalDataset
     from nl_code.datasets.humaneval_pro_dataset import HumanEvalProDataset
     from nl_code.datasets.mbpp_pro_dataset import MbppProDataset
+    from nl_code.evaluation.length import compression_ratio, measure_length
+    from nl_code.evaluation.overlap import lexical_overlap
+    from nl_code.evaluation.tokenizer import tokenize
+
+    def normalize_analysis_output(value):
+        if isinstance(value, BaseModel):
+            return normalize_analysis_output(value.model_dump())
+        if isinstance(value, dict):
+            return {key: normalize_analysis_output(val) for key, val in value.items()}
+        if isinstance(value, (list, tuple)):
+            return [normalize_analysis_output(item) for item in value]
+        if isinstance(value, (set, frozenset)):
+            normalized = [normalize_analysis_output(item) for item in value]
+            return sorted(normalized, key=repr)
+        return value
+
+    def analyze_code_sample(task, code_sample: str):
+        extracted_code, had_fences = extract_from_code_fences(code_sample)
+        syntax_valid, syntax_error = check_python_syntax(extracted_code)
+        function_exists = check_function_exists(extracted_code, task.entry_point_name)
+
+        try:
+            aggregate_analysis = analyze_function(extracted_code, task.entry_point_name)
+        except Exception as exc:
+            aggregate_analysis = {
+                "error": str(exc),
+                "function_name": task.entry_point_name,
+            }
+
+        results = {
+            "entry_point_name": task.entry_point_name,
+            "code_fence_extraction": {
+                "extracted_code": extracted_code,
+                "had_fences": had_fences,
+            },
+            "syntax_validation": {
+                "valid": syntax_valid,
+                "error": syntax_error,
+            },
+            "expected_top_level_function_exists": function_exists,
+            "function_structure_checks": {
+                "has_return": check_has_return(extracted_code, task.entry_point_name),
+                "has_print": check_has_print(extracted_code, task.entry_point_name),
+                "has_raise": check_has_raise(extracted_code, task.entry_point_name),
+                "has_assert": check_has_assert(extracted_code, task.entry_point_name),
+                "return_type_annotation": get_return_type_annotation(
+                    extracted_code, task.entry_point_name
+                ),
+                "parameter_names": get_parameter_names(
+                    extracted_code, task.entry_point_name
+                ),
+            },
+            "comments_and_strings": {
+                "inline_comments": extract_inline_comments(
+                    extracted_code, task.entry_point_name
+                ),
+                "string_literals": extract_string_literals(
+                    extracted_code, task.entry_point_name
+                ),
+            },
+            "control_flow_counts": count_control_structures(
+                extracted_code, task.entry_point_name
+            ),
+            "style_metrics": analyze_code_style(extracted_code, task.entry_point_name),
+            "aggregate_analysis": aggregate_analysis,
+            "text_code_metrics": {
+                "code_tokens": tokenize(extracted_code),
+                "description_tokens": tokenize(task.description),
+                "code_length": measure_length(extracted_code),
+                "description_length": measure_length(task.description),
+                "compression_ratio": compression_ratio(
+                    task.description, extracted_code
+                ),
+                "lexical_overlap": lexical_overlap(task.description, extracted_code),
+            },
+        }
+        return normalize_analysis_output(results)
 
 
-@app.function
-def render_example(dataset_name: str, i: int, code: str):
+@app.function(hide_code=True)
+def render_example(dataset_name: str, requested_i: int, dataset):
+    tasks = list(dataset.tasks.values())
+    actual_i = min(requested_i, len(tasks) - 1)
+    task = tasks[actual_i]
+    analysis_results = analyze_code_sample(task, task.gt_solution)
+    header = f"**{dataset_name}** (Sample `{actual_i}`)"
+    if actual_i != requested_i:
+        header = f"**{dataset_name}** (Requested `{requested_i}`, showing `{actual_i}`)"
+
     return mo.vstack(
         [
-            mo.md(f"**{dataset_name}** (Sample `{i}`)"),
-            mo.md(f"```python\n{code}\n```"),
+            mo.md(header),
+            mo.md(f"```python\n{task.gt_solution}\n```"),
+            mo.accordion(
+                {
+                    "Analysis": mo.md(
+                        f"```python\n{pformat(analysis_results, sort_dicts=False, width=100)}\n```"
+                    )
+                },
+                lazy=True,
+            ),
         ]
     )
 
 
 @app.cell(hide_code=True)
 def _():
-    humaneval_plus = HumanEvalDataset().load()
-    f"HumanEval+: {len(humaneval_plus.tasks)} tasks"
-    return (humaneval_plus,)
+    datasets = {
+        "HumanEval+": HumanEvalDataset().load(),
+        "HumanEval Pro": HumanEvalProDataset().load(),
+        "MBPP Pro": MbppProDataset().load(),
+        "BigCodeBench Lite Pro": BigCodeBenchLiteProDataset().load(),
+        "ClassEval": ClassEvalDataset().load(),
+    }
 
-
-@app.cell(hide_code=True)
-def _():
-    humaneval_pro = HumanEvalProDataset().load()
-    f"HumanEval Pro: {len(humaneval_pro.tasks)} tasks"
-    return (humaneval_pro,)
-
-
-@app.cell(hide_code=True)
-def _():
-    mbpp_pro = MbppProDataset().load()
-    f"MBPP Pro: {len(mbpp_pro.tasks)} tasks"
-    return (mbpp_pro,)
-
-
-@app.cell(hide_code=True)
-def _():
-    bigcodebench_lite_pro = BigCodeBenchLiteProDataset().load()
-    f"BigCodeBench Lite Pro: {len(bigcodebench_lite_pro.tasks)} tasks"
-    return (bigcodebench_lite_pro,)
-
-
-@app.cell
-def _():
-    _class_eval_base = ClassEvalDataset.model_construct()
-    _class_eval_rows = load_dataset(
-        _class_eval_base.dataset_id.value,
-        split=_class_eval_base.split,
-        revision=_class_eval_base.source_revision,
+    mo.vstack(
+        [
+            mo.md(f"- `{name}`: {len(dataset.tasks)} tasks")
+            for name, dataset in datasets.items()
+        ]
     )
-
-    class_eval = _class_eval_base.model_copy(deep=True)
-    class_eval.raw_samples = {}
-    class_eval.tasks = {}
-    class_eval.flawed_raw_samples = {}
-
-    for row in _class_eval_rows:
-        row_dict = dict(row)
-        try:
-            task_id = _class_eval_base._extract_task_id(row_dict)
-            raw = _class_eval_base._parse_row(row_dict)
-            class_eval.raw_samples[task_id] = raw
-            class_eval.tasks[task_id] = _class_eval_base._to_task(task_id, raw)
-        except Exception:
-            pass
-
-    f"ClassEval: {len(class_eval.tasks)} tasks"
-    return (class_eval,)
+    return (datasets,)
 
 
 @app.cell(column=1, hide_code=True)
-def _(humaneval_plus):
-    humaneval_plus_i = 0
-
-    render_example(
-        "HumanEval+",
-        humaneval_plus_i,
-        list(humaneval_plus.tasks.values())[humaneval_plus_i].gt_solution,
+def _(datasets):
+    max_sample_ind = max(len(dataset.tasks) - 1 for dataset in datasets.values())
+    sample_ind = mo.ui.number(
+        start=0,
+        stop=max_sample_ind,
+        step=1,
+        value=0,
+        label="Sample index",
     )
+
+    mo.vstack(
+        [
+            mo.md(f"**Maximum shared sample index: `{max_sample_ind}`**"),
+            sample_ind,
+        ]
+    )
+    return (sample_ind,)
+
+
+@app.cell(hide_code=True)
+def _(datasets, sample_ind):
+    render_example("HumanEval+", int(sample_ind.value or 0), datasets["HumanEval+"])
     return
 
 
 @app.cell(hide_code=True)
-def _(humaneval_pro):
-    humaneval_pro_i = 0
-
+def _(datasets, sample_ind):
     render_example(
-        "HumanEval Pro",
-        humaneval_pro_i,
-        list(humaneval_pro.tasks.values())[humaneval_pro_i].gt_solution,
+        "HumanEval Pro", int(sample_ind.value or 0), datasets["HumanEval Pro"]
     )
     return
 
 
 @app.cell(column=2, hide_code=True)
-def _(mbpp_pro):
-    mbpp_pro_i = 0
-
-    render_example(
-        "MBPP Pro",
-        mbpp_pro_i,
-        list(mbpp_pro.tasks.values())[mbpp_pro_i].gt_solution,
-    )
+def _(datasets, sample_ind):
+    render_example("MBPP Pro", int(sample_ind.value or 0), datasets["MBPP Pro"])
     return
 
 
 @app.cell(hide_code=True)
-def _(bigcodebench_lite_pro):
-    bigcodebench_lite_pro_i = 0
-
+def _(datasets, sample_ind):
     render_example(
         "BigCodeBench Lite Pro",
-        bigcodebench_lite_pro_i,
-        list(bigcodebench_lite_pro.tasks.values())[bigcodebench_lite_pro_i].gt_solution,
+        int(sample_ind.value or 0),
+        datasets["BigCodeBench Lite Pro"],
     )
     return
 
 
 @app.cell(column=3, hide_code=True)
-def _(class_eval):
-    class_eval_i = 0
-
-    render_example(
-        "ClassEval",
-        class_eval_i,
-        list(class_eval.tasks.values())[class_eval_i].gt_solution,
-    )
+def _(datasets, sample_ind):
+    render_example("ClassEval", int(sample_ind.value or 0), datasets["ClassEval"])
     return
 
 
