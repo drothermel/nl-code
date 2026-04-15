@@ -15,6 +15,7 @@ from nl_code.code_execution.models import (
 from nl_code.code_execution.runner import (
     _run_docker_worker,
     _runtime_config,
+    _default_worker_execution_config,
     _values_equal,
     batch_run_assertion_tests,
     batch_run_test_cases,
@@ -67,6 +68,16 @@ class TestCheckCompiles:
 
 
 class TestRuntimeConfig:
+    def test_uses_repo_defaults_without_env(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("DR_DOCKER_MEMORY", raising=False)
+        monkeypatch.delenv("DR_DOCKER_WORKER_MEMORY_BYTES", raising=False)
+
+        runtime = _runtime_config(docker_image=None)
+
+        assert runtime.worker_policy.memory == "4g"
+
     def test_uses_dr_docker_env_overrides(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -80,6 +91,38 @@ class TestRuntimeConfig:
         assert runtime.worker_policy.pids_limit == 99
         assert runtime.worker_policy.nproc == 99
         assert runtime.worker_policy.tmpfs_exec is True
+
+    def test_worker_execution_uses_repo_defaults_without_env(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("DR_DOCKER_MEMORY", raising=False)
+        monkeypatch.delenv("DR_DOCKER_WORKER_MEMORY_BYTES", raising=False)
+        monkeypatch.delenv("DR_DOCKER_WORKER_MAX_STDIN_BYTES", raising=False)
+        runtime = _runtime_config(docker_image=None)
+
+        config = _default_worker_execution_config(
+            runtime_policy=runtime.worker_policy,
+            timeout_seconds=20,
+        ).with_env_overrides()
+
+        assert config.memory_bytes == 4_294_967_296
+        assert config.stdin_limit_bytes == 52_428_800
+
+    def test_worker_execution_env_overrides_still_win(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("DR_DOCKER_MEMORY", "2g")
+        monkeypatch.setenv("DR_DOCKER_WORKER_MEMORY_BYTES", "1073741824")
+        monkeypatch.setenv("DR_DOCKER_WORKER_MAX_STDIN_BYTES", "4096")
+        runtime = _runtime_config(docker_image=None)
+
+        config = _default_worker_execution_config(
+            runtime_policy=runtime.worker_policy,
+            timeout_seconds=20,
+        ).with_env_overrides()
+
+        assert config.memory_bytes == 1_073_741_824
+        assert config.stdin_limit_bytes == 4096
 
 
 # ---------------------------------------------------------------------------
