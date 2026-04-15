@@ -44,6 +44,8 @@ EXEC_MODE_DOCKER = "docker_worker"
 _DEFAULT_STREAM_LIMIT = 1_048_576  # 1 MB
 _WORKER_MOUNT_DIR = "/sandbox"
 _WORKER_WORKING_DIR = "/tmp"
+_DEFAULT_DOCKER_MEMORY = "4g"
+_DEFAULT_DOCKER_STDIN_LIMIT_BYTES = 52_428_800
 
 
 # ---------------------------------------------------------------------------
@@ -58,10 +60,18 @@ class _WorkerRuntimeConfig(BaseModel):
     worker_policy: Any
 
 
-def _runtime_config(*, docker_image: str | None) -> _WorkerRuntimeConfig:
+def _default_worker_policy() -> Any:
     WorkerRuntimePolicy = _import_dr_docker()[3]
+    return WorkerRuntimePolicy.small_isolated().model_copy(
+        update={
+            "memory": _DEFAULT_DOCKER_MEMORY,
+        }
+    )
+
+
+def _runtime_config(*, docker_image: str | None) -> _WorkerRuntimeConfig:
     try:
-        worker_policy = WorkerRuntimePolicy.small_isolated().with_env_overrides()
+        worker_policy = _default_worker_policy().with_env_overrides()
     except ValueError as exc:
         raise CodeExecutionInfrastructureError(
             stage="worker_runtime_config",
@@ -202,6 +212,20 @@ def _make_adapter(*, stream_limit: int = _DEFAULT_STREAM_LIMIT) -> Any:
     )
 
 
+def _default_worker_execution_config(
+    *, runtime_policy: Any, timeout_seconds: float
+) -> Any:
+    JsonWorkerExecutionConfig = _import_dr_docker()[8]
+    return JsonWorkerExecutionConfig.from_runtime_policy(
+        runtime_policy,
+        timeout_seconds=timeout_seconds,
+    ).model_copy(
+        update={
+            "stdin_limit_bytes": _DEFAULT_DOCKER_STDIN_LIMIT_BYTES,
+        }
+    )
+
+
 def _build_docker_runtime_request(
     *,
     stdin_payload: bytes,
@@ -232,8 +256,8 @@ def _build_docker_runtime_request(
     )
     image = runtime.docker_image or DEFAULT_CODE_EVAL_IMAGE
     try:
-        worker_execution_config = JsonWorkerExecutionConfig.from_runtime_policy(
-            runtime.worker_policy,
+        worker_execution_config = _default_worker_execution_config(
+            runtime_policy=runtime.worker_policy,
             timeout_seconds=timeout_seconds,
         ).with_env_overrides()
     except ValueError as exc:

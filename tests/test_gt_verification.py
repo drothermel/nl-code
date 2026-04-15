@@ -26,7 +26,9 @@ def test_run_batched_with_infra_isolation_uses_code_execution_error_type() -> No
     assert infra_failures["c"].detail == "failed for [3]"
 
 
-def test_run_batched_with_infra_isolation_does_not_catch_other_exception_types() -> None:
+def test_run_batched_with_infra_isolation_does_not_catch_other_exception_types() -> (
+    None
+):
     def run_batch(items: list[int]) -> list[int]:
         raise RuntimeError(f"unexpected failure for {items}")
 

@@ -1,6 +1,8 @@
 import io
 import json
+import resource
 import sys
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -535,3 +537,89 @@ class TestBatchMode:
         assert result["error"] is None
         assert result["results"][0]["error"] == "item execution timed out"
         assert result["results"][1]["results"][0]["return_value"] == 2
+
+    def test_restores_cpu_limit_after_batch(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        limits = [resource.RLIM_INFINITY, resource.RLIM_INFINITY]
+
+        def fake_getrlimit(which: int) -> tuple[int, int]:
+            assert which == resource.RLIMIT_CPU
+            return (limits[0], limits[1])
+
+        def fake_setrlimit(which: int, new_limits: tuple[int, int]) -> None:
+            assert which == resource.RLIMIT_CPU
+            limits[0], limits[1] = new_limits
+
+        monkeypatch.setattr(
+            "nl_code.code_execution.worker.resource.getrlimit", fake_getrlimit
+        )
+        monkeypatch.setattr(
+            "nl_code.code_execution.worker.resource.setrlimit", fake_setrlimit
+        )
+
+        result = _run_worker(
+            {
+                "mode": "batch",
+                "timeout_per_item": 0.05,
+                "items": [
+                    {
+                        "mode": "function_call",
+                        "code": (
+                            "import time\ndef spin(_):\n    while True:\n        pass\n"
+                        ),
+                        "function_name": "spin",
+                        "input_value": 0,
+                    }
+                ],
+            }
+        )
+
+        assert result["error"] is None
+        assert result["results"][0]["error"] == "item execution timed out"
+        assert tuple(limits) == (resource.RLIM_INFINITY, resource.RLIM_INFINITY)
+
+    def test_batch_cpu_limit_is_relative_to_current_usage(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        limits = [resource.RLIM_INFINITY, resource.RLIM_INFINITY]
+        set_calls: list[tuple[int, int]] = []
+
+        def fake_getrlimit(which: int) -> tuple[int, int]:
+            assert which == resource.RLIMIT_CPU
+            return (limits[0], limits[1])
+
+        def fake_setrlimit(which: int, new_limits: tuple[int, int]) -> None:
+            assert which == resource.RLIMIT_CPU
+            limits[0], limits[1] = new_limits
+            set_calls.append(new_limits)
+
+        monkeypatch.setattr(
+            "nl_code.code_execution.worker.resource.getrlimit", fake_getrlimit
+        )
+        monkeypatch.setattr(
+            "nl_code.code_execution.worker.resource.setrlimit", fake_setrlimit
+        )
+        monkeypatch.setattr(
+            "nl_code.code_execution.worker.resource.getrusage",
+            lambda which: SimpleNamespace(ru_utime=5.4, ru_stime=0.2),
+        )
+
+        result = _run_worker(
+            {
+                "mode": "batch",
+                "timeout_per_item": 0.05,
+                "items": [
+                    {
+                        "mode": "assertion",
+                        "code": "pass\n",
+                        "test_code": "assert True\n",
+                    }
+                ],
+            }
+        )
+
+        assert result["error"] is None
+        assert result["results"][0]["passed"] is True
+        assert set_calls[0] == (6, resource.RLIM_INFINITY)
+        assert tuple(limits) == (resource.RLIM_INFINITY, resource.RLIM_INFINITY)

@@ -92,14 +92,10 @@ _TASK_FIXES: dict[str, dict[str, Any]] = {
         "reason": "Float equality fails at 1e-16 precision",
     },
     "ClassEval_48": {
-        "test": [
-            # Hostname is machine-specific, not portable
-            (
-                "self.assertEqual(result, 'LAPTOP-2CS86KUM')",
-                "self.assertIsInstance(result, str)",
-            ),
-        ],
-        "reason": "Hardcoded hostname is machine-specific",
+        "auto_fail": True,
+        "reason": "Hostname lookup for 0.0.0.0 is environment-dependent; "
+        "the dataset's ground truth and tests do not behave consistently "
+        "across Docker environments",
     },
     "ClassEval_51": {
         "solution": [
