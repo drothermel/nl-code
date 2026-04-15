@@ -5,50 +5,57 @@ app = marimo.App(width="columns")
 
 with app.setup:
     import marimo as mo
-    # All imports and constants here
+    from datasets import load_dataset
 
-
-@app.cell
-def _():
+    from nl_code.datasets.bigcodebench_lite_pro_dataset import (
+        BigCodeBenchLiteProDataset,
+    )
+    from nl_code.datasets.classeval_dataset import ClassEvalDataset
     from nl_code.datasets.humaneval_dataset import HumanEvalDataset
+    from nl_code.datasets.humaneval_pro_dataset import HumanEvalProDataset
+    from nl_code.datasets.mbpp_pro_dataset import MbppProDataset
 
+
+@app.function
+def render_example(dataset_name: str, i: int, code: str):
+    return mo.vstack(
+        [
+            mo.md(f"**{dataset_name}** (Sample `{i}`)"),
+            mo.md(f"```python\n{code}\n```"),
+        ]
+    )
+
+
+@app.cell(hide_code=True)
+def _():
     humaneval_plus = HumanEvalDataset().load()
-    humaneval_plus
+    f"HumanEval+: {len(humaneval_plus.tasks)} tasks"
     return (humaneval_plus,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _():
-    from nl_code.datasets.humaneval_pro_dataset import HumanEvalProDataset
-
     humaneval_pro = HumanEvalProDataset().load()
-    humaneval_pro
+    f"HumanEval Pro: {len(humaneval_pro.tasks)} tasks"
     return (humaneval_pro,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _():
-    from nl_code.datasets.mbpp_pro_dataset import MbppProDataset
-
     mbpp_pro = MbppProDataset().load()
-    mbpp_pro
+    f"MBPP Pro: {len(mbpp_pro.tasks)} tasks"
     return (mbpp_pro,)
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _():
-    from nl_code.datasets.bigcodebench_lite_pro_dataset import BigCodeBenchLiteProDataset
-
     bigcodebench_lite_pro = BigCodeBenchLiteProDataset().load()
-    bigcodebench_lite_pro
+    f"BigCodeBench Lite Pro: {len(bigcodebench_lite_pro.tasks)} tasks"
     return (bigcodebench_lite_pro,)
 
 
 @app.cell
 def _():
-    from datasets import load_dataset
-    from nl_code.datasets.classeval_dataset import ClassEvalDataset
-
     _class_eval_base = ClassEvalDataset.model_construct()
     _class_eval_rows = load_dataset(
         _class_eval_base.dataset_id.value,
@@ -71,51 +78,71 @@ def _():
         except Exception:
             pass
 
-    class_eval
+    f"ClassEval: {len(class_eval.tasks)} tasks"
     return (class_eval,)
 
 
-@app.cell
-def _(humaneval_pro):
-    humaneval_pro_i = 0
-
-    list(humaneval_pro.tasks.values())[humaneval_pro_i].gt_solution
-    return
-
-
-@app.cell
-def _(mbpp_pro):
-    mbpp_pro_i = 0
-
-    list(mbpp_pro.tasks.values())[mbpp_pro_i].gt_solution
-    return
-
-
-@app.cell
-def _(bigcodebench_lite_pro):
-    bigcodebench_lite_pro_i = 0
-
-    list(bigcodebench_lite_pro.tasks.values())[bigcodebench_lite_pro_i].gt_solution
-    return
-
-
-@app.cell
-def _(class_eval):
-    class_eval_i = 0
-
-    list(class_eval.tasks.values())[class_eval_i].gt_solution
-    return
-
-
-@app.cell(column=1)
+@app.cell(column=1, hide_code=True)
 def _(humaneval_plus):
     humaneval_plus_i = 0
 
-    list(humaneval_plus.tasks.values())[humaneval_plus_i].gt_solution
+    render_example(
+        "HumanEval+",
+        humaneval_plus_i,
+        list(humaneval_plus.tasks.values())[humaneval_plus_i].gt_solution,
+    )
+    return
+
+
+@app.cell(hide_code=True)
+def _(humaneval_pro):
+    humaneval_pro_i = 0
+
+    render_example(
+        "HumanEval Pro",
+        humaneval_pro_i,
+        list(humaneval_pro.tasks.values())[humaneval_pro_i].gt_solution,
+    )
     return
 
 
 @app.cell(column=2, hide_code=True)
+def _(mbpp_pro):
+    mbpp_pro_i = 0
+
+    render_example(
+        "MBPP Pro",
+        mbpp_pro_i,
+        list(mbpp_pro.tasks.values())[mbpp_pro_i].gt_solution,
+    )
+    return
+
+
+@app.cell(hide_code=True)
+def _(bigcodebench_lite_pro):
+    bigcodebench_lite_pro_i = 0
+
+    render_example(
+        "BigCodeBench Lite Pro",
+        bigcodebench_lite_pro_i,
+        list(bigcodebench_lite_pro.tasks.values())[bigcodebench_lite_pro_i].gt_solution,
+    )
+    return
+
+
+@app.cell(column=3, hide_code=True)
+def _(class_eval):
+    class_eval_i = 0
+
+    render_example(
+        "ClassEval",
+        class_eval_i,
+        list(class_eval.tasks.values())[class_eval_i].gt_solution,
+    )
+    return
+
+
+@app.cell(column=4, hide_code=True)
 def _():
     mo.md(r"""
     (leave space)
