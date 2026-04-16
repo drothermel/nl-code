@@ -94,4 +94,5 @@ class ClassEvalDataset(Dataset):
             entry_point_name=raw.class_name,
             description=raw.class_description,
             gt_solution=raw.gt_code,
+            version=raw.version,
         )

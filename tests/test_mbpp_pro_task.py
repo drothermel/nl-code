@@ -18,6 +18,7 @@ class TestRawMbppProTask:
             "original_docstrings_and_comments",
             "task_id",
             "validated",
+            "version",
         )
 
     def test_construction(self) -> None:
@@ -30,16 +31,14 @@ class TestRawMbppProTask:
         assert task.source__new_problem == row["new_problem"]
         assert task.source__new_solution == row["new_solution"]
         assert task.source__test_code == row["test_code"]
+        assert task.version == "v2"
         assert task.validated is False
         assert "def add" in task.original_function
         assert "return a + b" in task.original_function
         assert "def add" in task.original_function_with_docstrings_and_comments
         assert "def add_pairs" in task.new_function_with_docstrings_and_comments
-        assert task.original_official_prompt == "def add(a: int, b: int) -> int:\n"
-        assert (
-            task.new_official_prompt
-            == "def add_pairs(pairs: list[tuple[int, int]]) -> list[int]:\n"
-        )
+        assert task.original_official_prompt == row["raw_problem"]
+        assert task.new_official_prompt == row["new_problem"]
 
     def test_additional_derived_prompt_fields(self) -> None:
         row = make_mbpp_pro_row(
@@ -132,6 +131,7 @@ class TestRawMbppProTask:
 
             def add(a: int, b: int) -> int:
 
+
             def add_pairs(pairs: list[tuple[int, int]]) -> list[int]:
         """)
         assert task.new_two_part_function_stub_with_comments == textwrap.dedent("""\
@@ -141,13 +141,12 @@ class TestRawMbppProTask:
             def add(a: int, b: int) -> int:
                 \"\"\"Add two integers.\"\"\"
 
+
             # Given a list of pairs, add each pair and return the list of sums.
             def add_pairs(pairs: list[tuple[int, int]]) -> list[int]:
         """)
-        assert task.original_official_prompt == task.original_function_stub
-        assert (
-            task.new_official_prompt == task.new_problem_without_docstrings_and_comments
-        )
+        assert task.original_official_prompt == row["raw_problem"]
+        assert task.new_official_prompt == row["new_problem"]
 
     def test_gt_solution_contains_both_functions(self) -> None:
         row = make_mbpp_pro_row()
@@ -163,6 +162,11 @@ class TestRawMbppProTask:
         add_pos = task.gt_solution_with_comments.index("def add(")
         add_pairs_pos = task.gt_solution_with_comments.index("def add_pairs(")
         assert add_pos < add_pairs_pos
+        assert (
+            "\n\n\n# Given a list of pairs, add each pair and return the list of sums.\n"
+            in task.gt_solution_with_comments
+        )
+        assert "\n\n\ndef add_pairs(" in task.gt_solution
 
     def test_gt_solution_with_comments(self) -> None:
         row = make_mbpp_pro_row()
@@ -182,8 +186,10 @@ class TestRawMbppProTask:
         assert "#" not in task.original_function
         assert '"""' not in task.new_function
         assert "#" not in task.new_function
-        assert '"""' not in task.original_official_prompt
-        assert '"""' not in task.new_official_prompt
+        assert '"""' in task.original_official_prompt
+        assert task.new_official_prompt.startswith(
+            "# Given a list of pairs, add each pair and return the list of sums."
+        )
 
     def test_new_entry_point(self) -> None:
         row = make_mbpp_pro_row()

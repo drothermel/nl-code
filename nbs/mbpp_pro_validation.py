@@ -55,12 +55,6 @@ def render_sample_fields(sample, *, prefix=None, suppress_prefix=None):
     )
 
 
-@app.cell(column=1, hide_code=True)
-def _(ds):
-    ds.model_fields
-    return
-
-
 @app.cell(hide_code=True)
 def _(ds):
     sample = ds.get_raw_sample_at_index(0)
@@ -71,7 +65,13 @@ def _(ds):
     return (sample,)
 
 
-@app.cell(column=2, hide_code=True)
+@app.cell(hide_code=True)
+def _(ds):
+    ds.model_fields
+    return
+
+
+@app.cell(column=1, hide_code=True)
 def _(sample):
     mo.vstack(
         [
@@ -82,7 +82,7 @@ def _(sample):
     return
 
 
-@app.cell(column=3, hide_code=True)
+@app.cell(column=2, hide_code=True)
 def _(sample):
     mo.vstack(
         [
@@ -93,7 +93,7 @@ def _(sample):
     return
 
 
-@app.cell(column=4, hide_code=True)
+@app.cell(column=3, hide_code=True)
 def _():
     mo.md(r"""
     (leave space)

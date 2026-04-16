@@ -63,11 +63,13 @@ class TestRawHumanEvalTask:
             "prompt_comment",
             "task_id",
             "validated",
+            "version",
         )
 
     def test_construction(self, valid_raw_task: RawHumanEvalTask) -> None:
         assert valid_raw_task.task_id == "HumanEval/0"
         assert valid_raw_task.entry_point == "add"
+        assert valid_raw_task.version == "v2"
         assert valid_raw_task.source__prompt
         assert valid_raw_task.source__canonical_solution == "    return a + b\n"
         assert valid_raw_task.source__test

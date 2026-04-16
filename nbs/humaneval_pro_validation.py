@@ -79,7 +79,7 @@ def _(ds):
     return (sample,)
 
 
-@app.cell(column=2, hide_code=True)
+@app.cell(column=1, hide_code=True)
 def _(sample):
     mo.vstack(
         [
@@ -90,7 +90,7 @@ def _(sample):
     return
 
 
-@app.cell(column=3, hide_code=True)
+@app.cell(column=2, hide_code=True)
 def _(sample):
     mo.vstack(
         [
@@ -101,7 +101,7 @@ def _(sample):
     return
 
 
-@app.cell(column=4, hide_code=True)
+@app.cell(column=3, hide_code=True)
 def _():
     mo.md(r"""
     (leave space)

@@ -1,5 +1,5 @@
 import ast
-from typing import Any, ClassVar, Self
+from typing import Any, ClassVar, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -117,6 +117,7 @@ class RawHumanEvalTask(BaseModel):
         "prompt_comment",
         "task_id",
         "validated",
+        "version",
     )
 
     task_id: str
@@ -124,6 +125,7 @@ class RawHumanEvalTask(BaseModel):
     source__prompt: str = Field(alias="prompt")
     source__canonical_solution: str = Field(alias="canonical_solution")
     source__test: str = Field(alias="test")
+    version: Literal["v1", "v2"] = "v2"
     validated: bool = False
 
     official_prompt: str = Field(

@@ -237,7 +237,9 @@ class Dataset(BaseModel):
         tasks: dict[str, Task] = {}
         for task_id, raw in verified_raw_samples.items():
             try:
-                tasks[task_id] = self._to_task(task_id, raw)
+                task = self._to_task(task_id, raw)
+                task.validate_raw_task_version(raw)
+                tasks[task_id] = task
             except Exception as exc:
                 flawed_raw_samples[task_id] = FlawedSample(
                     error=f"_to_task failed: {exc}",

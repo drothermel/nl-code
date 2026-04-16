@@ -1,5 +1,5 @@
 import ast
-from typing import Any, ClassVar, Self, cast
+from typing import Any, ClassVar, Literal, Self, cast
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -243,6 +243,7 @@ class RawClassEvalTask(BaseModel):
     non_code_fields: ClassVar[tuple[str, ...]] = (
         "task_id",
         "validated",
+        "version",
         "postprocess_solution",
         "postprocess_test",
         "auto_fail_reason",
@@ -271,6 +272,7 @@ class RawClassEvalTask(BaseModel):
     source__test: str
     source__test_classes: list[str]
     source__methods_info: list[MethodInfo]
+    version: Literal["v1", "v2"] = "v2"
     validated: bool = False
     postprocess_solution: bool = False
     postprocess_test: bool = False

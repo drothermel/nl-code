@@ -18,6 +18,7 @@ class TestRawBigCodeBenchLiteProTask:
             "original_docstrings_and_comments",
             "task_id",
             "validated",
+            "version",
         )
 
     def test_construction(self) -> None:
@@ -30,6 +31,7 @@ class TestRawBigCodeBenchLiteProTask:
         assert task.source__new_problem == row["new_problem"]
         assert task.source__new_solution == row["new_solution"]
         assert task.source__test_code == row["test_code"]
+        assert task.version == "v2"
         assert task.validated is False
         assert "def multiply" in task.original_function
         assert "return a * b" in task.original_function
@@ -132,6 +134,7 @@ class TestRawBigCodeBenchLiteProTask:
 
             def multiply(a: int, b: int) -> int:
 
+
             def multiply_pairs(pairs: list[tuple[int, int]]) -> list[int]:
         """)
         assert task.new_two_part_function_stub_with_comments == textwrap.dedent("""\
@@ -140,6 +143,7 @@ class TestRawBigCodeBenchLiteProTask:
 
             def multiply(a: int, b: int) -> int:
                 \"\"\"Multiply two integers.\"\"\"
+
 
             # Given a list of pairs, multiply each pair and return the list of products.
             def multiply_pairs(pairs: list[tuple[int, int]]) -> list[int]:
@@ -163,6 +167,11 @@ class TestRawBigCodeBenchLiteProTask:
         mul_pos = task.gt_solution_with_comments.index("def multiply(")
         mul_pairs_pos = task.gt_solution_with_comments.index("def multiply_pairs(")
         assert mul_pos < mul_pairs_pos
+        assert (
+            "\n\n\n# Given a list of pairs, multiply each pair and return the list of products.\n"
+            in task.gt_solution_with_comments
+        )
+        assert "\n\n\ndef multiply_pairs(" in task.gt_solution
 
     def test_gt_solution_with_comments(self) -> None:
         row = make_bigcodebench_lite_pro_row()

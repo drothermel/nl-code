@@ -1,4 +1,4 @@
-from typing import ClassVar
+from typing import ClassVar, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -14,6 +14,7 @@ from nl_code.datasets.pro_task_helpers import (
     build_original_function_source,
     build_original_function_without_docstrings_and_comments,
     build_problem_stub_without_docstrings_and_comments,
+    build_two_part_code,
     build_two_part_prompt,
     extract_docstrings_and_comments,
     extract_new_entry_point,
@@ -32,6 +33,7 @@ class RawHumanEvalProTask(BaseModel):
         "original_docstrings_and_comments",
         "task_id",
         "validated",
+        "version",
     )
 
     task_id: str
@@ -40,6 +42,7 @@ class RawHumanEvalProTask(BaseModel):
     source__new_problem: str = Field(alias="new_problem")
     source__new_solution: str = Field(alias="new_solution")
     source__test_code: str = Field(alias="test_code")
+    version: Literal["v1", "v2"] = "v2"
     validated: bool = False
 
     original_function: str = Field(
@@ -149,8 +152,9 @@ class RawHumanEvalProTask(BaseModel):
         )
     )
     gt_solution: str = Field(
-        default_factory=lambda data: remove_docstrings_and_comments(
-            data.get("gt_solution_with_comments")
+        default_factory=lambda data: build_two_part_code(
+            data.get("original_function"),
+            data.get("new_function"),
         )
     )
     new_entry_point: str = Field(

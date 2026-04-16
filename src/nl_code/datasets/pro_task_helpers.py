@@ -21,7 +21,7 @@ def build_gt_solution(
             raise ValueError("all solution components must be strings")
     base = merge_code_components(raw_problem, raw_solution)
     new = merge_code_components(new_problem, new_solution)
-    return merge_code_components(base, new)
+    return build_two_part_code(base, new)
 
 
 def _require_string(value: Any, *, name: str) -> str:
@@ -46,7 +46,13 @@ def _merge_two_code_components_with_blank_line(first: str, second: str) -> str:
         return second_stripped + "\n"
     if not second_stripped:
         return first_stripped + "\n"
-    return f"{first_stripped}\n\n{second_stripped}\n"
+    return f"{first_stripped}\n\n\n{second_stripped}\n"
+
+
+def build_two_part_code(first_part: Any, second_part: Any) -> str:
+    first_part_str = _require_string(first_part, name="first_part")
+    second_part_str = _require_string(second_part, name="second_part")
+    return _merge_two_code_components_with_blank_line(first_part_str, second_part_str)
 
 
 def _join_nonempty_text_parts(*parts: str) -> str:
@@ -256,15 +262,11 @@ def build_new_function_stub(raw_problem_imports: Any, new_problem_stub: Any) -> 
 def build_new_two_part_function_stub(raw_problem: Any, new_problem_stub: Any) -> str:
     raw_problem_str = _require_string(raw_problem, name="raw_problem")
     new_problem_stub_str = _require_string(new_problem_stub, name="new_problem_stub")
-    return _merge_two_code_components_with_blank_line(
-        raw_problem_str, new_problem_stub_str
-    )
+    return build_two_part_code(raw_problem_str, new_problem_stub_str)
 
 
 def build_two_part_prompt(first_part: Any, second_part: Any) -> str:
-    first_part_str = _require_string(first_part, name="first_part")
-    second_part_str = _require_string(second_part, name="second_part")
-    return _merge_two_code_components_with_blank_line(first_part_str, second_part_str)
+    return build_two_part_code(first_part, second_part)
 
 
 def extract_new_entry_point(new_problem: Any, new_solution: Any) -> str:

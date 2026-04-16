@@ -1,6 +1,7 @@
+from typing import ClassVar, Literal
+
 import pytest
 from pydantic import BaseModel
-from typing import ClassVar
 
 from nl_code.datasets.dataset import Dataset, FlawedSample
 from nl_code.datasets.task import CodeDataset, Task
@@ -11,6 +12,7 @@ from conftest import fail_on_hf, mock_hf_dataset, prime_dataset_cache
 class _DummyRaw(BaseModel):
     task_id: str
     value: str
+    version: Literal["v1", "v2"] = "v2"
 
 
 class _DummyDataset(Dataset):
@@ -20,7 +22,11 @@ class _DummyDataset(Dataset):
     dataset_id: CodeDataset = CodeDataset.HUMANEVAL_PLUS
 
     def _parse_row(self, row: dict) -> _DummyRaw:
-        return _DummyRaw(task_id=row["task_id"], value=row["value"])
+        return _DummyRaw(
+            task_id=row["task_id"],
+            value=row["value"],
+            version=row.get("version", "v2"),
+        )
 
     def _extract_task_id(self, row: dict) -> str:
         return str(row["task_id"])
@@ -33,6 +39,7 @@ class _DummyDataset(Dataset):
             entry_point_name="main",
             description="dummy",
             gt_solution=raw.value,
+            version=raw.version,
         )
 
 
@@ -50,6 +57,7 @@ class TestDatasetBase:
         assert len(ds.raw_samples) == 2
         assert len(ds.tasks) == 2
         assert len(ds.flawed_raw_samples) == 0
+        assert all(task.version == "v2" for task in ds.tasks.values())
 
     def test_flawed_rows_tracked(self, monkeypatch: pytest.MonkeyPatch) -> None:
         rows = [
@@ -189,3 +197,18 @@ class TestDatasetBase:
         raw = ds.get_raw_sample_at_index(0)
         assert isinstance(raw, _DummyRaw)
         assert raw.value == "x = 1"
+
+    def test_task_version_mismatch_marks_row_flawed(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        class _MismatchDataset(_DummyDataset):
+            def _to_task(self, task_id: str, raw: BaseModel) -> Task:
+                task = super()._to_task(task_id, raw)
+                return task.model_copy(update={"version": "v1"})
+
+        rows = [{"task_id": "t/0", "value": "x = 1", "version": "v2"}]
+        ds = prime_dataset_cache(_MismatchDataset(), rows, monkeypatch)
+
+        assert len(ds.tasks) == 0
+        assert "t/0" in ds.flawed_raw_samples
+        assert "does not match raw task version" in ds.flawed_raw_samples["t/0"].error

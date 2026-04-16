@@ -91,6 +91,7 @@ class TestRawClassEvalTask:
         assert "source__methods_info" in RawClassEvalTask.non_code_fields
         assert "methods_info" in RawClassEvalTask.non_code_fields
         assert "postprocess_solution" in RawClassEvalTask.non_code_fields
+        assert "version" in RawClassEvalTask.non_code_fields
 
     def test_construction(self) -> None:
         row = make_classeval_row()
@@ -104,6 +105,7 @@ class TestRawClassEvalTask:
         assert task.class_name == "Calculator"
         assert task.class_description == "A simple calculator."
         assert task.validated is False
+        assert task.version == "v2"
 
     def test_computed_gt_code_with_comments(self) -> None:
         row = make_classeval_row()

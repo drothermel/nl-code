@@ -82,4 +82,5 @@ class HumanEvalDataset(Dataset):
             entry_point_name=raw.entry_point,
             description=raw.docstrings,
             gt_solution=raw.gt_solution,
+            version=raw.version,
         )
