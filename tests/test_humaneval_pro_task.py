@@ -10,6 +10,16 @@ pytestmark = pytest.mark.docker
 
 
 class TestRawHumanEvalProTask:
+    def test_non_code_fields(self) -> None:
+        assert RawHumanEvalProTask.non_code_fields == (
+            "new_description",
+            "new_problem_comment",
+            "new_docstrings",
+            "original_docstrings",
+            "task_id",
+            "validated",
+        )
+
     def test_construction(self) -> None:
         row = make_humaneval_pro_row()
         row["task_id"] = "HumanEvalPro/0"
@@ -115,17 +125,24 @@ class TestRawHumanEvalProTask:
         row = make_humaneval_pro_row()
         row["task_id"] = "HumanEvalPro/0"
         task = RawHumanEvalProTask.model_validate(row)
-        add_pos = task.gt_solution.index("def add(")
-        add_pairs_pos = task.gt_solution.index("def add_pairs(")
+        add_pos = task.gt_solution_with_comments.index("def add(")
+        add_pairs_pos = task.gt_solution_with_comments.index("def add_pairs(")
         assert add_pos < add_pairs_pos
 
-    def test_gt_solution_without_comments(self) -> None:
+    def test_gt_solution_with_comments(self) -> None:
         row = make_humaneval_pro_row()
         row["task_id"] = "HumanEvalPro/0"
         task = RawHumanEvalProTask.model_validate(row)
-        assert '"""' not in task.gt_solution_without_comments
-        assert "#" not in task.gt_solution_without_comments
-        assert "def add" in task.gt_solution_without_comments
+        assert '"""' in task.gt_solution_with_comments
+        assert "def add" in task.gt_solution_with_comments
+
+    def test_gt_solution(self) -> None:
+        row = make_humaneval_pro_row()
+        row["task_id"] = "HumanEvalPro/0"
+        task = RawHumanEvalProTask.model_validate(row)
+        assert '"""' not in task.gt_solution
+        assert "#" not in task.gt_solution
+        assert "def add" in task.gt_solution
 
     def test_new_entry_point(self) -> None:
         row = make_humaneval_pro_row()

@@ -1,6 +1,7 @@
-from typing import Any, Self
+import ast
+from typing import Any, ClassVar, Self
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from nl_code.code_parsing import (
     find_named_assignment_in_body,
@@ -14,26 +15,92 @@ from nl_code.code_parsing import (
 from nl_code.code_execution.runner import run_assertion_test
 
 
-def merge_prompt_and_solution(prompt: Any, solution: Any) -> str:
-    if not isinstance(prompt, str) or not isinstance(solution, str):
-        raise ValueError("prompt and solution must be strings")
-    return merge_code_components(prompt, solution)
+def _require_string(value: Any, *, name: str) -> str:
+    if not isinstance(value, str):
+        raise ValueError(f"{name} must be a string")
+    return value
 
 
-def extract_prompt_docstring(prompt: Any, entry_point: Any) -> str:
-    if not isinstance(prompt, str) or not isinstance(entry_point, str):
-        raise ValueError("prompt and entry_point must be strings")
-    return get_docstring(find_named_function(prompt, entry_point))
+def _first_docstring_expr(
+    node: ast.Module | ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef,
+) -> ast.Expr | None:
+    if not node.body:
+        return None
+
+    first_stmt = node.body[0]
+    if not isinstance(first_stmt, ast.Expr):
+        return None
+    if not isinstance(first_stmt.value, ast.Constant):
+        return None
+    if not isinstance(first_stmt.value.value, str):
+        return None
+    return first_stmt
 
 
-def extract_prompt_comments(prompt: Any) -> str | None:
-    if not isinstance(prompt, str):
-        raise ValueError("prompt must be a string")
-    return get_comments(prompt, strip_hash=True)
+def _remove_docstrings(source: str) -> str:
+    tree = ast.parse(source)
+    line_numbers_to_remove: set[int] = set()
+
+    for node in ast.walk(tree):
+        if isinstance(
+            node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
+        ):
+            docstring_expr = _first_docstring_expr(node)
+            if docstring_expr is None:
+                continue
+            assert docstring_expr.lineno is not None
+            assert docstring_expr.end_lineno is not None
+            line_numbers_to_remove.update(
+                range(docstring_expr.lineno, docstring_expr.end_lineno + 1)
+            )
+
+    remaining_lines = [
+        line
+        for line_number, line in enumerate(source.splitlines(keepends=True), start=1)
+        if line_number not in line_numbers_to_remove
+    ]
+    if not remaining_lines:
+        return ""
+
+    return "".join(remaining_lines).rstrip() + "\n"
 
 
-def get_check_assignment(test_source: str, name: str, default: object = ...) -> object:
-    check_fn = find_named_function(test_source, "check")
+def build_function_source(prompt: Any, solution: Any) -> str:
+    prompt_str = _require_string(prompt, name="prompt")
+    solution_str = _require_string(solution, name="solution")
+    return merge_code_components(prompt_str, solution_str)
+
+
+def build_function_without_comments(prompt: Any, solution: Any) -> str:
+    function_with_comments = build_function_source(prompt, solution)
+    return remove_docstrings_and_comments(function_with_comments)
+
+
+def extract_docstrings(prompt: Any, entry_point: Any) -> str:
+    prompt_str = _require_string(prompt, name="prompt")
+    entry_point_str = _require_string(entry_point, name="entry_point")
+    return get_docstring(find_named_function(prompt_str, entry_point_str))
+
+
+def extract_prompt_comment(prompt: Any) -> str:
+    prompt_str = _require_string(prompt, name="prompt")
+    return get_comments(prompt_str, strip_hash=True) or ""
+
+
+def build_function_stub(prompt: Any) -> str:
+    prompt_str = _require_string(prompt, name="prompt")
+    return _remove_docstrings(prompt_str)
+
+
+def build_assertion_test_code(test_source: Any, entry_point: Any) -> str:
+    test_source_str = _require_string(test_source, name="test_source")
+    entry_point_str = _require_string(entry_point, name="entry_point")
+    return f"{test_source_str}\n\ncheck({entry_point_str})\n"
+
+
+def get_check_assignment(test_source: Any, name: str, default: object = ...) -> object:
+    test_source_str = _require_string(test_source, name="test_source")
+    check_fn = find_named_function(test_source_str, "check")
     assign = find_named_assignment_in_body(check_fn.body, name)
     if assign is not None:
         return literal_eval_assignment_value(assign)
@@ -43,39 +110,73 @@ def get_check_assignment(test_source: str, name: str, default: object = ...) -> 
 
 
 class RawHumanEvalTask(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    non_code_fields: ClassVar[tuple[str, ...]] = (
+        "docstrings",
+        "prompt_comment",
+        "task_id",
+        "validated",
+    )
+
     task_id: str
     entry_point: str
-    prompt: str
-    canonical_solution: str
-    test: str
+    source__prompt: str = Field(alias="prompt")
+    source__canonical_solution: str = Field(alias="canonical_solution")
+    source__test: str = Field(alias="test")
     validated: bool = False
 
+    official_prompt: str = Field(
+        default_factory=lambda data: data.get("source__prompt")
+    )
+    docstrings: str = Field(
+        default_factory=lambda data: extract_docstrings(
+            data.get("source__prompt"),
+            data.get("entry_point"),
+        )
+    )
+    prompt_comment: str = Field(
+        default_factory=lambda data: extract_prompt_comment(data.get("source__prompt"))
+    )
+    function_stub: str = Field(
+        default_factory=lambda data: build_function_stub(data.get("source__prompt"))
+    )
+    function_stub_with_comments: str = Field(
+        default_factory=lambda data: data.get("source__prompt")
+    )
+    function_with_comments: str = Field(
+        default_factory=lambda data: build_function_source(
+            data.get("source__prompt"),
+            data.get("source__canonical_solution"),
+        )
+    )
+    function: str = Field(
+        default_factory=lambda data: build_function_without_comments(
+            data.get("source__prompt"),
+            data.get("source__canonical_solution"),
+        )
+    )
+    gt_solution_with_comments: str = Field(
+        default_factory=lambda data: data.get("function_with_comments")
+    )
     gt_solution: str = Field(
-        default_factory=lambda data: merge_prompt_and_solution(
-            data.get("prompt"), data.get("canonical_solution")
-        )
-    )
-    gt_solution_without_comments: str = Field(
         default_factory=lambda data: remove_docstrings_and_comments(
-            data.get("gt_solution")
+            data.get("gt_solution_with_comments")
         )
     )
-    prompt_docstring: str = Field(
-        default_factory=lambda data: extract_prompt_docstring(
-            data.get("prompt"), data.get("entry_point")
+    assertion_test_code: str = Field(
+        default_factory=lambda data: build_assertion_test_code(
+            data.get("source__test"),
+            data.get("entry_point"),
         )
-    )
-    prompt_comments: str | None = Field(
-        default_factory=lambda data: extract_prompt_comments(data.get("prompt"))
     )
     test_inputs: list[Any] = Field(  # ty: ignore[invalid-assignment]
         default_factory=lambda data: get_check_assignment(
-            data.get("test"), name="inputs"
+            data.get("source__test"), name="inputs"
         )
     )
     test_results: list[Any] | None = Field(  # ty: ignore[invalid-assignment]
         default_factory=lambda data: get_check_assignment(
-            data.get("test"), name="results", default=None
+            data.get("source__test"), name="results", default=None
         )
     )
 
@@ -87,12 +188,9 @@ class RawHumanEvalTask(BaseModel):
             raise ValueError("test inputs and results must have the same length")
         return self
 
-    def assertion_test_code(self) -> str:
-        return f"{self.test}\n\ncheck({self.entry_point})\n"
-
     def run_test(self, code: str) -> bool:
-        result = run_assertion_test(code, self.assertion_test_code())
+        result = run_assertion_test(code, self.assertion_test_code)
         return result.passed
 
     def run_test_on_gt_solution(self) -> bool:
-        return self.run_test(self.gt_solution)
+        return self.run_test(self.gt_solution_with_comments)

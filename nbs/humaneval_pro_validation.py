@@ -77,7 +77,9 @@ def _(sample):
                     field: mo.vstack(
                         [
                             mo.md(f"### {field}"),
-                            mo.ui.code_editor(value),
+                            mo.md(str(value))
+                            if field in sample.non_code_fields
+                            else mo.ui.code_editor(str(value)),
                         ]
                     )
                 }
@@ -98,8 +100,9 @@ def _(sample):
                 {
                     field: mo.vstack(
                         [
-                            mo.md(f"### {field}"),
-                            mo.ui.code_editor(str(value)),
+                            mo.plain_text(str(value))
+                            if field in sample.non_code_fields
+                            else mo.ui.code_editor(str(value)),
                         ]
                     )
                 }

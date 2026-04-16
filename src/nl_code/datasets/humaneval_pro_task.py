@@ -1,3 +1,5 @@
+from typing import ClassVar
+
 from pydantic import BaseModel, ConfigDict, Field
 
 from nl_code.code_execution.runner import run_assertion_test
@@ -20,6 +22,14 @@ from nl_code.datasets.pro_task_helpers import (
 
 class RawHumanEvalProTask(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
+    non_code_fields: ClassVar[tuple[str, ...]] = (
+        "new_description",
+        "new_problem_comment",
+        "new_docstrings",
+        "original_docstrings",
+        "task_id",
+        "validated",
+    )
 
     task_id: str
     source__raw_problem: str = Field(alias="raw_problem")
@@ -101,7 +111,7 @@ class RawHumanEvalProTask(BaseModel):
     new_official_prompt: str = Field(
         default_factory=lambda data: data.get("source__new_problem")
     )
-    gt_solution: str = Field(
+    gt_solution_with_comments: str = Field(
         default_factory=lambda data: build_gt_solution(
             data.get("source__raw_problem"),
             data.get("source__raw_solution"),
@@ -109,9 +119,9 @@ class RawHumanEvalProTask(BaseModel):
             data.get("source__new_solution"),
         )
     )
-    gt_solution_without_comments: str = Field(
+    gt_solution: str = Field(
         default_factory=lambda data: remove_docstrings_and_comments(
-            data.get("gt_solution")
+            data.get("gt_solution_with_comments")
         )
     )
     new_entry_point: str = Field(
@@ -128,4 +138,4 @@ class RawHumanEvalProTask(BaseModel):
         return result.passed
 
     def run_test_on_gt_solution(self) -> bool:
-        return self.run_test(self.gt_solution)
+        return self.run_test(self.gt_solution_with_comments)

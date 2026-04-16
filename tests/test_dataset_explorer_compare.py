@@ -142,7 +142,7 @@ def test_get_comparison_summarizes_counts_metrics_and_ratios(
         len(human_task.description)
     )
     assert human_metric_stats["prompt_length_chars"].median == float(
-        len(human_raw.prompt)
+        len(human_raw.official_prompt)
     )
 
     mbpp_row = response.datasets[1]
