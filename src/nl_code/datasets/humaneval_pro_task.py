@@ -29,19 +29,19 @@ class RawHumanEvalProTask(BaseModel):
     source__test_code: str = Field(alias="test_code")
     validated: bool = False
 
-    source__new_function: str = Field(
+    new_function: str = Field(
         default_factory=lambda data: build_new_function_source(
             data.get("source__new_problem"),
             data.get("source__new_solution"),
         )
     )
-    source__raw_problem_imports: str = Field(
+    raw_problem_imports: str = Field(
         default_factory=lambda data: extract_source_imports(
             data.get("source__raw_problem"),
             field_name="source__raw_problem",
         )
     )
-    source__new_problem_without_docstrings_and_comments: str = Field(
+    new_problem_without_docstrings_and_comments: str = Field(
         default_factory=lambda data: build_problem_stub_without_docstrings_and_comments(
             data.get("source__new_problem"),
             field_name="source__new_problem",
@@ -55,7 +55,7 @@ class RawHumanEvalProTask(BaseModel):
     )
     new_docstrings: str = Field(
         default_factory=lambda data: extract_verified_new_docstring(
-            data.get("source__new_function"),
+            data.get("new_function"),
             data.get("source__new_solution"),
         )
     )
@@ -76,8 +76,8 @@ class RawHumanEvalProTask(BaseModel):
     )
     new_function_stub: str = Field(
         default_factory=lambda data: build_new_function_stub(
-            data.get("source__raw_problem_imports"),
-            data.get("source__new_problem_without_docstrings_and_comments"),
+            data.get("raw_problem_imports"),
+            data.get("new_problem_without_docstrings_and_comments"),
         )
     )
     new_function_stub_with_comments: str = Field(
@@ -86,7 +86,7 @@ class RawHumanEvalProTask(BaseModel):
     new_two_part_function_stub: str = Field(
         default_factory=lambda data: build_new_two_part_function_stub(
             data.get("source__raw_problem"),
-            data.get("source__new_problem_without_docstrings_and_comments"),
+            data.get("new_problem_without_docstrings_and_comments"),
         )
     )
     new_two_part_function_stub_with_comments: str = Field(

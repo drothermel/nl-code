@@ -48,7 +48,7 @@ class TestRawHumanEvalProTask:
         row["task_id"] = "HumanEvalPro/0"
         task = RawHumanEvalProTask.model_validate(row)
 
-        assert task.source__new_function == textwrap.dedent("""\
+        assert task.new_function == textwrap.dedent("""\
             # Given a list of pairs, add each pair and return the list of sums.
             def add_pairs(pairs: list[tuple[int, int]]) -> list[int]:
                 \"\"\"Return sums for each input pair.\"\"\"
@@ -57,12 +57,12 @@ class TestRawHumanEvalProTask:
                     result.append(add(a, b))
                 return result
         """)
-        assert task.source__raw_problem_imports == textwrap.dedent("""\
+        assert task.raw_problem_imports == textwrap.dedent("""\
             import math
             from collections import deque
         """)
         assert (
-            task.source__new_problem_without_docstrings_and_comments
+            task.new_problem_without_docstrings_and_comments
             == "def add_pairs(pairs: list[tuple[int, int]]) -> list[int]:\n"
         )
         assert task.original_docstrings == "Add two integers."
