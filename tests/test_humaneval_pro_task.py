@@ -90,6 +90,7 @@ class TestRawHumanEvalProTask:
 
             def add(a: int, b: int) -> int:
                 \"\"\"Add two integers.\"\"\"
+
             def add_pairs(pairs: list[tuple[int, int]]) -> list[int]:
         """)
         assert task.new_two_part_function_stub_with_comments == textwrap.dedent("""\
@@ -98,6 +99,7 @@ class TestRawHumanEvalProTask:
 
             def add(a: int, b: int) -> int:
                 \"\"\"Add two integers.\"\"\"
+
             # Given a list of pairs, add each pair and return the list of sums.
             def add_pairs(pairs: list[tuple[int, int]]) -> list[int]:
         """)

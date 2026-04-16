@@ -16,6 +16,7 @@ with app.setup:
     import marimo as mo
     import pandas as pd
 
+    from nl_code.datasets.humaneval_task import RawHumanEvalTask
     from nl_code.datasets import (
         RawHumanEvalProTask,
         RawHumanEvalTask,
@@ -26,7 +27,7 @@ with app.setup:
 
 @app.cell(hide_code=True)
 def _():
-    ds = HumanEvalProDataset()
+    ds = HumanEvalDataset()
     ds.load()
     mo.vstack(
         [
@@ -59,11 +60,6 @@ def _(sample):
         sample,
         value=False,
     )
-    return
-
-
-@app.cell
-def _():
     return
 
 
