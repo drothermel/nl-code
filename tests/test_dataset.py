@@ -2,7 +2,7 @@ import pytest
 from pydantic import BaseModel
 from typing import ClassVar
 
-from nl_code.datasets.dataset import Dataset, DatasetCacheMissError, FlawedSample
+from nl_code.datasets.dataset import Dataset, FlawedSample
 from nl_code.datasets.task import CodeDataset, Task
 
 from conftest import fail_on_hf, mock_hf_dataset, prime_dataset_cache
@@ -175,6 +175,17 @@ class TestDatasetBase:
         assert len(ds.flawed_raw_samples) == 1
         assert "row-1" in ds.flawed_raw_samples
 
-    def test_load_without_cache_raises_actionable_error(self) -> None:
-        with pytest.raises(DatasetCacheMissError, match="cache_cli rebuild dummy"):
-            _DummyDataset().load()
+    def test_load_without_cache_rebuilds(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(
+            "nl_code.datasets.dataset.load_dataset",
+            lambda *_args, **_kwargs: mock_hf_dataset(
+                [{"task_id": "t/0", "value": "x = 1"}]
+            ),
+        )
+
+        ds = _DummyDataset().load()
+
+        assert ds.get_task_at_index(0).task_id == "t/0"
+        raw = ds.get_raw_sample_at_index(0)
+        assert isinstance(raw, _DummyRaw)
+        assert raw.value == "x = 1"

@@ -126,14 +126,16 @@ class Dataset(BaseModel):
             if hf_id is not None:
                 raise ValueError("hf_id can only be used when force_reparse=True")
             snapshot = read_snapshot(self.dataset_id, self.split)
-            if snapshot is None:
-                raise DatasetCacheMissError(
-                    "Parsed dataset cache not found for "
-                    f"{self.dataset_id.value} (split={self.split}). "
-                    f"Rebuild it with `uv run python -m nl_code.datasets.cache_cli rebuild {self.dataset_key}`."
-                )
-            self._restore_from_snapshot(snapshot)
-            return self
+            if snapshot is not None:
+                self._restore_from_snapshot(snapshot)
+                return self
+
+            logger.info(
+                "Parsed dataset cache not found for %s (split=%s); rebuilding",
+                self.dataset_id.value,
+                self.split,
+            )
+            return self.rebuild_cache()
 
         return self.rebuild_cache(hf_id=hf_id)
 
