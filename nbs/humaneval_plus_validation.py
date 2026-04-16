@@ -16,7 +16,6 @@ with app.setup:
     import marimo as mo
     import pandas as pd
 
-    from nl_code.datasets.humaneval_task import RawHumanEvalTask
     from nl_code.datasets import (
         RawHumanEvalProTask,
         RawHumanEvalTask,
@@ -41,45 +40,51 @@ def _():
     return (ds,)
 
 
-@app.cell(column=1)
+@app.function(hide_code=True)
+def render_sample_fields(sample, *, prefix=None, suppress_prefix=None):
+    return mo.vstack(
+        [
+            mo.accordion(
+                {
+                    field: (
+                        mo.plain_text(str(value))
+                        if field in sample.non_code_fields
+                        else mo.ui.code_editor(str(value))
+                    )
+                }
+            )
+            for field, value in sample.model_dump().items()
+            if (prefix is None or field.startswith(prefix))
+            and (
+                suppress_prefix is None
+                or not field.startswith(suppress_prefix)
+            )
+        ]
+    )
+
+
+@app.cell(column=1, hide_code=True)
 def _(ds):
     ds.model_fields
     return
 
 
-@app.cell
+@app.cell(hide_code=True)
 def _(ds):
     sample = ds.get_raw_sample_at_index(0)
-    sample
-    return (sample,)
-
-
-@app.cell
-def _(sample):
     mo.inspect(
         sample,
         value=False,
-    )
-    return
+    ) if False else mo.md("Toggle this to see the full sample.")
+    return (sample,)
 
 
 @app.cell(column=2, hide_code=True)
 def _(sample):
     mo.vstack(
-        [mo.md("## Source Fields")]
-        + [
-            mo.accordion(
-                {
-                    field: mo.vstack(
-                        [
-                            mo.md(f"### {field}"),
-                            mo.ui.code_editor(value),
-                        ]
-                    )
-                }
-            )
-            for field, value in sample.model_dump().items()
-            if field.startswith("source__")
+        [
+            mo.md("## Source Fields"),
+            render_sample_fields(sample, prefix="source__"),
         ]
     )
     return
@@ -88,20 +93,9 @@ def _(sample):
 @app.cell(column=3, hide_code=True)
 def _(sample):
     mo.vstack(
-        [mo.md("## Derived Fields")]
-        + [
-            mo.accordion(
-                {
-                    field: mo.vstack(
-                        [
-                            mo.md(f"### {field}"),
-                            mo.ui.code_editor(str(value)),
-                        ]
-                    )
-                }
-            )
-            for field, value in sample.model_dump().items()
-            if not field.startswith("source__")
+        [
+            mo.md("## Derived Fields"),
+            render_sample_fields(sample, suppress_prefix="source__"),
         ]
     )
     return
