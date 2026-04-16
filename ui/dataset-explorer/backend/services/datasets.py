@@ -613,15 +613,15 @@ def _extract_metrics(family: str, raw: Any, task: Task) -> dict[str, int | None]
         return metrics
     if family == "pro":
         assert isinstance(raw, RawHumanEvalProTask | RawMbppProTask | RawBigCodeBenchLiteProTask)
-        metrics["prompt_length_chars"] = len(raw.new_problem)
+        metrics["prompt_length_chars"] = len(raw.new_official_prompt)
         metrics["raw_source_length_chars"] = len(raw.gt_solution_with_comments)
-        metrics["test_length_chars"] = len(raw.test_code)
+        metrics["test_length_chars"] = len(raw.source__test_code)
         return metrics
 
     assert isinstance(raw, RawClassEvalTask)
     metrics["prompt_length_chars"] = len(raw.class_description)
-    metrics["raw_source_length_chars"] = len(raw.gt_code)
-    metrics["test_length_chars"] = len(raw.test)
+    metrics["raw_source_length_chars"] = len(raw.gt_code_with_comments)
+    metrics["test_length_chars"] = len(raw.source__test)
     return metrics
 
 

@@ -63,7 +63,7 @@ def render_sample_fields(sample, *, prefix=None, suppress_prefix=None):
     )
 
 
-@app.cell(column=1, hide_code=True)
+@app.cell(hide_code=True)
 def _(ds):
     ds.model_fields
     return

@@ -1,9 +1,11 @@
-from typing import Any, Self
+import ast
+from typing import Any, ClassVar, Self, cast
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from nl_code.code_execution.models import UnittestResult
 from nl_code.code_execution.runner import run_unittest_test
+from nl_code.code_parsing import remove_docstrings_and_comments
 
 
 class MethodDependencies(BaseModel):
@@ -53,15 +55,78 @@ class ClassEvalTestResult(BaseModel):
     error: str | None = None
 
 
+def _require_string(value: Any, *, name: str) -> str:
+    if not isinstance(value, str):
+        raise ValueError(f"{name} must be a string")
+    return value
+
+
+def _require_string_list(value: Any, *, name: str) -> list[str]:
+    if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
+        raise ValueError(f"{name} must be a list[str]")
+    return cast(list[str], list(value))
+
+
+def _first_docstring_expr(
+    node: ast.Module | ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef,
+) -> ast.Expr | None:
+    if not node.body:
+        return None
+
+    first_stmt = node.body[0]
+    if not isinstance(first_stmt, ast.Expr):
+        return None
+    if not isinstance(first_stmt.value, ast.Constant):
+        return None
+    if not isinstance(first_stmt.value.value, str):
+        return None
+    return first_stmt
+
+
+def _remove_docstrings(source: str) -> str:
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return source.rstrip() + "\n" if source.strip() else ""
+    line_numbers_to_remove: set[int] = set()
+
+    for node in ast.walk(tree):
+        if isinstance(
+            node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
+        ):
+            docstring_expr = _first_docstring_expr(node)
+            if docstring_expr is None:
+                continue
+            assert docstring_expr.lineno is not None
+            assert docstring_expr.end_lineno is not None
+            line_numbers_to_remove.update(
+                range(docstring_expr.lineno, docstring_expr.end_lineno + 1)
+            )
+
+    remaining_lines = [
+        line
+        for line_number, line in enumerate(source.splitlines(keepends=True), start=1)
+        if line_number not in line_numbers_to_remove
+    ]
+    if not remaining_lines:
+        return ""
+
+    return "".join(remaining_lines).rstrip() + "\n"
+
+
+def _build_import_block(import_statement: Any) -> str:
+    imports = _require_string_list(import_statement, name="import_statement")
+    if not imports:
+        return ""
+    return "\n".join(imports) + "\n"
+
+
 def _build_gt_code(import_statement: Any, solution_code: Any) -> str:
-    if not isinstance(solution_code, str):
-        raise ValueError("solution_code must be a string")
-    if not isinstance(import_statement, list):
-        raise ValueError("import_statement must be a list")
-    imports = "\n".join(import_statement)
+    solution_code_str = _require_string(solution_code, name="solution_code")
+    imports = _build_import_block(import_statement).rstrip()
     if imports:
-        return imports + "\n\n" + solution_code
-    return solution_code
+        return imports + "\n\n" + solution_code_str
+    return solution_code_str
 
 
 # ---------------------------------------------------------------------------
@@ -162,30 +227,96 @@ def _apply_fixes(
 
 
 class RawClassEvalTask(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    raw_source_fields: ClassVar[tuple[str, ...]] = (
+        "class_name",
+        "class_description",
+        "class_constructor",
+        "fields",
+        "import_statement",
+        "skeleton",
+        "solution_code",
+        "test",
+        "test_classes",
+        "methods_info",
+    )
+    non_code_fields: ClassVar[tuple[str, ...]] = (
+        "task_id",
+        "validated",
+        "postprocess_solution",
+        "postprocess_test",
+        "auto_fail_reason",
+        "source__class_name",
+        "source__class_description",
+        "source__fields",
+        "source__import_statement",
+        "source__test_classes",
+        "source__methods_info",
+        "class_name",
+        "class_description",
+        "fields",
+        "import_statement",
+        "test_classes",
+        "methods_info",
+    )
+
     task_id: str
-    class_name: str
-    class_description: str
-    class_constructor: str
-    fields: list[str]
-    import_statement: list[str]
-    skeleton: str
-    solution_code: str
-    test: str
-    test_classes: list[str]
-    methods_info: list[MethodInfo]
+    source__class_name: str
+    source__class_description: str
+    source__class_constructor: str
+    source__fields: list[str]
+    source__import_statement: list[str]
+    source__skeleton: str
+    source__solution_code: str
+    source__test: str
+    source__test_classes: list[str]
+    source__methods_info: list[MethodInfo]
     validated: bool = False
     postprocess_solution: bool = False
     postprocess_test: bool = False
     auto_fail_reason: str | None = None
 
-    gt_code: str = Field(
-        default_factory=lambda data: _build_gt_code(
-            data.get("import_statement"), data.get("solution_code")
-        )
-    )
+    class_name: str = ""
+    class_description: str = ""
+    class_constructor: str = ""
+    fields: list[str] = Field(default_factory=list)
+    import_statement: list[str] = Field(default_factory=list)
+    official_skeleton: str = ""
+    class_stub_with_comments: str = ""
+    class_stub: str = ""
+    import_block: str = ""
+    solution_code: str = ""
+    test: str = ""
+    test_classes: list[str] = Field(default_factory=list)
+    methods_info: list[MethodInfo] = Field(default_factory=list)
+    gt_code_with_comments: str = ""
+    gt_code: str = ""
+
+    @model_validator(mode="before")
+    @classmethod
+    def populate_source_fields(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        normalized = dict(data)
+        for field_name in cls.raw_source_fields:
+            source_field_name = f"source__{field_name}"
+            if source_field_name not in normalized and field_name in normalized:
+                normalized[source_field_name] = normalized[field_name]
+        return normalized
 
     @model_validator(mode="after")
     def validate_eval_task(self) -> Self:
+        self.class_name = self.source__class_name
+        self.class_description = self.source__class_description
+        self.class_constructor = self.source__class_constructor
+        self.fields = list(self.source__fields)
+        self.import_statement = list(self.source__import_statement)
+        self.official_skeleton = self.source__skeleton
+        self.class_stub_with_comments = self.official_skeleton
+        self.class_stub = _remove_docstrings(self.official_skeleton)
+        self.import_block = _build_import_block(self.import_statement)
+        self.methods_info = list(self.source__methods_info)
+
         (
             self.solution_code,
             self.test,
@@ -193,11 +324,17 @@ class RawClassEvalTask(BaseModel):
             self.postprocess_solution,
             self.postprocess_test,
             self.auto_fail_reason,
-        ) = _apply_fixes(self.task_id, self.solution_code, self.test, self.test_classes)
+        ) = _apply_fixes(
+            self.task_id,
+            self.source__solution_code,
+            self.source__test,
+            list(self.source__test_classes),
+        )
 
-        # Recompute gt_code if solution was modified
-        if self.postprocess_solution:
-            self.gt_code = _build_gt_code(self.import_statement, self.solution_code)
+        self.gt_code_with_comments = _build_gt_code(
+            self.import_statement, self.solution_code
+        )
+        self.gt_code = remove_docstrings_and_comments(self.gt_code_with_comments)
         return self
 
     def run_test(self, code: str) -> ClassEvalTestResult:

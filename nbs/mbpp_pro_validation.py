@@ -1,8 +1,8 @@
-"""Validate HumanEval-Pro ground truth solutions.
+"""Validate MBPP-Pro ground truth solutions.
 
-Loads the HumanEval-Pro dataset from HuggingFace, runs each ground
-truth solution against its test cases, and reports pass/fail status
-for every task.
+Loads the MBPP-Pro dataset from HuggingFace, runs each ground truth
+solution against its test cases, and reports pass/fail status for
+every task.
 """
 
 import marimo
@@ -11,22 +11,14 @@ __generated_with = "0.23.1"
 app = marimo.App(width="columns")
 
 with app.setup:
-    import time
-
     import marimo as mo
-    import pandas as pd
 
-    from nl_code.datasets import (
-        RawHumanEvalProTask,
-        RawHumanEvalTask,
-        HumanEvalDataset,
-        HumanEvalProDataset,
-    )
+    from nl_code.datasets import MbppProDataset, RawMbppProTask
 
 
 @app.cell(hide_code=True)
 def _():
-    ds = HumanEvalDataset()
+    ds = MbppProDataset()
     ds.load()
     mo.vstack(
         [
@@ -63,6 +55,12 @@ def render_sample_fields(sample, *, prefix=None, suppress_prefix=None):
     )
 
 
+@app.cell(column=1, hide_code=True)
+def _(ds):
+    ds.model_fields
+    return
+
+
 @app.cell(hide_code=True)
 def _(ds):
     sample = ds.get_raw_sample_at_index(0)
@@ -73,13 +71,7 @@ def _(ds):
     return (sample,)
 
 
-@app.cell(hide_code=True)
-def _(ds):
-    ds.model_fields
-    return
-
-
-@app.cell(column=1, hide_code=True)
+@app.cell(column=2, hide_code=True)
 def _(sample):
     mo.vstack(
         [
@@ -90,7 +82,7 @@ def _(sample):
     return
 
 
-@app.cell(column=2, hide_code=True)
+@app.cell(column=3, hide_code=True)
 def _(sample):
     mo.vstack(
         [
@@ -101,7 +93,7 @@ def _(sample):
     return
 
 
-@app.cell(column=3, hide_code=True)
+@app.cell(column=4, hide_code=True)
 def _():
     mo.md(r"""
     (leave space)

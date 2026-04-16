@@ -113,6 +113,7 @@ class RawHumanEvalTask(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
     non_code_fields: ClassVar[tuple[str, ...]] = (
         "docstrings",
+        "entry_point",
         "prompt_comment",
         "task_id",
         "validated",
@@ -193,4 +194,4 @@ class RawHumanEvalTask(BaseModel):
         return result.passed
 
     def run_test_on_gt_solution(self) -> bool:
-        return self.run_test(self.gt_solution_with_comments)
+        return self.run_test(self.gt_solution)

@@ -144,9 +144,9 @@ class TestDatasetBase:
         monkeypatch.setattr("nl_code.datasets.dataset.load_dataset", fail_on_hf)
         cached = _DummyDataset().load()
 
-        assert rebuilt.get_task_at_index(1).task_id == cached.get_task_at_index(
-            1
-        ).task_id
+        assert (
+            rebuilt.get_task_at_index(1).task_id == cached.get_task_at_index(1).task_id
+        )
         rebuilt_raw = rebuilt.get_raw_sample_at_index(-1)
         cached_raw = cached.get_raw_sample_at_index(-1)
         assert isinstance(rebuilt_raw, _DummyRaw)

@@ -5,18 +5,21 @@ from pydantic import BaseModel, ConfigDict, Field
 from nl_code.code_execution.runner import run_assertion_test
 from nl_code.code_parsing import remove_docstrings_and_comments
 from nl_code.datasets.pro_task_helpers import (
-    build_function_stub_without_docstrings,
+    build_function_stub_without_docstrings_and_comments,
     build_gt_solution,
     build_new_function_source,
+    build_new_function_without_docstrings_and_comments,
     build_new_function_stub,
     build_new_two_part_function_stub,
+    build_original_function_source,
+    build_original_function_without_docstrings_and_comments,
     build_problem_stub_without_docstrings_and_comments,
     build_two_part_prompt,
+    extract_docstrings_and_comments,
     extract_new_entry_point,
-    extract_function_docstring,
     extract_problem_comments,
     extract_source_imports,
-    extract_verified_new_docstring,
+    extract_verified_new_docstrings_and_comments,
 )
 
 
@@ -25,8 +28,8 @@ class RawHumanEvalProTask(BaseModel):
     non_code_fields: ClassVar[tuple[str, ...]] = (
         "new_description",
         "new_problem_comment",
-        "new_docstrings",
-        "original_docstrings",
+        "new_docstrings_and_comments",
+        "original_docstrings_and_comments",
         "task_id",
         "validated",
     )
@@ -39,16 +42,38 @@ class RawHumanEvalProTask(BaseModel):
     source__test_code: str = Field(alias="test_code")
     validated: bool = False
 
+    original_function: str = Field(
+        default_factory=lambda data: (
+            build_original_function_without_docstrings_and_comments(
+                data.get("source__raw_problem"),
+                data.get("source__raw_solution"),
+            )
+        )
+    )
+    original_function_with_docstrings_and_comments: str = Field(
+        default_factory=lambda data: build_original_function_source(
+            data.get("source__raw_problem"),
+            data.get("source__raw_solution"),
+        )
+    )
     new_function: str = Field(
+        default_factory=lambda data: build_new_function_without_docstrings_and_comments(
+            data.get("source__new_problem"),
+            data.get("source__new_solution"),
+        )
+    )
+    new_function_with_docstrings_and_comments: str = Field(
         default_factory=lambda data: build_new_function_source(
             data.get("source__new_problem"),
             data.get("source__new_solution"),
         )
     )
     raw_problem_imports: str = Field(
-        default_factory=lambda data: extract_source_imports(
-            data.get("source__raw_problem"),
-            field_name="source__raw_problem",
+        default_factory=lambda data: remove_docstrings_and_comments(
+            extract_source_imports(
+                data.get("source__raw_problem"),
+                field_name="source__raw_problem",
+            )
         )
     )
     new_problem_without_docstrings_and_comments: str = Field(
@@ -57,15 +82,15 @@ class RawHumanEvalProTask(BaseModel):
             field_name="source__new_problem",
         )
     )
-    original_docstrings: str = Field(
-        default_factory=lambda data: extract_function_docstring(
+    original_docstrings_and_comments: str = Field(
+        default_factory=lambda data: extract_docstrings_and_comments(
             data.get("source__raw_problem"),
             field_name="source__raw_problem",
         )
     )
-    new_docstrings: str = Field(
-        default_factory=lambda data: extract_verified_new_docstring(
-            data.get("new_function"),
+    new_docstrings_and_comments: str = Field(
+        default_factory=lambda data: extract_verified_new_docstrings_and_comments(
+            data.get("source__new_problem"),
             data.get("source__new_solution"),
         )
     )
@@ -76,9 +101,11 @@ class RawHumanEvalProTask(BaseModel):
         )
     )
     original_function_stub: str = Field(
-        default_factory=lambda data: build_function_stub_without_docstrings(
-            data.get("source__raw_problem"),
-            field_name="source__raw_problem",
+        default_factory=lambda data: (
+            build_function_stub_without_docstrings_and_comments(
+                data.get("source__raw_problem"),
+                field_name="source__raw_problem",
+            )
         )
     )
     original_function_stub_with_comments: str = Field(
@@ -95,7 +122,7 @@ class RawHumanEvalProTask(BaseModel):
     )
     new_two_part_function_stub: str = Field(
         default_factory=lambda data: build_new_two_part_function_stub(
-            data.get("source__raw_problem"),
+            data.get("original_function_stub"),
             data.get("new_problem_without_docstrings_and_comments"),
         )
     )
@@ -106,10 +133,12 @@ class RawHumanEvalProTask(BaseModel):
         )
     )
     original_official_prompt: str = Field(
-        default_factory=lambda data: data.get("source__raw_problem")
+        default_factory=lambda data: data.get("original_function_stub")
     )
     new_official_prompt: str = Field(
-        default_factory=lambda data: data.get("source__new_problem")
+        default_factory=lambda data: data.get(
+            "new_problem_without_docstrings_and_comments"
+        )
     )
     gt_solution_with_comments: str = Field(
         default_factory=lambda data: build_gt_solution(
@@ -138,4 +167,4 @@ class RawHumanEvalProTask(BaseModel):
         return result.passed
 
     def run_test_on_gt_solution(self) -> bool:
-        return self.run_test(self.gt_solution_with_comments)
+        return self.run_test(self.gt_solution)

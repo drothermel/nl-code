@@ -59,6 +59,7 @@ class TestRawHumanEvalTask:
     def test_non_code_fields(self) -> None:
         assert RawHumanEvalTask.non_code_fields == (
             "docstrings",
+            "entry_point",
             "prompt_comment",
             "task_id",
             "validated",

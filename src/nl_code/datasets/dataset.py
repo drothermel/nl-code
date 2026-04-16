@@ -201,7 +201,13 @@ class Dataset(BaseModel):
             try:
                 raw_samples[task_id] = self._parse_row(row_dict)
                 raw_inputs[task_id] = row_dict
-            except (ValidationError, KeyError, TypeError, ValueError) as exc:
+            except (
+                ValidationError,
+                KeyError,
+                TypeError,
+                ValueError,
+                SyntaxError,
+            ) as exc:
                 flawed_raw_samples[task_id] = FlawedSample(
                     error=str(exc),
                     raw_input=row_dict,

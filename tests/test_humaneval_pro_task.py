@@ -14,8 +14,8 @@ class TestRawHumanEvalProTask:
         assert RawHumanEvalProTask.non_code_fields == (
             "new_description",
             "new_problem_comment",
-            "new_docstrings",
-            "original_docstrings",
+            "new_docstrings_and_comments",
+            "original_docstrings_and_comments",
             "task_id",
             "validated",
         )
@@ -31,8 +31,15 @@ class TestRawHumanEvalProTask:
         assert task.source__new_solution == row["new_solution"]
         assert task.source__test_code == row["test_code"]
         assert task.validated is False
-        assert task.original_official_prompt == row["raw_problem"]
-        assert task.new_official_prompt == row["new_problem"]
+        assert "def add" in task.original_function
+        assert "return a + b" in task.original_function
+        assert "def add" in task.original_function_with_docstrings_and_comments
+        assert "def add_pairs" in task.new_function_with_docstrings_and_comments
+        assert task.original_official_prompt == "def add(a: int, b: int) -> int:\n"
+        assert (
+            task.new_official_prompt
+            == "def add_pairs(pairs: list[tuple[int, int]]) -> list[int]:\n"
+        )
 
     def test_additional_derived_prompt_fields(self) -> None:
         row = make_humaneval_pro_row(
@@ -58,7 +65,29 @@ class TestRawHumanEvalProTask:
         row["task_id"] = "HumanEvalPro/0"
         task = RawHumanEvalProTask.model_validate(row)
 
+        assert task.original_function == textwrap.dedent("""\
+            import math
+            from collections import deque
+
+            def add(a: int, b: int) -> int:
+                return a + b
+        """)
+        assert task.original_function_with_docstrings_and_comments == textwrap.dedent("""\
+            import math
+            from collections import deque
+
+            def add(a: int, b: int) -> int:
+                \"\"\"Add two integers.\"\"\"
+                return a + b
+        """)
         assert task.new_function == textwrap.dedent("""\
+            def add_pairs(pairs: list[tuple[int, int]]) -> list[int]:
+                result = []
+                for a, b in pairs:
+                    result.append(add(a, b))
+                return result
+        """)
+        assert task.new_function_with_docstrings_and_comments == textwrap.dedent("""\
             # Given a list of pairs, add each pair and return the list of sums.
             def add_pairs(pairs: list[tuple[int, int]]) -> list[int]:
                 \"\"\"Return sums for each input pair.\"\"\"
@@ -75,8 +104,11 @@ class TestRawHumanEvalProTask:
             task.new_problem_without_docstrings_and_comments
             == "def add_pairs(pairs: list[tuple[int, int]]) -> list[int]:\n"
         )
-        assert task.original_docstrings == "Add two integers."
-        assert task.new_docstrings == "Return sums for each input pair."
+        assert task.original_docstrings_and_comments == "Add two integers."
+        assert task.new_docstrings_and_comments == (
+            "Given a list of pairs, add each pair and return the list of sums.\n\n"
+            "Return sums for each input pair."
+        )
         assert (
             task.new_problem_comment
             == "Given a list of pairs, add each pair and return the list of sums."
@@ -99,7 +131,6 @@ class TestRawHumanEvalProTask:
             from collections import deque
 
             def add(a: int, b: int) -> int:
-                \"\"\"Add two integers.\"\"\"
 
             def add_pairs(pairs: list[tuple[int, int]]) -> list[int]:
         """)
@@ -113,6 +144,10 @@ class TestRawHumanEvalProTask:
             # Given a list of pairs, add each pair and return the list of sums.
             def add_pairs(pairs: list[tuple[int, int]]) -> list[int]:
         """)
+        assert task.original_official_prompt == task.original_function_stub
+        assert (
+            task.new_official_prompt == task.new_problem_without_docstrings_and_comments
+        )
 
     def test_gt_solution_contains_both_functions(self) -> None:
         row = make_humaneval_pro_row()
@@ -143,6 +178,12 @@ class TestRawHumanEvalProTask:
         assert '"""' not in task.gt_solution
         assert "#" not in task.gt_solution
         assert "def add" in task.gt_solution
+        assert '"""' not in task.original_function
+        assert "#" not in task.original_function
+        assert '"""' not in task.new_function
+        assert "#" not in task.new_function
+        assert '"""' not in task.original_official_prompt
+        assert '"""' not in task.new_official_prompt
 
     def test_new_entry_point(self) -> None:
         row = make_humaneval_pro_row()

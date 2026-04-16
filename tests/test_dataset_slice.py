@@ -89,7 +89,7 @@ class TestDatasetSlice:
     def test_get_source_code_with_field(self, loaded_dataset: HumanEvalDataset) -> None:
         sl = DatasetSlice(
             dataset=loaded_dataset,
-            raw_source_field="gt_solution_without_comments",
+            raw_source_field="gt_solution",
         )
         code = sl.get_source_code("HumanEval/0")
         assert "add" in code

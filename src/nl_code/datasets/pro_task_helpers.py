@@ -6,6 +6,7 @@ from nl_code.code_parsing import (
     get_comments,
     get_docstring,
     merge_code_components,
+    remove_docstrings_and_comments,
 )
 
 
@@ -48,6 +49,21 @@ def _merge_two_code_components_with_blank_line(first: str, second: str) -> str:
     return f"{first_stripped}\n\n{second_stripped}\n"
 
 
+def _join_nonempty_text_parts(*parts: str) -> str:
+    present_parts = [part.strip() for part in parts if part.strip()]
+    return "\n\n".join(present_parts)
+
+
+def _parse_source_with_stub_body(source: str) -> ast.Module:
+    try:
+        return ast.parse(source)
+    except SyntaxError:
+        stripped_source = source.rstrip()
+        if stripped_source.endswith(":"):
+            return ast.parse(stripped_source + "\n    pass\n")
+        raise
+
+
 def _first_docstring_expr(
     node: ast.Module | ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef,
 ) -> ast.Expr | None:
@@ -67,7 +83,7 @@ def _first_docstring_expr(
 def _find_first_function_node(
     source: str,
 ) -> ast.FunctionDef | ast.AsyncFunctionDef:
-    tree = ast.parse(source)
+    tree = _parse_source_with_stub_body(source)
     for node in tree.body:
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             return node
@@ -123,10 +139,32 @@ def build_new_function_source(new_problem: Any, new_solution: Any) -> str:
     return merge_code_components(new_problem_str, new_solution_str)
 
 
+def build_original_function_source(raw_problem: Any, raw_solution: Any) -> str:
+    raw_problem_str = _require_string(raw_problem, name="raw_problem")
+    raw_solution_str = _require_string(raw_solution, name="raw_solution")
+    return merge_code_components(raw_problem_str, raw_solution_str)
+
+
+def build_original_function_without_docstrings_and_comments(
+    raw_problem: Any, raw_solution: Any
+) -> str:
+    return remove_docstrings_and_comments(
+        build_original_function_source(raw_problem, raw_solution)
+    )
+
+
+def build_new_function_without_docstrings_and_comments(
+    new_problem: Any, new_solution: Any
+) -> str:
+    return remove_docstrings_and_comments(
+        build_new_function_source(new_problem, new_solution)
+    )
+
+
 def extract_source_imports(source: Any, *, field_name: str) -> str:
     source_str = _require_string(source, name=field_name)
     lines = source_str.splitlines(keepends=True)
-    tree = ast.parse(source_str)
+    tree = _parse_source_with_stub_body(source_str)
 
     import_blocks = [
         "".join(lines[node.lineno - 1 : node.end_lineno])
@@ -147,6 +185,13 @@ def extract_function_docstring(source: Any, *, field_name: str) -> str:
     return get_docstring(function_node)
 
 
+def extract_docstrings_and_comments(source: Any, *, field_name: str) -> str:
+    source_str = _require_string(source, name=field_name)
+    comments = get_comments(source_str, strip_hash=True) or ""
+    docstring = extract_function_docstring(source_str, field_name=field_name)
+    return _join_nonempty_text_parts(comments, docstring)
+
+
 def extract_verified_new_docstring(new_function: Any, new_solution: Any) -> str:
     new_function_str = _require_string(new_function, name="new_function")
     new_solution_str = _require_string(new_solution, name="new_solution")
@@ -161,6 +206,17 @@ def extract_verified_new_docstring(new_function: Any, new_solution: Any) -> str:
     return get_docstring(function_node)
 
 
+def extract_verified_new_docstrings_and_comments(
+    new_problem: Any, new_solution: Any
+) -> str:
+    new_problem_str = _require_string(new_problem, name="new_problem")
+    new_solution_str = _require_string(new_solution, name="new_solution")
+    new_function_str = build_new_function_source(new_problem_str, new_solution_str)
+    comments = get_comments(new_function_str, strip_hash=True) or ""
+    docstring = extract_verified_new_docstring(new_function_str, new_solution_str)
+    return _join_nonempty_text_parts(comments, docstring)
+
+
 def extract_problem_comments(problem: Any, *, field_name: str) -> str:
     problem_str = _require_string(problem, name=field_name)
     return get_comments(problem_str, strip_hash=True) or ""
@@ -169,6 +225,14 @@ def extract_problem_comments(problem: Any, *, field_name: str) -> str:
 def build_function_stub_without_docstrings(source: Any, *, field_name: str) -> str:
     source_str = _require_string(source, name=field_name)
     return _remove_docstrings(source_str)
+
+
+def build_function_stub_without_docstrings_and_comments(
+    source: Any, *, field_name: str
+) -> str:
+    source_str = _require_string(source, name=field_name)
+    without_docstrings = _remove_docstrings(source_str)
+    return _remove_comments(without_docstrings)
 
 
 def build_problem_stub_without_docstrings_and_comments(
@@ -184,7 +248,9 @@ def build_new_function_stub(raw_problem_imports: Any, new_problem_stub: Any) -> 
         raw_problem_imports, name="raw_problem_imports"
     )
     new_problem_stub_str = _require_string(new_problem_stub, name="new_problem_stub")
-    return _merge_nonempty_code_components(raw_problem_imports_str, new_problem_stub_str)
+    return _merge_nonempty_code_components(
+        raw_problem_imports_str, new_problem_stub_str
+    )
 
 
 def build_new_two_part_function_stub(raw_problem: Any, new_problem_stub: Any) -> str:
