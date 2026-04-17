@@ -26,7 +26,7 @@ def build_gt_solution(
 
 def _require_string(value: Any, *, name: str) -> str:
     if not isinstance(value, str):
-        raise ValueError(f"{name} must be a string")
+        raise TypeError(f"{name} must be a string")
     return value
 
 
@@ -140,8 +140,8 @@ def _remove_docstrings(source: str) -> str:
             docstring_expr = _first_docstring_expr(node)
             if docstring_expr is None:
                 continue
-            assert docstring_expr.lineno is not None
-            assert docstring_expr.end_lineno is not None
+            if docstring_expr.lineno is None or docstring_expr.end_lineno is None:
+                raise RuntimeError("docstring node is missing line numbers")
             line_numbers_to_remove.update(
                 range(docstring_expr.lineno, docstring_expr.end_lineno + 1)
             )

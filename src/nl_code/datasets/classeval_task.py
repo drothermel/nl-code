@@ -5,7 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from nl_code.code_execution.models import UnittestResult
 from nl_code.code_execution.runner import run_unittest_test
-from nl_code.code_parsing import remove_docstrings_and_comments
+from nl_code.code_parsing import _DocstringStripper, remove_docstrings_and_comments
 
 
 class MethodDependencies(BaseModel):
@@ -67,23 +67,10 @@ def _require_string_list(value: Any, *, name: str) -> list[str]:
     return cast(list[str], list(value))
 
 
-def _first_docstring_expr(
-    node: ast.Module | ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef,
-) -> ast.Expr | None:
-    if not node.body:
-        return None
-
-    first_stmt = node.body[0]
-    if not isinstance(first_stmt, ast.Expr):
-        return None
-    if not isinstance(first_stmt.value, ast.Constant):
-        return None
-    if not isinstance(first_stmt.value.value, str):
-        return None
-    return first_stmt
-
-
 def _remove_docstrings(source: str) -> str:
+    # Remove docstring source lines directly so comments and surrounding formatting
+    # are preserved. remove_docstrings_and_comments intentionally unparses the AST,
+    # which is appropriate for stripped runnable code but discards comments.
     try:
         tree = ast.parse(source)
     except SyntaxError:
@@ -94,11 +81,12 @@ def _remove_docstrings(source: str) -> str:
         if isinstance(
             node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
         ):
-            docstring_expr = _first_docstring_expr(node)
-            if docstring_expr is None:
+            stripped_body = _DocstringStripper._strip_docstring(node.body)
+            if len(stripped_body) == len(node.body):
                 continue
-            assert docstring_expr.lineno is not None
-            assert docstring_expr.end_lineno is not None
+            docstring_expr = node.body[0]
+            if docstring_expr.lineno is None or docstring_expr.end_lineno is None:
+                raise RuntimeError("docstring node is missing line numbers")
             line_numbers_to_remove.update(
                 range(docstring_expr.lineno, docstring_expr.end_lineno + 1)
             )

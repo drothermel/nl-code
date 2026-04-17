@@ -11,17 +11,9 @@ __generated_with = "0.23.1"
 app = marimo.App(width="columns")
 
 with app.setup:
-    import time
-
     import marimo as mo
-    import pandas as pd
 
-    from nl_code.datasets import (
-        RawHumanEvalProTask,
-        RawHumanEvalTask,
-        HumanEvalDataset,
-        HumanEvalProDataset,
-    )
+    from nl_code.datasets import HumanEvalProDataset
 
 
 @app.cell(hide_code=True)

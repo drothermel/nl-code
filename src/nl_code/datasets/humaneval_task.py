@@ -17,7 +17,7 @@ from nl_code.code_execution.runner import run_assertion_test
 
 def _require_string(value: Any, *, name: str) -> str:
     if not isinstance(value, str):
-        raise ValueError(f"{name} must be a string")
+        raise TypeError(f"{name} must be a string")
     return value
 
 
@@ -38,7 +38,10 @@ def _first_docstring_expr(
 
 
 def _remove_docstrings(source: str) -> str:
-    tree = ast.parse(source)
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return source.rstrip() + "\n" if source.strip() else ""
     line_numbers_to_remove: set[int] = set()
 
     for node in ast.walk(tree):

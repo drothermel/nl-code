@@ -1,6 +1,6 @@
-"""Validate HumanEval-Pro ground truth solutions.
+"""Validate HumanEval-Plus ground truth solutions.
 
-Loads the HumanEval-Pro dataset from HuggingFace, runs each ground
+Loads the HumanEval-Plus dataset from HuggingFace, runs each ground
 truth solution against its test cases, and reports pass/fail status
 for every task.
 """
@@ -11,17 +11,9 @@ __generated_with = "0.23.1"
 app = marimo.App(width="columns")
 
 with app.setup:
-    import time
-
     import marimo as mo
-    import pandas as pd
 
-    from nl_code.datasets import (
-        RawHumanEvalProTask,
-        RawHumanEvalTask,
-        HumanEvalDataset,
-        HumanEvalProDataset,
-    )
+    from nl_code.datasets import HumanEvalDataset
 
 
 @app.cell(hide_code=True)

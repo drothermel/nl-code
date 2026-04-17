@@ -13,7 +13,7 @@ app = marimo.App(width="columns")
 with app.setup:
     import marimo as mo
 
-    from nl_code.datasets import ClassEvalDataset, RawClassEvalTask
+    from nl_code.datasets import ClassEvalDataset
 
 
 @app.cell(hide_code=True)
@@ -63,7 +63,7 @@ def _(ds):
 
 @app.cell(hide_code=True)
 def _(ds):
-    sample = ds.get_raw_sample_at_index(0)
+    sample = None if len(ds.raw_samples) == 0 else ds.get_raw_sample_at_index(0)
     mo.inspect(
         sample,
         value=False,
@@ -78,7 +78,7 @@ def _(sample):
             mo.md("## Source Fields"),
             render_sample_fields(sample, prefix="source__"),
         ]
-    )
+    ) if sample is not None else None
     return
 
 
@@ -89,7 +89,7 @@ def _(sample):
             mo.md("## Derived Fields"),
             render_sample_fields(sample, suppress_prefix="source__"),
         ]
-    )
+    ) if sample is not None else None
     return
 
 

@@ -34,54 +34,27 @@ class DatasetSlice(BaseModel):
     def get_source_code(self, task_id: str) -> str:
         if self.raw_source_field is None:
             return self.dataset.tasks[task_id].gt_solution
-        raw = self.dataset.raw_samples[task_id]
-        if not hasattr(raw, self.raw_source_field):
-            raise AttributeError(
-                f"Task {task_id!r}: raw sample has no field {self.raw_source_field!r}"
-            )
-        value = getattr(raw, self.raw_source_field)
-        if not isinstance(value, str):
-            raise TypeError(
-                f"Task {task_id!r}: field {self.raw_source_field!r} is {type(value).__name__}, expected str"
-            )
-        return value
+        return self._get_raw_str_field(task_id, self.raw_source_field)
 
     def get_official_prompt(self, task_id: str) -> str:
-        raw = self.dataset.raw_samples[task_id]
-        if not hasattr(raw, "new_official_prompt"):
-            raise AttributeError(
-                f"Task {task_id!r}: raw sample has no field 'new_official_prompt'"
-            )
-        value = getattr(raw, "new_official_prompt")
-        if not isinstance(value, str):
-            raise TypeError(
-                f"Task {task_id!r}: field 'new_official_prompt' is {type(value).__name__}, expected str"
-            )
-        return value
+        return self._get_raw_str_field(task_id, "new_official_prompt")
 
     def get_code_stub(self, task_id: str) -> str:
-        raw = self.dataset.raw_samples[task_id]
-        if not hasattr(raw, "new_code_stub"):
-            raise AttributeError(
-                f"Task {task_id!r}: raw sample has no field 'new_code_stub'"
-            )
-        value = getattr(raw, "new_code_stub")
-        if not isinstance(value, str):
-            raise TypeError(
-                f"Task {task_id!r}: field 'new_code_stub' is {type(value).__name__}, expected str"
-            )
-        return value
+        return self._get_raw_str_field(task_id, "new_code_stub")
 
     def get_code_stub_with_comments(self, task_id: str) -> str:
+        return self._get_raw_str_field(task_id, "new_code_stub_with_comments")
+
+    def _get_raw_str_field(self, task_id: str, field: str) -> str:
         raw = self.dataset.raw_samples[task_id]
-        if not hasattr(raw, "new_code_stub_with_comments"):
+        if not hasattr(raw, field):
             raise AttributeError(
-                f"Task {task_id!r}: raw sample has no field 'new_code_stub_with_comments'"
+                f"Task {task_id!r}: raw sample has no field {field!r}"
             )
-        value = getattr(raw, "new_code_stub_with_comments")
+        value = getattr(raw, field)
         if not isinstance(value, str):
             raise TypeError(
-                f"Task {task_id!r}: field 'new_code_stub_with_comments' is {type(value).__name__}, expected str"
+                f"Task {task_id!r}: field {field!r} is {type(value).__name__}, expected str"
             )
         return value
 

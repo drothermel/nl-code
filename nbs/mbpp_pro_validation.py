@@ -13,7 +13,7 @@ app = marimo.App(width="columns")
 with app.setup:
     import marimo as mo
 
-    from nl_code.datasets import MbppProDataset, RawMbppProTask
+    from nl_code.datasets import MbppProDataset
 
 
 @app.cell(hide_code=True)

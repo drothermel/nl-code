@@ -13,10 +13,7 @@ app = marimo.App(width="columns")
 with app.setup:
     import marimo as mo
 
-    from nl_code.datasets import (
-        BigCodeBenchLiteProDataset,
-        RawBigCodeBenchLiteProTask,
-    )
+    from nl_code.datasets import BigCodeBenchLiteProDataset
 
 
 @app.cell(hide_code=True)

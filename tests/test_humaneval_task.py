@@ -29,7 +29,7 @@ class TestHelperFunctions:
         assert result == "def foo():\n    pass\n"
 
     def test_merge_rejects_non_strings(self) -> None:
-        with pytest.raises(ValueError, match="prompt must be a string"):
+        with pytest.raises(TypeError, match="prompt must be a string"):
             build_function_source(123, "x")
 
     def test_extract_docstrings(self) -> None:
