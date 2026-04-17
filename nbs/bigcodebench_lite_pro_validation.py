@@ -1,152 +1,103 @@
 """Validate BigCodeBench-Lite-Pro ground truth solutions.
 
-Loads the BigCodeBench-Lite-Pro dataset from HuggingFace, runs each ground
-truth solution against its test cases, and reports pass/fail status
-for every task.
-
-Requires the optional bigcodebench dependencies:
-    uv pip install -e ".[bigcodebench]"
+Loads the BigCodeBench-Lite-Pro dataset from HuggingFace, runs each
+ground truth solution against its test cases, and reports pass/fail
+status for every task.
 """
 
 import marimo
 
 __generated_with = "0.23.1"
-app = marimo.App(width="medium")
+app = marimo.App(width="columns")
 
 with app.setup:
-    import time
-
     import marimo as mo
-    import pandas as pd
 
-    from nl_code.datasets.bigcodebench_lite_pro_dataset import (
-        BigCodeBenchLiteProDataset,
-    )
-    from nl_code.datasets.bigcodebench_lite_pro_task import RawBigCodeBenchLiteProTask
+    from nl_code.datasets import BigCodeBenchLiteProDataset
 
 
 @app.cell(hide_code=True)
-def _(mo):
-    mo.md("""
-    # BigCodeBench-Lite-Pro Ground Truth Validation
-
-    This notebook loads the full BigCodeBench-Lite-Pro dataset and runs every
-    ground truth solution against its test cases to verify correctness.
-
-    **Note:** Tasks in this dataset use external libraries (numpy, pandas,
-    scipy, sklearn, etc.). Ensure the `bigcodebench` optional dependencies
-    are installed.
-    """)
-    return
-
-
-@app.cell
 def _():
     ds = BigCodeBenchLiteProDataset()
     ds.load()
+    mo.vstack(
+        [
+            ds.dataset_id,
+            mo.md(f"""
+    **Dataset loaded:** {len(ds.raw_samples)} valid tasks,
+    {len(ds.flawed_raw_samples)} flawed
+    """),
+        ]
+    )
     return (ds,)
 
 
+@app.function(hide_code=True)
+def render_sample_fields(sample, *, prefix=None, suppress_prefix=None):
+    return mo.vstack(
+        [
+            mo.accordion(
+                {
+                    field: (
+                        mo.plain_text(str(value))
+                        if field in sample.non_code_fields
+                        else mo.ui.code_editor(str(value))
+                    )
+                }
+            )
+            for field, value in sample.model_dump().items()
+            if (prefix is None or field.startswith(prefix))
+            and (
+                suppress_prefix is None
+                or not field.startswith(suppress_prefix)
+            )
+        ]
+    )
+
+
+@app.cell(column=1, hide_code=True)
+def _(ds):
+    ds.model_fields
+    return
+
+
 @app.cell(hide_code=True)
-def _(ds, mo):
-    mo.md(f"""
-    **Dataset loaded:** {len(ds.raw_samples)} valid tasks,
-    {len(ds.flawed_raw_samples)} flawed (skipped during loading)
+def _(ds):
+    sample = ds.get_raw_sample_at_index(0)
+    mo.inspect(
+        sample,
+        value=False,
+    ) if False else mo.md("Toggle this to see the full sample.")
+    return (sample,)
+
+
+@app.cell(column=2, hide_code=True)
+def _(sample):
+    mo.vstack(
+        [
+            mo.md("## Source Fields"),
+            render_sample_fields(sample, prefix="source__"),
+        ]
+    )
+    return
+
+
+@app.cell(column=3, hide_code=True)
+def _(sample):
+    mo.vstack(
+        [
+            mo.md("## Derived Fields"),
+            render_sample_fields(sample, suppress_prefix="source__"),
+        ]
+    )
+    return
+
+
+@app.cell(column=4, hide_code=True)
+def _():
+    mo.md(r"""
+    (leave space)
     """)
-    return
-
-
-@app.cell
-def _(ds, time):
-    results = []
-    for task_id in sorted(ds.raw_samples):
-        raw: RawBigCodeBenchLiteProTask = ds.raw_samples[task_id]  # type: ignore[assignment]
-        start = time.perf_counter()
-        try:
-            passed = raw.run_test_on_gt_solution()
-            error = None
-        except Exception as exc:
-            passed = False
-            error = str(exc)
-        elapsed = time.perf_counter() - start
-
-        results.append(
-            {
-                "task_id": task_id,
-                "entry_point": raw.new_entry_point,
-                "passed": passed,
-                "elapsed_s": round(elapsed, 4),
-                "error": error,
-            }
-        )
-
-    results_df = pd.DataFrame(results)
-    return (results_df,)
-
-
-@app.cell(hide_code=True)
-def _(mo, results_df):
-    n_passed = int(results_df["passed"].sum())
-    n_total = len(results_df)
-    n_failed = n_total - n_passed
-    status = "All passed" if n_failed == 0 else f"**{n_failed} failures**"
-
-    mo.md(f"""
-    ## Test Results
-
-    | Metric | Value |
-    |--------|-------|
-    | Total tasks tested | {n_total} |
-    | Passed | {n_passed} |
-    | Failed | {n_failed} |
-    | Status | {status} |
-    """)
-    return
-
-
-@app.cell
-def _(results_df):
-    results_df
-    return
-
-
-@app.cell(hide_code=True)
-def _(mo, results_df):
-    failed = results_df[~results_df["passed"]]
-    mo.stop(
-        failed.empty,
-        mo.md("No failures to display."),
-    )
-    mo.md("## Failed Tasks")
-    return (failed,)
-
-
-@app.cell
-def _(failed):
-    failed
-    return
-
-
-@app.cell(hide_code=True)
-def _(ds, mo):
-    mo.stop(
-        len(ds.flawed_raw_samples) == 0,
-        mo.md("No flawed samples to display."),
-    )
-    flawed_ids = sorted(ds.flawed_raw_samples.keys())
-    flawed_info = [
-        {"task_id": tid, "error": ds.flawed_raw_samples[tid].error[:200]}
-        for tid in flawed_ids
-    ]
-    mo.md(
-        f"## Flawed Samples ({len(flawed_ids)} tasks failed validation during loading)"
-    )
-    return (flawed_info,)
-
-
-@app.cell
-def _(flawed_info, pd):
-    pd.DataFrame(flawed_info)
     return
 
 

@@ -31,8 +31,8 @@ class HumanEvalDataset(Dataset):
             (
                 task_id,
                 AssertionBatchItem(
-                    code=raw.gt_solution,
-                    test_code=raw.assertion_test_code(),
+                    code=raw.gt_solution_with_comments,
+                    test_code=raw.assertion_test_code,
                 ),
             )
             for task_id, raw_base in raw_samples.items()
@@ -80,6 +80,7 @@ class HumanEvalDataset(Dataset):
             dataset=self.dataset_id,
             task_id=task_id,
             entry_point_name=raw.entry_point,
-            description=raw.prompt_docstring,
-            gt_solution=raw.gt_solution_without_comments,
+            description=raw.docstrings,
+            gt_solution=raw.gt_solution,
+            version=raw.version,
         )

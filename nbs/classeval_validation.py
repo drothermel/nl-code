@@ -1,6 +1,6 @@
-"""Validate MBPP-Pro ground truth solutions.
+"""Validate ClassEval ground truth solutions.
 
-Loads the MBPP-Pro dataset from HuggingFace, runs each ground truth
+Loads the ClassEval dataset from HuggingFace, runs each ground truth
 solution against its test cases, and reports pass/fail status for
 every task.
 """
@@ -13,12 +13,12 @@ app = marimo.App(width="columns")
 with app.setup:
     import marimo as mo
 
-    from nl_code.datasets import MbppProDataset
+    from nl_code.datasets import ClassEvalDataset
 
 
 @app.cell(hide_code=True)
 def _():
-    ds = MbppProDataset()
+    ds = ClassEvalDataset()
     ds.load()
     mo.vstack(
         [
@@ -55,9 +55,15 @@ def render_sample_fields(sample, *, prefix=None, suppress_prefix=None):
     )
 
 
+@app.cell(column=1, hide_code=True)
+def _(ds):
+    ds.model_fields
+    return
+
+
 @app.cell(hide_code=True)
 def _(ds):
-    sample = ds.get_raw_sample_at_index(0)
+    sample = None if len(ds.raw_samples) == 0 else ds.get_raw_sample_at_index(0)
     mo.inspect(
         sample,
         value=False,
@@ -65,35 +71,29 @@ def _(ds):
     return (sample,)
 
 
-@app.cell(hide_code=True)
-def _(ds):
-    ds.model_fields
-    return
-
-
-@app.cell(column=1, hide_code=True)
+@app.cell(column=2, hide_code=True)
 def _(sample):
     mo.vstack(
         [
             mo.md("## Source Fields"),
             render_sample_fields(sample, prefix="source__"),
         ]
-    )
+    ) if sample is not None else None
     return
 
 
-@app.cell(column=2, hide_code=True)
+@app.cell(column=3, hide_code=True)
 def _(sample):
     mo.vstack(
         [
             mo.md("## Derived Fields"),
             render_sample_fields(sample, suppress_prefix="source__"),
         ]
-    )
+    ) if sample is not None else None
     return
 
 
-@app.cell(column=3, hide_code=True)
+@app.cell(column=4, hide_code=True)
 def _():
     mo.md(r"""
     (leave space)

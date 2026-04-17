@@ -40,7 +40,10 @@ class BigCodeBenchLiteProDataset(Dataset):
         items_by_task_id = [
             (
                 task_id,
-                AssertionBatchItem(code=raw.gt_solution, test_code=raw.test_code),
+                AssertionBatchItem(
+                    code=raw.gt_solution_with_comments,
+                    test_code=raw.source__test_code,
+                ),
             )
             for task_id, raw_base in raw_samples.items()
             for raw in [raw_base]
@@ -92,5 +95,6 @@ class BigCodeBenchLiteProDataset(Dataset):
             task_id=task_id,
             entry_point_name=raw.new_entry_point,
             description=raw.new_description,
-            gt_solution=raw.gt_solution_without_comments,
+            gt_solution=raw.gt_solution,
+            version=raw.version,
         )

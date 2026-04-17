@@ -1,47 +1,184 @@
-from pydantic import BaseModel, Field
+from typing import ClassVar, Literal
+
+from pydantic import BaseModel, ConfigDict, Field
 
 from nl_code.code_execution.runner import run_assertion_test
 from nl_code.code_parsing import remove_docstrings_and_comments
 from nl_code.datasets.pro_task_helpers import (
+    build_function_stub_without_docstrings_and_comments,
     build_gt_solution,
-    extract_new_description,
+    build_new_official_prompt,
+    build_new_function_source,
+    build_new_function_without_docstrings_and_comments,
+    build_new_function_stub,
+    build_new_two_part_function_stub,
+    build_original_official_prompt,
+    build_original_function_source,
+    build_original_function_without_docstrings_and_comments,
+    build_problem_stub_without_docstrings_and_comments,
+    build_two_part_code,
+    build_two_part_prompt,
+    extract_docstrings_and_comments,
     extract_new_entry_point,
+    extract_problem_comments,
+    extract_source_imports,
+    extract_verified_new_docstrings_and_comments,
 )
 
 
 class RawHumanEvalProTask(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    non_code_fields: ClassVar[tuple[str, ...]] = (
+        "new_description",
+        "new_problem_comment",
+        "new_docstrings_and_comments",
+        "original_docstrings_and_comments",
+        "task_id",
+        "validated",
+        "version",
+    )
+
     task_id: str
-    raw_problem: str
-    raw_solution: str
-    new_problem: str
-    new_solution: str
-    test_code: str
+    source__raw_problem: str = Field(alias="raw_problem")
+    source__raw_solution: str = Field(alias="raw_solution")
+    source__new_problem: str = Field(alias="new_problem")
+    source__new_solution: str = Field(alias="new_solution")
+    source__test_code: str = Field(alias="test_code")
+    version: Literal["v1", "v2"] = "v2"
     validated: bool = False
 
-    gt_solution: str = Field(
-        default_factory=lambda data: build_gt_solution(
-            data.get("raw_problem"),
-            data.get("raw_solution"),
-            data.get("new_problem"),
-            data.get("new_solution"),
+    original_function: str = Field(
+        default_factory=lambda data: (
+            build_original_function_without_docstrings_and_comments(
+                data.get("source__raw_problem"),
+                data.get("source__raw_solution"),
+            )
         )
     )
-    gt_solution_without_comments: str = Field(
+    original_function_with_docstrings_and_comments: str = Field(
+        default_factory=lambda data: build_original_function_source(
+            data.get("source__raw_problem"),
+            data.get("source__raw_solution"),
+        )
+    )
+    new_function: str = Field(
+        default_factory=lambda data: build_new_function_without_docstrings_and_comments(
+            data.get("source__new_problem"),
+            data.get("source__new_solution"),
+        )
+    )
+    new_function_with_docstrings_and_comments: str = Field(
+        default_factory=lambda data: build_new_function_source(
+            data.get("source__new_problem"),
+            data.get("source__new_solution"),
+        )
+    )
+    raw_problem_imports: str = Field(
         default_factory=lambda data: remove_docstrings_and_comments(
-            data.get("gt_solution")
+            extract_source_imports(
+                data.get("source__raw_problem"),
+                field_name="source__raw_problem",
+            )
+        )
+    )
+    new_problem_without_docstrings_and_comments: str = Field(
+        default_factory=lambda data: build_problem_stub_without_docstrings_and_comments(
+            data.get("source__new_problem"),
+            field_name="source__new_problem",
+        )
+    )
+    original_docstrings_and_comments: str = Field(
+        default_factory=lambda data: extract_docstrings_and_comments(
+            data.get("source__raw_problem"),
+            field_name="source__raw_problem",
+        )
+    )
+    new_docstrings_and_comments: str = Field(
+        default_factory=lambda data: extract_verified_new_docstrings_and_comments(
+            data.get("source__new_problem"),
+            data.get("source__new_solution"),
+        )
+    )
+    new_problem_comment: str = Field(
+        default_factory=lambda data: extract_problem_comments(
+            data.get("source__new_problem"),
+            field_name="source__new_problem",
+        )
+    )
+    original_function_stub: str = Field(
+        default_factory=lambda data: (
+            build_function_stub_without_docstrings_and_comments(
+                data.get("source__raw_problem"),
+                field_name="source__raw_problem",
+            )
+        )
+    )
+    original_function_stub_with_comments: str = Field(
+        default_factory=lambda data: data.get("source__raw_problem")
+    )
+    new_function_stub: str = Field(
+        default_factory=lambda data: build_new_function_stub(
+            data.get("raw_problem_imports"),
+            data.get("new_problem_without_docstrings_and_comments"),
+        )
+    )
+    new_function_stub_with_comments: str = Field(
+        default_factory=lambda data: data.get("source__new_problem")
+    )
+    new_code_stub: str = Field(
+        default_factory=lambda data: data.get("new_function_stub")
+    )
+    new_code_stub_with_comments: str = Field(
+        default_factory=lambda data: data.get("new_function_stub_with_comments")
+    )
+    new_two_part_function_stub: str = Field(
+        default_factory=lambda data: build_new_two_part_function_stub(
+            data.get("original_function_stub"),
+            data.get("new_problem_without_docstrings_and_comments"),
+        )
+    )
+    new_two_part_function_stub_with_comments: str = Field(
+        default_factory=lambda data: build_two_part_prompt(
+            data.get("source__raw_problem"),
+            data.get("source__new_problem"),
+        )
+    )
+    original_official_prompt: str = Field(
+        default_factory=lambda data: build_original_official_prompt(
+            data.get("source__raw_problem")
+        )
+    )
+    new_official_prompt: str = Field(
+        default_factory=lambda data: build_new_official_prompt(
+            data.get("source__raw_problem"),
+            data.get("source__new_problem"),
+        )
+    )
+    gt_solution_with_comments: str = Field(
+        default_factory=lambda data: build_gt_solution(
+            data.get("source__raw_problem"),
+            data.get("source__raw_solution"),
+            data.get("source__new_problem"),
+            data.get("source__new_solution"),
+        )
+    )
+    gt_solution: str = Field(
+        default_factory=lambda data: build_two_part_code(
+            data.get("original_function"),
+            data.get("new_function"),
         )
     )
     new_entry_point: str = Field(
         default_factory=lambda data: extract_new_entry_point(
-            data.get("new_problem"), data.get("new_solution")
+            data.get("source__new_problem"), data.get("source__new_solution")
         )
     )
     new_description: str = Field(
-        default_factory=lambda data: extract_new_description(data.get("new_problem"))
+        default_factory=lambda data: data.get("new_problem_comment")
     )
 
     def run_test(self, code: str) -> bool:
-        result = run_assertion_test(code, self.test_code)
+        result = run_assertion_test(code, self.source__test_code)
         return result.passed
 
     def run_test_on_gt_solution(self) -> bool:

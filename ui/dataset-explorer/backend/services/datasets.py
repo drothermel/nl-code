@@ -607,21 +607,21 @@ def _extract_metrics(family: str, raw: Any, task: Task) -> dict[str, int | None]
     }
     if family == "humaneval":
         assert isinstance(raw, RawHumanEvalTask)
-        metrics["prompt_length_chars"] = len(raw.prompt)
-        metrics["raw_source_length_chars"] = len(raw.gt_solution)
-        metrics["test_length_chars"] = len(raw.test)
+        metrics["prompt_length_chars"] = len(raw.official_prompt)
+        metrics["raw_source_length_chars"] = len(raw.gt_solution_with_comments)
+        metrics["test_length_chars"] = len(raw.source__test)
         return metrics
     if family == "pro":
         assert isinstance(raw, RawHumanEvalProTask | RawMbppProTask | RawBigCodeBenchLiteProTask)
-        metrics["prompt_length_chars"] = len(raw.new_problem)
-        metrics["raw_source_length_chars"] = len(raw.gt_solution)
-        metrics["test_length_chars"] = len(raw.test_code)
+        metrics["prompt_length_chars"] = len(raw.new_official_prompt)
+        metrics["raw_source_length_chars"] = len(raw.gt_solution_with_comments)
+        metrics["test_length_chars"] = len(raw.source__test_code)
         return metrics
 
     assert isinstance(raw, RawClassEvalTask)
     metrics["prompt_length_chars"] = len(raw.class_description)
-    metrics["raw_source_length_chars"] = len(raw.gt_code)
-    metrics["test_length_chars"] = len(raw.test)
+    metrics["raw_source_length_chars"] = len(raw.gt_code_with_comments)
+    metrics["test_length_chars"] = len(raw.source__test)
     return metrics
 
 
@@ -630,11 +630,11 @@ def _build_derived_fields(family: str, raw: Any, task: Task) -> list[DerivedFiel
         assert isinstance(raw, RawHumanEvalTask)
         return [
             DerivedFieldSummary(name="Task.entry_point_name", value=task.entry_point_name, source="raw.entry_point"),
-            DerivedFieldSummary(name="Task.description", value=task.description, source="raw.prompt_docstring"),
+            DerivedFieldSummary(name="Task.description", value=task.description, source="raw.docstrings"),
             DerivedFieldSummary(
                 name="Task.gt_solution",
                 value=task.gt_solution,
-                source="raw.gt_solution_without_comments",
+                source="raw.gt_solution",
             ),
         ]
     if family == "pro":
@@ -645,7 +645,7 @@ def _build_derived_fields(family: str, raw: Any, task: Task) -> list[DerivedFiel
             DerivedFieldSummary(
                 name="Task.gt_solution",
                 value=task.gt_solution,
-                source="raw.gt_solution_without_comments",
+                source="raw.gt_solution",
             ),
         ]
     assert isinstance(raw, RawClassEvalTask)
@@ -663,28 +663,59 @@ def _humaneval_sections(raw: RawHumanEvalTask) -> list[InspectorSection]:
             fields=[
                 InspectorField(key="entry_point", label="Entry Point", kind="text", value=raw.entry_point),
                 InspectorField(key="validated", label="Validated", kind="text", value=str(raw.validated)),
-                InspectorField(key="prompt_docstring", label="Prompt Docstring", kind="text", value=raw.prompt_docstring),
-                InspectorField(key="prompt_comments", label="Prompt Comments", kind="text", value=raw.prompt_comments or ""),
+                InspectorField(key="docstrings", label="Docstrings", kind="text", value=raw.docstrings),
+                InspectorField(key="prompt_comment", label="Prompt Comment", kind="text", value=raw.prompt_comment),
             ],
         ),
         InspectorSection(
             title="Prompt and Solutions",
             fields=[
-                InspectorField(key="prompt", label="Prompt", kind="code", value=raw.prompt),
-                InspectorField(key="canonical_solution", label="Canonical Solution", kind="code", value=raw.canonical_solution),
-                InspectorField(key="gt_solution", label="Merged GT Solution", kind="code", value=raw.gt_solution),
+                InspectorField(key="source__prompt", label="Source Prompt", kind="code", value=raw.source__prompt),
+                InspectorField(key="official_prompt", label="Official Prompt", kind="code", value=raw.official_prompt),
+                InspectorField(key="function_stub", label="Function Stub", kind="code", value=raw.function_stub),
                 InspectorField(
-                    key="gt_solution_without_comments",
-                    label="Stripped GT Solution",
+                    key="function_stub_with_comments",
+                    label="Function Stub With Comments",
                     kind="code",
-                    value=raw.gt_solution_without_comments,
+                    value=raw.function_stub_with_comments,
+                ),
+                InspectorField(
+                    key="source__canonical_solution",
+                    label="Source Canonical Solution",
+                    kind="code",
+                    value=raw.source__canonical_solution,
+                ),
+                InspectorField(
+                    key="function_with_comments",
+                    label="Function With Comments",
+                    kind="code",
+                    value=raw.function_with_comments,
+                ),
+                InspectorField(key="function", label="Function", kind="code", value=raw.function),
+                InspectorField(
+                    key="gt_solution_with_comments",
+                    label="GT Solution With Comments",
+                    kind="code",
+                    value=raw.gt_solution_with_comments,
+                ),
+                InspectorField(
+                    key="gt_solution",
+                    label="GT Solution",
+                    kind="code",
+                    value=raw.gt_solution,
                 ),
             ],
         ),
         InspectorSection(
             title="Tests",
             fields=[
-                InspectorField(key="test", label="Test Harness", kind="code", value=raw.test),
+                InspectorField(key="source__test", label="Source Test Harness", kind="code", value=raw.source__test),
+                InspectorField(
+                    key="assertion_test_code",
+                    label="Assertion Test Code",
+                    kind="code",
+                    value=raw.assertion_test_code,
+                ),
                 InspectorField(key="test_inputs", label="Test Inputs", kind="json", value=raw.test_inputs),
                 InspectorField(key="test_results", label="Test Results", kind="json", value=raw.test_results),
             ],
@@ -705,23 +736,23 @@ def _pro_sections(raw: RawHumanEvalProTask | RawMbppProTask | RawBigCodeBenchLit
         InspectorSection(
             title="Problems",
             fields=[
-                InspectorField(key="raw_problem", label="Raw Problem", kind="code", value=raw.raw_problem),
-                InspectorField(key="new_problem", label="New Problem", kind="code", value=raw.new_problem),
+                InspectorField(key="source__raw_problem", label="Raw Problem", kind="code", value=raw.source__raw_problem),
+                InspectorField(key="source__new_problem", label="New Problem", kind="code", value=raw.source__new_problem),
             ],
         ),
         InspectorSection(
             title="Solutions and Tests",
             fields=[
-                InspectorField(key="raw_solution", label="Raw Solution", kind="code", value=raw.raw_solution),
-                InspectorField(key="new_solution", label="New Solution", kind="code", value=raw.new_solution),
-                InspectorField(key="gt_solution", label="Merged GT Solution", kind="code", value=raw.gt_solution),
+                InspectorField(key="source__raw_solution", label="Raw Solution", kind="code", value=raw.source__raw_solution),
+                InspectorField(key="source__new_solution", label="New Solution", kind="code", value=raw.source__new_solution),
                 InspectorField(
-                    key="gt_solution_without_comments",
-                    label="Stripped GT Solution",
+                    key="gt_solution_with_comments",
+                    label="GT Solution With Comments",
                     kind="code",
-                    value=raw.gt_solution_without_comments,
+                    value=raw.gt_solution_with_comments,
                 ),
-                InspectorField(key="test_code", label="Test Code", kind="code", value=raw.test_code),
+                InspectorField(key="gt_solution", label="GT Solution", kind="code", value=raw.gt_solution),
+                InspectorField(key="source__test_code", label="Test Code", kind="code", value=raw.source__test_code),
             ],
         ),
     ]

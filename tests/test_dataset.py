@@ -1,16 +1,18 @@
+from typing import ClassVar, Literal
+
 import pytest
 from pydantic import BaseModel
-from typing import ClassVar
 
-from nl_code.datasets.dataset import Dataset, DatasetCacheMissError, FlawedSample
+from nl_code.datasets.dataset import Dataset, FlawedSample
 from nl_code.datasets.task import CodeDataset, Task
 
-from conftest import mock_hf_dataset, prime_dataset_cache
+from conftest import fail_on_hf, mock_hf_dataset, prime_dataset_cache
 
 
 class _DummyRaw(BaseModel):
     task_id: str
     value: str
+    version: Literal["v1", "v2"] = "v2"
 
 
 class _DummyDataset(Dataset):
@@ -20,7 +22,11 @@ class _DummyDataset(Dataset):
     dataset_id: CodeDataset = CodeDataset.HUMANEVAL_PLUS
 
     def _parse_row(self, row: dict) -> _DummyRaw:
-        return _DummyRaw(task_id=row["task_id"], value=row["value"])
+        return _DummyRaw(
+            task_id=row["task_id"],
+            value=row["value"],
+            version=row.get("version", "v2"),
+        )
 
     def _extract_task_id(self, row: dict) -> str:
         return str(row["task_id"])
@@ -33,6 +39,7 @@ class _DummyDataset(Dataset):
             entry_point_name="main",
             description="dummy",
             gt_solution=raw.value,
+            version=raw.version,
         )
 
 
@@ -50,6 +57,7 @@ class TestDatasetBase:
         assert len(ds.raw_samples) == 2
         assert len(ds.tasks) == 2
         assert len(ds.flawed_raw_samples) == 0
+        assert all(task.version == "v2" for task in ds.tasks.values())
 
     def test_flawed_rows_tracked(self, monkeypatch: pytest.MonkeyPatch) -> None:
         rows = [
@@ -68,6 +76,91 @@ class TestDatasetBase:
             _DummyDataset(), [{"task_id": "t/0", "value": "x"}], monkeypatch
         )
         assert ds.load() is ds
+
+    def test_get_task_at_index_uses_load_order(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        rows = [
+            {"task_id": "t/0", "value": "x = 1"},
+            {"task_id": "t/1", "value": "y = 2"},
+        ]
+        ds = prime_dataset_cache(_DummyDataset(), rows, monkeypatch)
+
+        assert ds.get_task_at_index(0).task_id == "t/0"
+        assert ds.get_task_at_index(1).task_id == "t/1"
+        assert ds.get_task_at_index(-1).task_id == "t/1"
+
+    def test_get_raw_sample_at_index_uses_load_order(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        rows = [
+            {"task_id": "t/0", "value": "x = 1"},
+            {"task_id": "t/1", "value": "y = 2"},
+        ]
+        ds = prime_dataset_cache(_DummyDataset(), rows, monkeypatch)
+
+        first = ds.get_raw_sample_at_index(0)
+        last = ds.get_raw_sample_at_index(-1)
+
+        assert isinstance(first, _DummyRaw)
+        assert first.task_id == "t/0"
+        assert first.value == "x = 1"
+        assert isinstance(last, _DummyRaw)
+        assert last.task_id == "t/1"
+        assert last.value == "y = 2"
+
+    def test_index_access_skips_flawed_rows(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        rows = [
+            {"task_id": "t/0", "value": "ok"},
+            {"task_id": "t/bad"},
+            {"task_id": "t/2", "value": "still ok"},
+        ]
+        ds = prime_dataset_cache(_DummyDataset(), rows, monkeypatch)
+
+        assert ds.get_task_at_index(0).task_id == "t/0"
+        assert ds.get_task_at_index(1).task_id == "t/2"
+        raw = ds.get_raw_sample_at_index(1)
+        assert isinstance(raw, _DummyRaw)
+        assert raw.task_id == "t/2"
+
+    def test_index_access_raises_for_out_of_range(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        ds = prime_dataset_cache(
+            _DummyDataset(), [{"task_id": "t/0", "value": "x"}], monkeypatch
+        )
+
+        with pytest.raises(IndexError, match="task index 1 out of range"):
+            ds.get_task_at_index(1)
+        with pytest.raises(IndexError, match="raw sample index -2 out of range"):
+            ds.get_raw_sample_at_index(-2)
+
+    def test_index_access_matches_rebuilt_and_cached_loads(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        rows = [
+            {"task_id": "t/0", "value": "x = 1"},
+            {"task_id": "t/1", "value": "y = 2"},
+        ]
+        monkeypatch.setattr(
+            "nl_code.datasets.dataset.load_dataset",
+            lambda *_a, **_kw: mock_hf_dataset(rows),
+        )
+        rebuilt = _DummyDataset().load(force_reparse=True)
+        monkeypatch.setattr("nl_code.datasets.dataset.load_dataset", fail_on_hf)
+        cached = _DummyDataset().load()
+
+        assert (
+            rebuilt.get_task_at_index(1).task_id == cached.get_task_at_index(1).task_id
+        )
+        rebuilt_raw = rebuilt.get_raw_sample_at_index(-1)
+        cached_raw = cached.get_raw_sample_at_index(-1)
+        assert isinstance(rebuilt_raw, _DummyRaw)
+        assert isinstance(cached_raw, _DummyRaw)
+        assert rebuilt_raw.task_id == cached_raw.task_id
+        assert rebuilt_raw.value == cached_raw.value
 
     def test_hf_id_override(self, monkeypatch: pytest.MonkeyPatch) -> None:
         captured: list[str] = []
@@ -90,6 +183,32 @@ class TestDatasetBase:
         assert len(ds.flawed_raw_samples) == 1
         assert "row-1" in ds.flawed_raw_samples
 
-    def test_load_without_cache_raises_actionable_error(self) -> None:
-        with pytest.raises(DatasetCacheMissError, match="cache_cli rebuild dummy"):
-            _DummyDataset().load()
+    def test_load_without_cache_rebuilds(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(
+            "nl_code.datasets.dataset.load_dataset",
+            lambda *_args, **_kwargs: mock_hf_dataset(
+                [{"task_id": "t/0", "value": "x = 1"}]
+            ),
+        )
+
+        ds = _DummyDataset().load()
+
+        assert ds.get_task_at_index(0).task_id == "t/0"
+        raw = ds.get_raw_sample_at_index(0)
+        assert isinstance(raw, _DummyRaw)
+        assert raw.value == "x = 1"
+
+    def test_task_version_mismatch_marks_row_flawed(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        class _MismatchDataset(_DummyDataset):
+            def _to_task(self, task_id: str, raw: BaseModel) -> Task:
+                task = super()._to_task(task_id, raw)
+                return task.model_copy(update={"version": "v1"})
+
+        rows = [{"task_id": "t/0", "value": "x = 1", "version": "v2"}]
+        ds = prime_dataset_cache(_MismatchDataset(), rows, monkeypatch)
+
+        assert len(ds.tasks) == 0
+        assert "t/0" in ds.flawed_raw_samples
+        assert "does not match raw task version" in ds.flawed_raw_samples["t/0"].error

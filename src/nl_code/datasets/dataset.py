@@ -99,19 +99,43 @@ class Dataset(BaseModel):
             return raw
         return raw.model_copy(update={"validated": True})
 
+    def _normalize_index(self, index: int, size: int, *, collection_name: str) -> int:
+        normalized_index = index + size if index < 0 else index
+        if normalized_index < 0 or normalized_index >= size:
+            raise IndexError(
+                f"{collection_name} index {index} out of range for {size} items"
+            )
+        return normalized_index
+
+    def get_task_at_index(self, index: int) -> Task:
+        normalized_index = self._normalize_index(
+            index, len(self.tasks), collection_name="task"
+        )
+        task_id = list(self.tasks)[normalized_index]
+        return self.tasks[task_id]
+
+    def get_raw_sample_at_index(self, index: int) -> BaseModel:
+        normalized_index = self._normalize_index(
+            index, len(self.raw_samples), collection_name="raw sample"
+        )
+        task_id = list(self.raw_samples)[normalized_index]
+        return self.raw_samples[task_id]
+
     def load(self, hf_id: str | None = None, *, force_reparse: bool = False) -> Self:
         if not force_reparse:
             if hf_id is not None:
                 raise ValueError("hf_id can only be used when force_reparse=True")
             snapshot = read_snapshot(self.dataset_id, self.split)
-            if snapshot is None:
-                raise DatasetCacheMissError(
-                    "Parsed dataset cache not found for "
-                    f"{self.dataset_id.value} (split={self.split}). "
-                    f"Rebuild it with `uv run python -m nl_code.datasets.cache_cli rebuild {self.dataset_key}`."
-                )
-            self._restore_from_snapshot(snapshot)
-            return self
+            if snapshot is not None:
+                self._restore_from_snapshot(snapshot)
+                return self
+
+            logger.info(
+                "Parsed dataset cache not found for %s (split=%s); rebuilding",
+                self.dataset_id.value,
+                self.split,
+            )
+            return self.rebuild_cache()
 
         return self.rebuild_cache(hf_id=hf_id)
 
@@ -177,7 +201,13 @@ class Dataset(BaseModel):
             try:
                 raw_samples[task_id] = self._parse_row(row_dict)
                 raw_inputs[task_id] = row_dict
-            except (ValidationError, KeyError, TypeError, ValueError) as exc:
+            except (
+                ValidationError,
+                KeyError,
+                TypeError,
+                ValueError,
+                SyntaxError,
+            ) as exc:
                 flawed_raw_samples[task_id] = FlawedSample(
                     error=str(exc),
                     raw_input=row_dict,
@@ -207,7 +237,9 @@ class Dataset(BaseModel):
         tasks: dict[str, Task] = {}
         for task_id, raw in verified_raw_samples.items():
             try:
-                tasks[task_id] = self._to_task(task_id, raw)
+                task = self._to_task(task_id, raw)
+                task.validate_raw_task_version(raw)
+                tasks[task_id] = task
             except Exception as exc:
                 flawed_raw_samples[task_id] = FlawedSample(
                     error=f"_to_task failed: {exc}",

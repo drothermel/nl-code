@@ -54,7 +54,20 @@ uv run nl-code-test docker -q tests/test_execution_runner.py
 
 ## Datasets
 
-Loaders for HumanEval, HumanEval-Pro, MBPP-Pro, BigCodeBench Lite Pro, and ClassEval. Datasets are fetched from HuggingFace, parsed into `Task` objects, and cached locally. `DatasetSlice` supports filtering, seeded shuffling, and limit.
+Loaders for HumanEval, HumanEval-Pro, MBPP-Pro, BigCodeBench Lite Pro, and ClassEval. Datasets are fetched from HuggingFace, parsed into `Task` objects, and cached locally.
+
+The corresponding raw task models preserve the original dataset inputs as `source__...` fields and expose richer derived artifacts such as:
+- official prompt fields
+- stripped and comment-preserving code stubs
+- stripped and comment-preserving ground-truth code
+
+Across task families, `new_official_prompt`, `new_code_stub`, and `new_code_stub_with_comments` provide a consistent interface for prompt/stub access even when the underlying dataset-specific field names differ.
+
+`DatasetSlice` supports filtering, seeded shuffling, limits, and parallel accessors for common raw-task artifacts:
+- `get_source_code(task_id)`
+- `get_official_prompt(task_id)`
+- `get_code_stub(task_id)`
+- `get_code_stub_with_comments(task_id)`
 
 ## Dataset Explorer
 
@@ -73,6 +86,7 @@ MPLBACKEND=Agg uv run python ...
 Run the Docker-backed cache rebuilds with:
 
 ```bash
+uv run python -m nl_code.datasets.cache_cli rebuild all
 uv run python -m nl_code.datasets.cache_cli rebuild humaneval-plus
 uv run python -m nl_code.datasets.cache_cli rebuild humaneval-pro
 uv run python -m nl_code.datasets.cache_cli rebuild mbpp-pro
@@ -86,7 +100,7 @@ Current observed results with the default execution image and env limits:
 
 ```text
 humaneval-plus: cached 163 tasks (163 raw, 1 flawed)
-humaneval-pro: cached 164 tasks (164 raw, 0 flawed)
+humaneval-pro: cached 163 tasks (163 raw, 1 flawed)
 mbpp-pro: cached 375 tasks (375 raw, 3 flawed)
 class-eval: cached 98 tasks (98 raw, 2 flawed)
 bigcodebench-lite-pro: cached 54 tasks (54 raw, 3 flawed)
@@ -94,3 +108,6 @@ bigcodebench-lite-pro: cached 54 tasks (54 raw, 3 flawed)
 
 The remaining flawed samples above are dataset-level failures, not Docker
 runtime failures.
+
+The current known flawed HumanEval-Pro sample is `HumanEvalPro/24`, where the
+new function docstring is not present in `new_solution`.

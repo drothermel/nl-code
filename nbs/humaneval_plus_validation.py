@@ -1,8 +1,8 @@
-"""Validate MBPP-Pro ground truth solutions.
+"""Validate HumanEval-Plus ground truth solutions.
 
-Loads the MBPP-Pro dataset from HuggingFace, runs each ground truth
-solution against its test cases, and reports pass/fail status for
-every task.
+Loads the HumanEval-Plus dataset from HuggingFace, runs each ground
+truth solution against its test cases, and reports pass/fail status
+for every task.
 """
 
 import marimo
@@ -13,12 +13,12 @@ app = marimo.App(width="columns")
 with app.setup:
     import marimo as mo
 
-    from nl_code.datasets import MbppProDataset
+    from nl_code.datasets import HumanEvalDataset
 
 
 @app.cell(hide_code=True)
 def _():
-    ds = MbppProDataset()
+    ds = HumanEvalDataset()
     ds.load()
     mo.vstack(
         [

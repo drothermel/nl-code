@@ -86,24 +86,47 @@ class TestClassEvalTestDetail:
 
 @pytest.mark.docker
 class TestRawClassEvalTask:
+    def test_non_code_fields(self) -> None:
+        assert "source__class_name" in RawClassEvalTask.non_code_fields
+        assert "source__methods_info" in RawClassEvalTask.non_code_fields
+        assert "methods_info" in RawClassEvalTask.non_code_fields
+        assert "postprocess_solution" in RawClassEvalTask.non_code_fields
+        assert "version" in RawClassEvalTask.non_code_fields
+
     def test_construction(self) -> None:
         row = make_classeval_row()
         task = RawClassEvalTask.model_validate(row)
         assert task.task_id == "ClassEval_0"
+        assert task.source__class_name == "Calculator"
+        assert task.source__class_description == "A simple calculator."
+        assert task.source__solution_code == row["solution_code"]
+        assert task.source__test == row["test"]
+        assert task.source__test_classes == row["test_classes"]
         assert task.class_name == "Calculator"
+        assert task.class_description == "A simple calculator."
         assert task.validated is False
+        assert task.version == "v2"
+
+    def test_computed_gt_code_with_comments(self) -> None:
+        row = make_classeval_row()
+        task = RawClassEvalTask.model_validate(row)
+        assert "class Calculator" in task.gt_code_with_comments
+        assert '"""A simple calculator."""' in task.gt_code_with_comments
+        assert task.gt_code_with_comments == task.solution_code
 
     def test_computed_gt_code(self) -> None:
         row = make_classeval_row()
         task = RawClassEvalTask.model_validate(row)
         assert "class Calculator" in task.gt_code
-        assert task.gt_code == task.solution_code
+        assert '"""' not in task.gt_code
 
     def test_gt_code_includes_imports(self) -> None:
         row = make_classeval_row()
         row["import_statement"] = ["import math"]
-        row["solution_code"] = textwrap.dedent("""\
+        row["solution_code"] = textwrap.dedent('''\
             class Calculator:
+                """A simple calculator."""
+
                 def __init__(self):
                     self.result = 0
 
@@ -115,7 +138,7 @@ class TestRawClassEvalTask:
 
                 def sqrt(self, x):
                     return math.sqrt(x)
-        """)
+        ''')
         row["test"] = textwrap.dedent("""\
             import unittest
 
@@ -130,16 +153,57 @@ class TestRawClassEvalTask:
                     self.assertEqual(calc.subtract(3, 1), 2)
         """)
         task = RawClassEvalTask.model_validate(row)
-        assert task.gt_code.startswith("import math\n\n")
+        assert task.import_block == "import math\n"
+        assert task.gt_code_with_comments.startswith("import math\n\n")
         assert "class Calculator" in task.gt_code
+
+    def test_additional_derived_fields(self) -> None:
+        row = make_classeval_row()
+        task = RawClassEvalTask.model_validate(row)
+        assert task.official_skeleton == row["skeleton"]
+        assert task.class_stub_with_comments == row["skeleton"]
+        assert '"""' not in task.class_stub
+        assert "class Calculator" in task.class_stub
+        assert task.new_code_stub == task.class_stub
+        assert task.new_code_stub_with_comments == task.class_stub_with_comments
+        assert task.fields == ["self.result"]
+        assert len(task.methods_info) == 2
+        assert task.new_official_prompt == (
+            "Provided below is an instruction detailing a task. Compose a response "
+            "that aptly fulfills the request.\n\n"
+            "Please complete the class Calculator in the subsequent code.\n"
+            "```python\n"
+            f"{row['skeleton'].rstrip()}\n"
+            "```"
+        )
 
     def test_methods_info_parsed(self) -> None:
         row = make_classeval_row()
         task = RawClassEvalTask.model_validate(row)
-        assert len(task.methods_info) == 2
+        assert len(task.source__methods_info) == 2
         assert task.methods_info[0].method_name == "add"
         assert task.methods_info[1].method_name == "subtract"
         assert task.methods_info[0].dependencies.standalone is True
+
+    def test_task_fixes_preserve_source_fields(self) -> None:
+        row = make_classeval_row(
+            task_id="ClassEval_17",
+            test=textwrap.dedent("""\
+                from datetime import datetime
+                import unittest
+
+                class TestCalculatorAdd(unittest.TestCase):
+                    def test_add_positive(self):
+                        _ = datetime(2024, 1, 1)
+                        calc = Calculator()
+                        self.assertEqual(calc.add(1, 2), 3)
+            """),
+            test_classes=["TestCalculatorAdd"],
+        )
+        task = RawClassEvalTask.model_validate(row)
+        assert "datetime(2024," in task.source__test
+        assert "datetime(2099," in task.test
+        assert task.postprocess_test is True
 
     def test_run_test_passes_gt(self) -> None:
         row = make_classeval_row()
@@ -200,8 +264,10 @@ class TestRawClassEvalTask:
     def test_run_test_requires_self_contained_code(self) -> None:
         row = make_classeval_row()
         row["import_statement"] = ["import math"]
-        row["solution_code"] = textwrap.dedent("""\
+        row["solution_code"] = textwrap.dedent('''\
             class Calculator:
+                """A simple calculator."""
+
                 def __init__(self):
                     self.result = 0
 
@@ -213,7 +279,7 @@ class TestRawClassEvalTask:
 
                 def sqrt(self, x):
                     return math.sqrt(x)
-        """)
+        ''')
         row["test"] = textwrap.dedent("""\
             import unittest
 

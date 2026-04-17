@@ -61,11 +61,13 @@ class TestBigCodeBenchLiteProDataset:
     def test_gt_rebuild_sets_headless_matplotlib_env(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        captured_codes: list[str] = []
         captured_envs: list[dict[str, str] | None] = []
 
         def fake_batch_run(
             items: list[AssertionBatchItem], **kwargs: dict[str, str] | None
         ) -> list[AssertionTestResult]:
+            captured_codes.extend(item.code for item in items)
             captured_envs.append(kwargs.get("docker_env"))
             return [AssertionTestResult(passed=True) for _ in range(len(items))]
 
@@ -79,4 +81,5 @@ class TestBigCodeBenchLiteProDataset:
             monkeypatch,
         )
 
+        assert any('"""' in code for code in captured_codes)
         assert captured_envs == [{"MPLBACKEND": "Agg"}]
