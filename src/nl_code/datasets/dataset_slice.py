@@ -46,6 +46,45 @@ class DatasetSlice(BaseModel):
             )
         return value
 
+    def get_official_prompt(self, task_id: str) -> str:
+        raw = self.dataset.raw_samples[task_id]
+        if not hasattr(raw, "new_official_prompt"):
+            raise AttributeError(
+                f"Task {task_id!r}: raw sample has no field 'new_official_prompt'"
+            )
+        value = getattr(raw, "new_official_prompt")
+        if not isinstance(value, str):
+            raise TypeError(
+                f"Task {task_id!r}: field 'new_official_prompt' is {type(value).__name__}, expected str"
+            )
+        return value
+
+    def get_code_stub(self, task_id: str) -> str:
+        raw = self.dataset.raw_samples[task_id]
+        if not hasattr(raw, "new_code_stub"):
+            raise AttributeError(
+                f"Task {task_id!r}: raw sample has no field 'new_code_stub'"
+            )
+        value = getattr(raw, "new_code_stub")
+        if not isinstance(value, str):
+            raise TypeError(
+                f"Task {task_id!r}: field 'new_code_stub' is {type(value).__name__}, expected str"
+            )
+        return value
+
+    def get_code_stub_with_comments(self, task_id: str) -> str:
+        raw = self.dataset.raw_samples[task_id]
+        if not hasattr(raw, "new_code_stub_with_comments"):
+            raise AttributeError(
+                f"Task {task_id!r}: raw sample has no field 'new_code_stub_with_comments'"
+            )
+        value = getattr(raw, "new_code_stub_with_comments")
+        if not isinstance(value, str):
+            raise TypeError(
+                f"Task {task_id!r}: field 'new_code_stub_with_comments' is {type(value).__name__}, expected str"
+            )
+        return value
+
     def _resolve_task_ids(self) -> list[str]:
         if not self.ids:
             task_ids = list(self.dataset.tasks)

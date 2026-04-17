@@ -99,3 +99,23 @@ class TestDatasetSlice:
         sl = DatasetSlice(dataset=loaded_dataset, raw_source_field=None)
         code = sl.get_source_code("HumanEval/0")
         assert "add" in code
+
+    def test_get_official_prompt(self, loaded_dataset: HumanEvalDataset) -> None:
+        sl = DatasetSlice(dataset=loaded_dataset)
+        prompt = sl.get_official_prompt("HumanEval/0")
+        assert prompt.startswith("Read the following function signature and docstring")
+        assert "```python\n" in prompt
+
+    def test_get_code_stub(self, loaded_dataset: HumanEvalDataset) -> None:
+        sl = DatasetSlice(dataset=loaded_dataset)
+        code_stub = sl.get_code_stub("HumanEval/0")
+        assert "def add" in code_stub
+        assert '"""' not in code_stub
+
+    def test_get_code_stub_with_comments(
+        self, loaded_dataset: HumanEvalDataset
+    ) -> None:
+        sl = DatasetSlice(dataset=loaded_dataset)
+        code_stub = sl.get_code_stub_with_comments("HumanEval/0")
+        assert "def add" in code_stub
+        assert '"""' in code_stub
