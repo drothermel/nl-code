@@ -164,8 +164,18 @@ class TestRawClassEvalTask:
         assert task.class_stub_with_comments == row["skeleton"]
         assert '"""' not in task.class_stub
         assert "class Calculator" in task.class_stub
+        assert task.new_code_stub == task.class_stub
+        assert task.new_code_stub_with_comments == task.class_stub_with_comments
         assert task.fields == ["self.result"]
         assert len(task.methods_info) == 2
+        assert task.new_official_prompt == (
+            "Provided below is an instruction detailing a task. Compose a response "
+            "that aptly fulfills the request.\n\n"
+            "Please complete the class Calculator in the subsequent code.\n"
+            "```python\n"
+            f"{row['skeleton'].rstrip()}\n"
+            "```"
+        )
 
     def test_methods_info_parsed(self) -> None:
         row = make_classeval_row()

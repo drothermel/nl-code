@@ -9,6 +9,33 @@ from conftest import make_bigcodebench_lite_pro_row
 pytestmark = pytest.mark.docker
 
 
+def _expected_original_official_prompt(raw_problem: str) -> str:
+    return (
+        "You are an exceptionally intelligent coding assistant that "
+        "consistently delivers accurate and reliable responses to user "
+        "instructions. Write a solution of python file to the following problem\n"
+        "@@ Instruction \n"
+        f"{raw_problem.rstrip()}\n"
+        "@@ Response\n"
+    )
+
+
+def _expected_new_official_prompt(raw_problem: str, new_problem: str) -> str:
+    return (
+        "You are an exceptionally intelligent coding assistant that "
+        "consistently delivers accurate and reliable responses to user "
+        "instructions. Write a solution of python file to the following "
+        "problems, the solution of the second problem requires single or "
+        "multiple calls to the first\n"
+        "@@ Instruction \n"
+        "```python\n"
+        f"{raw_problem.rstrip()}\n"
+        f"{new_problem.rstrip()}\n"
+        "```\n"
+        "@@ Response\n"
+    )
+
+
 class TestRawBigCodeBenchLiteProTask:
     def test_non_code_fields(self) -> None:
         assert RawBigCodeBenchLiteProTask.non_code_fields == (
@@ -37,10 +64,11 @@ class TestRawBigCodeBenchLiteProTask:
         assert "return a * b" in task.original_function
         assert "def multiply" in task.original_function_with_docstrings_and_comments
         assert "def multiply_pairs" in task.new_function_with_docstrings_and_comments
-        assert task.original_official_prompt == "def multiply(a: int, b: int) -> int:\n"
-        assert (
-            task.new_official_prompt
-            == "def multiply_pairs(pairs: list[tuple[int, int]]) -> list[int]:\n"
+        assert task.original_official_prompt == _expected_original_official_prompt(
+            row["raw_problem"]
+        )
+        assert task.new_official_prompt == _expected_new_official_prompt(
+            row["raw_problem"], row["new_problem"]
         )
 
     def test_additional_derived_prompt_fields(self) -> None:
@@ -128,6 +156,8 @@ class TestRawBigCodeBenchLiteProTask:
             def multiply_pairs(pairs: list[tuple[int, int]]) -> list[int]:
         """)
         assert task.new_function_stub_with_comments == row["new_problem"]
+        assert task.new_code_stub == task.new_function_stub
+        assert task.new_code_stub_with_comments == task.new_function_stub_with_comments
         assert task.new_two_part_function_stub == textwrap.dedent("""\
             import math
             from collections import deque
@@ -148,9 +178,11 @@ class TestRawBigCodeBenchLiteProTask:
             # Given a list of pairs, multiply each pair and return the list of products.
             def multiply_pairs(pairs: list[tuple[int, int]]) -> list[int]:
         """)
-        assert task.original_official_prompt == task.original_function_stub
-        assert (
-            task.new_official_prompt == task.new_problem_without_docstrings_and_comments
+        assert task.original_official_prompt == _expected_original_official_prompt(
+            row["raw_problem"]
+        )
+        assert task.new_official_prompt == _expected_new_official_prompt(
+            row["raw_problem"], row["new_problem"]
         )
 
     def test_gt_solution_contains_both_functions(self) -> None:
@@ -191,8 +223,15 @@ class TestRawBigCodeBenchLiteProTask:
         assert "#" not in task.original_function
         assert '"""' not in task.new_function
         assert "#" not in task.new_function
-        assert '"""' not in task.original_official_prompt
-        assert '"""' not in task.new_official_prompt
+        assert task.original_official_prompt.startswith(
+            "You are an exceptionally intelligent coding assistant"
+        )
+        assert '"""' in task.original_official_prompt
+        assert task.new_official_prompt.startswith(
+            "You are an exceptionally intelligent coding assistant"
+        )
+        assert "```python\n" in task.new_official_prompt
+        assert "#" in task.new_official_prompt
 
     def test_new_entry_point(self) -> None:
         row = make_bigcodebench_lite_pro_row()

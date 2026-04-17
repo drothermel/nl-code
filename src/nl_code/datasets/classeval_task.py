@@ -129,6 +129,17 @@ def _build_gt_code(import_statement: Any, solution_code: Any) -> str:
     return solution_code_str
 
 
+def _build_new_official_prompt(class_name: str, official_skeleton: str) -> str:
+    return (
+        "Provided below is an instruction detailing a task. Compose a response "
+        "that aptly fulfills the request.\n\n"
+        f"Please complete the class {class_name} in the subsequent code.\n"
+        "```python\n"
+        f"{official_skeleton.rstrip()}\n"
+        "```"
+    )
+
+
 # ---------------------------------------------------------------------------
 # Per-task fixes for dataset issues.
 #
@@ -286,11 +297,14 @@ class RawClassEvalTask(BaseModel):
     official_skeleton: str = ""
     class_stub_with_comments: str = ""
     class_stub: str = ""
+    new_code_stub_with_comments: str = ""
+    new_code_stub: str = ""
     import_block: str = ""
     solution_code: str = ""
     test: str = ""
     test_classes: list[str] = Field(default_factory=list)
     methods_info: list[MethodInfo] = Field(default_factory=list)
+    new_official_prompt: str = ""
     gt_code_with_comments: str = ""
     gt_code: str = ""
 
@@ -316,6 +330,11 @@ class RawClassEvalTask(BaseModel):
         self.official_skeleton = self.source__skeleton
         self.class_stub_with_comments = self.official_skeleton
         self.class_stub = _remove_docstrings(self.official_skeleton)
+        self.new_code_stub_with_comments = self.class_stub_with_comments
+        self.new_code_stub = self.class_stub
+        self.new_official_prompt = _build_new_official_prompt(
+            self.class_name, self.official_skeleton
+        )
         self.import_block = _build_import_block(self.import_statement)
         self.methods_info = list(self.source__methods_info)
 

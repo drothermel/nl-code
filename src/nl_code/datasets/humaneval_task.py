@@ -98,6 +98,18 @@ def build_assertion_test_code(test_source: Any, entry_point: Any) -> str:
     return f"{test_source_str}\n\ncheck({entry_point_str})\n"
 
 
+def build_official_prompt(prompt: Any) -> str:
+    prompt_str = _require_string(prompt, name="prompt")
+    return (
+        "Read the following function signature and docstring, and fully "
+        "implement the function described. Your response should only contain "
+        "the code for this function.\n\n"
+        "```python\n"
+        f"{prompt_str.rstrip()}\n"
+        "```\n"
+    )
+
+
 def get_check_assignment(test_source: Any, name: str, default: object = ...) -> object:
     test_source_str = _require_string(test_source, name="test_source")
     check_fn = find_named_function(test_source_str, "check")
@@ -129,7 +141,10 @@ class RawHumanEvalTask(BaseModel):
     validated: bool = False
 
     official_prompt: str = Field(
-        default_factory=lambda data: data.get("source__prompt")
+        default_factory=lambda data: build_official_prompt(data.get("source__prompt"))
+    )
+    new_official_prompt: str = Field(
+        default_factory=lambda data: data.get("official_prompt")
     )
     docstrings: str = Field(
         default_factory=lambda data: extract_docstrings(
@@ -145,6 +160,10 @@ class RawHumanEvalTask(BaseModel):
     )
     function_stub_with_comments: str = Field(
         default_factory=lambda data: data.get("source__prompt")
+    )
+    new_code_stub: str = Field(default_factory=lambda data: data.get("function_stub"))
+    new_code_stub_with_comments: str = Field(
+        default_factory=lambda data: data.get("function_stub_with_comments")
     )
     function_with_comments: str = Field(
         default_factory=lambda data: build_function_source(

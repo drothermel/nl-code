@@ -7,6 +7,7 @@ from nl_code.datasets.humaneval_task import (
     build_assertion_test_code,
     build_function_source,
     build_function_without_comments,
+    build_official_prompt,
     build_function_stub,
     extract_docstrings,
     extract_prompt_comment,
@@ -53,6 +54,17 @@ class TestHelperFunctions:
             == "def check(candidate):\n    assert candidate(1, 2) == 3\n\n\ncheck(add)\n"
         )
 
+    def test_build_official_prompt(self) -> None:
+        prompt = 'def foo():\n    """Hello world."""\n'
+        assert build_official_prompt(prompt) == (
+            "Read the following function signature and docstring, and fully "
+            "implement the function described. Your response should only contain "
+            "the code for this function.\n\n"
+            "```python\n"
+            'def foo():\n    """Hello world."""\n'
+            "```\n"
+        )
+
 
 @pytest.mark.docker
 class TestRawHumanEvalTask:
@@ -74,7 +86,10 @@ class TestRawHumanEvalTask:
         assert valid_raw_task.source__canonical_solution == "    return a + b\n"
         assert valid_raw_task.source__test
         assert valid_raw_task.validated is False
-        assert valid_raw_task.official_prompt == valid_raw_task.source__prompt
+        assert valid_raw_task.official_prompt == build_official_prompt(
+            valid_raw_task.source__prompt
+        )
+        assert valid_raw_task.new_official_prompt == valid_raw_task.official_prompt
 
     def test_additional_derived_prompt_fields(self) -> None:
         row = make_humaneval_row(
@@ -94,7 +109,8 @@ class TestRawHumanEvalTask:
         )
         task = RawHumanEvalTask.model_validate(row)
 
-        assert task.official_prompt == row["prompt"]
+        assert task.official_prompt == build_official_prompt(row["prompt"])
+        assert task.new_official_prompt == task.official_prompt
         assert task.docstrings == "Return the sum."
         assert task.prompt_comment == "Add two integers."
         assert task.function_stub == textwrap.dedent("""\
@@ -102,6 +118,8 @@ class TestRawHumanEvalTask:
             def add(a: int, b: int) -> int:
         """)
         assert task.function_stub_with_comments == row["prompt"]
+        assert task.new_code_stub == task.function_stub
+        assert task.new_code_stub_with_comments == task.function_stub_with_comments
         assert task.function_with_comments == textwrap.dedent('''\
             # Add two integers.
             def add(a: int, b: int) -> int:

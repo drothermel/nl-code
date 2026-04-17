@@ -7,10 +7,12 @@ from nl_code.code_parsing import remove_docstrings_and_comments
 from nl_code.datasets.pro_task_helpers import (
     build_function_stub_without_docstrings_and_comments,
     build_gt_solution,
+    build_new_official_prompt,
     build_new_function_source,
     build_new_function_without_docstrings_and_comments,
     build_new_function_stub,
     build_new_two_part_function_stub,
+    build_original_official_prompt,
     build_original_function_source,
     build_original_function_without_docstrings_and_comments,
     build_problem_stub_without_docstrings_and_comments,
@@ -123,6 +125,12 @@ class RawHumanEvalProTask(BaseModel):
     new_function_stub_with_comments: str = Field(
         default_factory=lambda data: data.get("source__new_problem")
     )
+    new_code_stub: str = Field(
+        default_factory=lambda data: data.get("new_function_stub")
+    )
+    new_code_stub_with_comments: str = Field(
+        default_factory=lambda data: data.get("new_function_stub_with_comments")
+    )
     new_two_part_function_stub: str = Field(
         default_factory=lambda data: build_new_two_part_function_stub(
             data.get("original_function_stub"),
@@ -136,11 +144,14 @@ class RawHumanEvalProTask(BaseModel):
         )
     )
     original_official_prompt: str = Field(
-        default_factory=lambda data: data.get("original_function_stub")
+        default_factory=lambda data: build_original_official_prompt(
+            data.get("source__raw_problem")
+        )
     )
     new_official_prompt: str = Field(
-        default_factory=lambda data: data.get(
-            "new_problem_without_docstrings_and_comments"
+        default_factory=lambda data: build_new_official_prompt(
+            data.get("source__raw_problem"),
+            data.get("source__new_problem"),
         )
     )
     gt_solution_with_comments: str = Field(

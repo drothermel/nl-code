@@ -55,6 +55,36 @@ def build_two_part_code(first_part: Any, second_part: Any) -> str:
     return _merge_two_code_components_with_blank_line(first_part_str, second_part_str)
 
 
+def build_original_official_prompt(raw_problem: Any) -> str:
+    raw_problem_str = _require_string(raw_problem, name="raw_problem")
+    return (
+        "You are an exceptionally intelligent coding assistant that "
+        "consistently delivers accurate and reliable responses to user "
+        "instructions. Write a solution of python file to the following problem\n"
+        "@@ Instruction \n"
+        f"{raw_problem_str.rstrip()}\n"
+        "@@ Response\n"
+    )
+
+
+def build_new_official_prompt(raw_problem: Any, new_problem: Any) -> str:
+    raw_problem_str = _require_string(raw_problem, name="raw_problem")
+    new_problem_str = _require_string(new_problem, name="new_problem")
+    return (
+        "You are an exceptionally intelligent coding assistant that "
+        "consistently delivers accurate and reliable responses to user "
+        "instructions. Write a solution of python file to the following "
+        "problems, the solution of the second problem requires single or "
+        "multiple calls to the first\n"
+        "@@ Instruction \n"
+        "```python\n"
+        f"{raw_problem_str.rstrip()}\n"
+        f"{new_problem_str.rstrip()}\n"
+        "```\n"
+        "@@ Response\n"
+    )
+
+
 def _join_nonempty_text_parts(*parts: str) -> str:
     present_parts = [part.strip() for part in parts if part.strip()]
     return "\n\n".join(present_parts)
