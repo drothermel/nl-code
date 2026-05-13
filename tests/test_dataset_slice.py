@@ -103,8 +103,8 @@ class TestDatasetSlice:
     def test_get_official_prompt(self, loaded_dataset: HumanEvalDataset) -> None:
         sl = DatasetSlice(dataset=loaded_dataset)
         prompt = sl.get_official_prompt("HumanEval/0")
-        assert prompt.startswith("Read the following function signature and docstring")
-        assert "```python\n" in prompt
+        assert prompt.startswith("def add")
+        assert '"""' in prompt
 
     def test_get_code_stub(self, loaded_dataset: HumanEvalDataset) -> None:
         sl = DatasetSlice(dataset=loaded_dataset)

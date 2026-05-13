@@ -56,14 +56,18 @@ class TestHelperFunctions:
 
     def test_build_official_prompt(self) -> None:
         prompt = 'def foo():\n    """Hello world."""\n'
-        assert build_official_prompt(prompt) == (
-            "Read the following function signature and docstring, and fully "
-            "implement the function described. Your response should only contain "
-            "the code for this function.\n\n"
-            "```python\n"
-            'def foo():\n    """Hello world."""\n'
-            "```\n"
-        )
+        assert build_official_prompt(prompt) == prompt
+
+    def test_cached_official_prompt_fields_are_normalized_to_prompt(self) -> None:
+        prompt = 'def foo():\n    """Hello world."""\n'
+        row = make_humaneval_row(entry_point="foo", prompt=prompt)
+        row["official_prompt"] = "wrapped prompt"
+        row["new_official_prompt"] = "wrapped prompt"
+
+        task = RawHumanEvalTask.model_validate(row)
+
+        assert task.official_prompt == prompt
+        assert task.new_official_prompt == prompt
 
 
 @pytest.mark.docker

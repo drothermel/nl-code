@@ -102,15 +102,7 @@ def build_assertion_test_code(test_source: Any, entry_point: Any) -> str:
 
 
 def build_official_prompt(prompt: Any) -> str:
-    prompt_str = _require_string(prompt, name="prompt")
-    return (
-        "Read the following function signature and docstring, and fully "
-        "implement the function described. Your response should only contain "
-        "the code for this function.\n\n"
-        "```python\n"
-        f"{prompt_str.rstrip()}\n"
-        "```\n"
-    )
+    return _require_string(prompt, name="prompt")
 
 
 def get_check_assignment(test_source: Any, name: str, default: object = ...) -> object:
@@ -142,6 +134,20 @@ class RawHumanEvalTask(BaseModel):
     source__test: str = Field(alias="test")
     version: Literal["v1", "v2"] = "v2"
     validated: bool = False
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_official_prompt(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        prompt = data.get("prompt", data.get("source__prompt"))
+        if not isinstance(prompt, str):
+            return data
+        return {
+            **data,
+            "official_prompt": prompt,
+            "new_official_prompt": prompt,
+        }
 
     official_prompt: str = Field(
         default_factory=lambda data: build_official_prompt(data.get("source__prompt"))
