@@ -15,6 +15,7 @@ dependencies = [
     "typer>=0.24.1",
     "python-dotenv>=1.2.2",
     "dr-docker==0.4.5",
+    "dspy>=3.2.1",
 ]
 
 [project.optional-dependencies]
