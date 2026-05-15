@@ -14,6 +14,8 @@ from nl_code.optim.humaneval_dspy_optimize import (
     SplitTaskIds,
     api_key_from_env,
     normalize_auto,
+    optimization_artifact_paths,
+    optimization_log_context,
     optimize_direct_generation,
     parse_task_ids,
     require_task_ids,
@@ -56,10 +58,20 @@ def main(
         "--output-dir",
         help="Directory for optimized program and summary logs.",
     ),
+    run_log_path: Path | None = typer.Option(
+        None,
+        "--run-log-path",
+        help="Stdout/stderr log path. Defaults to the run artifact namespace.",
+    ),
+    event_log_path: Path | None = typer.Option(
+        None,
+        "--event-log-path",
+        help="Structured JSONL event log path. Defaults to the run artifact namespace.",
+    ),
     auto: str | None = typer.Option(
         "medium",
         "--auto",
-        help="MIPROv2 auto budget: light, medium, heavy, or none.",
+        help="MIPROv2 auto budget: light, medium, or heavy.",
     ),
     num_threads: int | None = typer.Option(
         8,
@@ -98,22 +110,39 @@ def main(
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc
 
-    run = optimize_direct_generation(
-        task_ids=task_ids,
-        model=model,
-        api_key=api_key,
-        api_base=api_base,
-        reasoning_effort=reasoning_effort,
+    artifacts = optimization_artifact_paths(
         output_dir=output_dir,
-        auto=auto_mode,
-        num_threads=num_threads,
-        seed=seed,
-        timeout_seconds=timeout_seconds,
-        docker_image=docker_image,
-        verbose=verbose,
+        generation_type="direct",
+        optimization_target=None,
     )
-    typer.echo(f"Optimized program: {run.summary.optimized_program_path}")
-    typer.echo(f"Summary: {run.summary.summary_path}")
+    run_log_path = run_log_path or artifacts.run_log_path
+    event_log_path = event_log_path or artifacts.event_log_path
+
+    with optimization_log_context(
+        run_log_path=run_log_path,
+        event_log_path=event_log_path,
+    ):
+        run = optimize_direct_generation(
+            task_ids=task_ids,
+            model=model,
+            api_key=api_key,
+            api_base=api_base,
+            reasoning_effort=reasoning_effort,
+            output_dir=output_dir,
+            auto=auto_mode,
+            num_threads=num_threads,
+            seed=seed,
+            timeout_seconds=timeout_seconds,
+            docker_image=docker_image,
+            verbose=verbose,
+            artifact_stem=artifacts.stem,
+            run_log_path=run_log_path,
+            event_log_path=event_log_path,
+        )
+        typer.echo(f"Optimized program: {run.summary.optimized_program_path}")
+        typer.echo(f"Summary: {run.summary.summary_path}")
+        typer.echo(f"Run log: {run_log_path}")
+        typer.echo(f"Event log: {event_log_path}")
 
 
 if __name__ == "__main__":

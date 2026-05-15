@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+import sys
+from pathlib import Path
 from typing import Any
 
 import dspy
@@ -10,10 +13,12 @@ from nl_code.code_execution.models import TestCaseResult
 from nl_code.optim import humaneval_dspy_optimize as opt_mod
 from nl_code.optim.humaneval_dspy_optimize import (
     SplitTaskIds,
+    api_key_from_env,
     direct_examples,
     encoder_examples,
     parse_task_ids,
     require_task_ids,
+    score_value,
 )
 
 
@@ -38,6 +43,74 @@ def test_parse_task_ids_accepts_repeated_and_csv_values() -> None:
 def test_require_task_ids_rejects_empty_splits() -> None:
     with pytest.raises(ValueError, match="--dev-task-ids"):
         require_task_ids(SplitTaskIds(train=["HumanEval/1"], dev=[], eval=[]))
+
+
+def test_api_key_from_env_rejects_placeholder(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("OPENROUTER_API_KEY", "...")
+
+    with pytest.raises(ValueError, match="placeholder"):
+        api_key_from_env()
+
+
+def test_normalize_auto_rejects_manual_mode() -> None:
+    with pytest.raises(ValueError, match="manual MIPRO settings"):
+        opt_mod.normalize_auto("none")
+
+
+def test_score_value_accepts_score_with_feedback_like_object() -> None:
+    class Score:
+        score = 0.75
+
+    assert score_value(Score()) == 0.75
+    assert score_value({"score": 0.5, "feedback": "ok"}) == 0.5
+    assert score_value(1.0) == 1.0
+
+
+def test_optimization_artifact_paths_use_shared_namespace(tmp_path: Path) -> None:
+    artifacts = opt_mod.optimization_artifact_paths(
+        output_dir=tmp_path,
+        generation_type="direct",
+        optimization_target=None,
+        timestamp="20260515T000001Z",
+    )
+
+    assert artifacts.stem == "human_eval_dspy_direct_optimized_20260515T000001Z"
+    assert artifacts.optimized_program_path == tmp_path / f"{artifacts.stem}.json"
+    assert artifacts.summary_path == tmp_path / f"{artifacts.stem}_summary.json"
+    assert artifacts.run_log_path == tmp_path / f"{artifacts.stem}_run.log"
+    assert artifacts.event_log_path == tmp_path / f"{artifacts.stem}_events.jsonl"
+
+
+def test_optimization_log_context_tees_output_and_events(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    run_log_path = tmp_path / "run.log"
+    event_log_path = tmp_path / "events.jsonl"
+
+    with opt_mod.optimization_log_context(
+        run_log_path=run_log_path,
+        event_log_path=event_log_path,
+    ):
+        print("stdout line")
+        print("stderr line", file=sys.stderr)
+        opt_mod.log_step("structured step", verbose=False)
+
+    captured = capsys.readouterr()
+    assert "stdout line" in captured.out
+    assert "stderr line" in captured.err
+    run_log = run_log_path.read_text()
+    assert "stdout line" in run_log
+    assert "stderr line" in run_log
+    events = [json.loads(line) for line in event_log_path.read_text().splitlines()]
+    assert [event["event"] for event in events] == [
+        "run_start",
+        "step",
+        "run_end",
+    ]
+    assert events[1]["payload"] == {"message": "structured step"}
 
 
 def test_direct_examples_only_pass_code_stub_as_program_input() -> None:
@@ -72,6 +145,51 @@ def test_metric_scores_generated_code(
     prediction = dspy.Prediction(completed_code="def add_one(x):\n    return x + 1\n")
 
     assert metric(example, prediction) == 1.0
+
+
+def test_metric_accepts_bootstrap_trace_argument(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(opt_mod, "evaluate_completed_code", _fake_evaluate)
+    metric = opt_mod.direct_metric(
+        samples_by_task_id=_samples_by_task_id(),
+        timeout_seconds=1.0,
+        docker_image=None,
+        verbose=False,
+        label="test",
+    )
+    example = dspy.Example(task_id="HumanEval/0").with_inputs()
+    prediction = dspy.Prediction(completed_code="def add_one(x):\n    return x + 1\n")
+
+    assert metric(example, prediction, []) == 1.0
+
+
+def test_encoder_metric_accepts_bootstrap_trace_argument(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(opt_mod, "evaluate_completed_code", _fake_evaluate)
+
+    class FakeDecoder:
+        def __call__(self, *, code_spec: str, function_stub: str) -> dspy.Prediction:
+            return dspy.Prediction(
+                completed_code=f"{function_stub}    return {code_spec}\n"
+            )
+
+    metric = opt_mod.encoder_metric(
+        decoder=FakeDecoder(),
+        samples_by_task_id=_samples_by_task_id(),
+        timeout_seconds=1.0,
+        docker_image=None,
+        verbose=False,
+        label="test",
+    )
+    example = dspy.Example(
+        task_id="HumanEval/0",
+        function_stub="def add_one(x):\n",
+    ).with_inputs("input_code")
+    prediction = dspy.Prediction(code_spec="x + 1")
+
+    assert metric(example, prediction, []) == 1.0
 
 
 def _samples_by_task_id() -> dict[str, FakeSample]:

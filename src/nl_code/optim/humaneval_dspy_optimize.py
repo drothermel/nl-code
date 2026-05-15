@@ -3,12 +3,15 @@ from __future__ import annotations
 import json
 import logging
 import os
+import sys
 import threading
-from collections.abc import Callable, Sequence
+import traceback
+from collections.abc import Callable, Iterator, Sequence
+from contextlib import contextmanager, redirect_stderr, redirect_stdout
 from datetime import datetime, timezone
 from enum import StrEnum
 from pathlib import Path
-from typing import Any, Literal, cast
+from typing import Any, Literal, TextIO, cast
 
 import dspy
 from dspy.evaluate import Evaluate
@@ -17,7 +20,6 @@ from pydantic import BaseModel, ConfigDict, Field
 from nl_code.code_execution.models import CodeExecutionInfrastructureError
 from nl_code.datasets import HumanEvalDataset
 from nl_code.optim.dspy_generators import (
-    CodeSpecDecoder,
     CodeSpecEncoder,
     DirectCodeGenerator,
     EncoderDecoderCodeGenerator,
@@ -63,6 +65,7 @@ class OptimizationSummary(BaseModel):
     optimization_target: str | None = None
     model: str
     auto: AutoMode | None
+    max_metric_calls: int | None = None
     num_threads: int | None
     seed: int
     train_task_ids: list[str]
@@ -72,6 +75,26 @@ class OptimizationSummary(BaseModel):
     optimized_scores: dict[str, SplitScore]
     optimized_program_path: Path
     summary_path: Path | None = None
+    run_log_path: Path | None = None
+    event_log_path: Path | None = None
+
+
+class OptimizationArtifactPaths(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    stem: str
+    optimized_program_path: Path
+    summary_path: Path
+    run_log_path: Path
+    event_log_path: Path
+
+
+class OptimizationEvent(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    timestamp: datetime
+    event: str
+    payload: dict[str, Any] = Field(default_factory=dict)
 
 
 class OptimizationRunResult(BaseModel):
@@ -79,6 +102,56 @@ class OptimizationRunResult(BaseModel):
 
     optimized_program: Any
     summary: OptimizationSummary
+
+
+class TeeTextIO:
+    def __init__(self, *streams: TextIO) -> None:
+        self.streams = streams
+
+    def write(self, value: str) -> int:
+        for stream in self.streams:
+            stream.write(value)
+        return len(value)
+
+    def flush(self) -> None:
+        for stream in self.streams:
+            stream.flush()
+
+    def isatty(self) -> bool:
+        return any(stream.isatty() for stream in self.streams)
+
+
+class OptimizationEventLogger:
+    def __init__(self, path: Path) -> None:
+        self.path = path
+        self._lock = threading.Lock()
+        self._file: TextIO | None = None
+
+    def __enter__(self) -> OptimizationEventLogger:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self._file = self.path.open("w", encoding="utf-8")
+        return self
+
+    def __exit__(self, *_exc_info: object) -> None:
+        if self._file is not None:
+            self._file.close()
+            self._file = None
+
+    def write(self, event: str, **payload: Any) -> None:
+        if self._file is None:
+            return
+        record = OptimizationEvent(
+            timestamp=datetime.now(timezone.utc),
+            event=event,
+            payload=json_ready(payload),
+        )
+        line = json.dumps(record.model_dump(mode="json"))
+        with self._lock:
+            self._file.write(f"{line}\n")
+            self._file.flush()
+
+
+_event_logger: OptimizationEventLogger | None = None
 
 
 class HumanEvalPassRateMetric:
@@ -101,7 +174,13 @@ class HumanEvalPassRateMetric:
         self._lock = threading.Lock()
         self._call_count = 0
 
-    def __call__(self, example: dspy.Example, prediction: Any) -> float:
+    def __call__(
+        self,
+        example: dspy.Example,
+        prediction: Any,
+        *_args: Any,
+        **_kwargs: Any,
+    ) -> float:
         task_id = example.task_id
         sample = self.samples_by_task_id[task_id]
         completed_code = self.prediction_to_completed_code(example, prediction)
@@ -128,11 +207,19 @@ class HumanEvalPassRateMetric:
         pass_rate: float,
         error: str | None,
     ) -> None:
-        if not self.verbose:
-            return
         with self._lock:
             self._call_count += 1
             call_count = self._call_count
+        log_optimization_event(
+            "metric_call",
+            label=self.label,
+            metric_call=call_count,
+            task_id=task_id,
+            pass_rate=pass_rate,
+            error=error,
+        )
+        if not self.verbose:
+            return
         timestamp = datetime.now(timezone.utc).isoformat()
         suffix = f" error={error}" if error else ""
         print(
@@ -156,6 +243,9 @@ def optimize_direct_generation(
     timeout_seconds: float,
     docker_image: str | None,
     verbose: bool,
+    artifact_stem: str | None = None,
+    run_log_path: Path | None = None,
+    event_log_path: Path | None = None,
 ) -> OptimizationRunResult:
     configure_optimization_logging(verbose)
     log_step("Loading HumanEval dataset", verbose=verbose)
@@ -225,6 +315,9 @@ def optimize_direct_generation(
         optimized_scores=optimized_scores,
         output_dir=output_dir,
         verbose=verbose,
+        artifact_stem=artifact_stem,
+        run_log_path=run_log_path,
+        event_log_path=event_log_path,
     )
 
 
@@ -243,6 +336,9 @@ def optimize_encoder_decoder_generation(
     timeout_seconds: float,
     docker_image: str | None,
     verbose: bool,
+    artifact_stem: str | None = None,
+    run_log_path: Path | None = None,
+    event_log_path: Path | None = None,
 ) -> OptimizationRunResult:
     configure_optimization_logging(verbose)
     log_step("Loading HumanEval dataset", verbose=verbose)
@@ -286,6 +382,9 @@ def optimize_encoder_decoder_generation(
         optimized_scores=optimized_scores,
         output_dir=output_dir,
         verbose=verbose,
+        artifact_stem=artifact_stem,
+        run_log_path=run_log_path,
+        event_log_path=event_log_path,
     )
 
 
@@ -312,11 +411,13 @@ def require_task_ids(task_ids: SplitTaskIds) -> None:
 
 
 def normalize_auto(value: str | None) -> AutoMode | None:
-    if value is None or value == "none":
+    if value is None:
         return None
+    if value == "none":
+        raise ValueError("auto=none requires manual MIPRO settings not exposed here")
     if value in ("light", "medium", "heavy"):
         return cast(AutoMode, value)
-    raise ValueError("auto must be one of: light, medium, heavy, none")
+    raise ValueError("auto must be one of: light, medium, heavy")
 
 
 def direct_examples(
@@ -419,7 +520,7 @@ def completed_code_metric(
 
 def encoder_metric(
     *,
-    decoder: CodeSpecDecoder,
+    decoder: Callable[..., Any],
     samples_by_task_id: dict[str, Any],
     timeout_seconds: float,
     docker_image: str | None,
@@ -457,6 +558,7 @@ def compile_instruction_only(
     verbose: bool,
 ) -> Any:
     mipro_log_dir = output_dir / "mipro_logs" / timestamp_slug()
+    log_optimization_event("mipro_log_dir", path=mipro_log_dir)
     log_step(
         (
             "Starting MIPROv2 instruction-only optimization "
@@ -492,7 +594,7 @@ def evaluate_splits(
     program: Any,
     task_ids: SplitTaskIds,
     examples_for_task_ids: Callable[[Sequence[str]], list[dspy.Example]],
-    metric: Callable[..., float],
+    metric: Callable[..., Any],
     num_threads: int | None,
     verbose: bool,
     label: str,
@@ -516,7 +618,7 @@ def evaluate_examples(
     *,
     program: Any,
     examples: list[dspy.Example],
-    metric: Callable[..., float],
+    metric: Callable[..., Any],
     num_threads: int | None,
     verbose: bool,
     label: str,
@@ -534,7 +636,8 @@ def evaluate_examples(
     )
     result = evaluator(program)
     task_scores = {
-        example.task_id: float(score) for example, _prediction, score in result.results
+        example.task_id: score_value(score)
+        for example, _prediction, score in result.results
     }
     task_count = len(task_scores)
     full_pass_count = sum(score == 1.0 for score in task_scores.values())
@@ -547,6 +650,11 @@ def evaluate_examples(
         full_pass_count=full_pass_count,
         full_pass_rate=full_pass_count / task_count if task_count else 0.0,
         task_scores=task_scores,
+    )
+    log_optimization_event(
+        "split_score",
+        label=label,
+        split_score=split_score.model_dump(mode="json"),
     )
     log_step(
         (
@@ -598,6 +706,14 @@ def prediction_field(prediction: Any, field: str) -> str:
     return str(value or "")
 
 
+def score_value(score: Any) -> float:
+    if isinstance(score, dict):
+        return float(score.get("score", 0.0))
+    if hasattr(score, "score"):
+        return float(score.score)
+    return float(score)
+
+
 def configure_optimization_logging(verbose: bool) -> None:
     if not verbose:
         return
@@ -619,10 +735,109 @@ def log_split_sizes(task_ids: SplitTaskIds, *, verbose: bool) -> None:
 
 
 def log_step(message: str, *, verbose: bool) -> None:
+    log_optimization_event("step", message=message)
     if not verbose:
         return
     timestamp = datetime.now(timezone.utc).isoformat()
     print(f"{timestamp} {message}", flush=True)
+
+
+def optimization_artifact_paths(
+    *,
+    output_dir: Path,
+    generation_type: str,
+    optimization_target: str | None,
+    timestamp: str | None = None,
+) -> OptimizationArtifactPaths:
+    stem = optimization_artifact_stem(
+        generation_type=generation_type,
+        optimization_target=optimization_target,
+        timestamp=timestamp,
+    )
+    return OptimizationArtifactPaths(
+        stem=stem,
+        optimized_program_path=output_dir / f"{stem}.json",
+        summary_path=output_dir / f"{stem}_summary.json",
+        run_log_path=output_dir / f"{stem}_run.log",
+        event_log_path=output_dir / f"{stem}_events.jsonl",
+    )
+
+
+def optimization_artifact_stem(
+    *,
+    generation_type: str,
+    optimization_target: str | None,
+    timestamp: str | None = None,
+) -> str:
+    slug_parts = ["human_eval_dspy", generation_type]
+    if optimization_target:
+        slug_parts.append(optimization_target)
+    slug_parts.append("optimized")
+    slug_parts.append(timestamp or timestamp_slug())
+    return "_".join(slug_parts)
+
+
+@contextmanager
+def optimization_log_context(
+    *,
+    run_log_path: Path,
+    event_log_path: Path,
+) -> Iterator[None]:
+    global _event_logger
+
+    run_log_path.parent.mkdir(parents=True, exist_ok=True)
+    previous_event_logger = _event_logger
+    with (
+        run_log_path.open("w", encoding="utf-8") as run_log_file,
+        OptimizationEventLogger(event_log_path) as event_logger,
+    ):
+        _event_logger = event_logger
+        try:
+            with (
+                redirect_stdout(TeeTextIO(sys.stdout, run_log_file)),
+                redirect_stderr(TeeTextIO(sys.stderr, run_log_file)),
+            ):
+                log_optimization_event(
+                    "run_start",
+                    run_log_path=run_log_path,
+                    event_log_path=event_log_path,
+                )
+                try:
+                    yield
+                except BaseException as exc:
+                    log_optimization_event(
+                        "run_error",
+                        error_type=type(exc).__name__,
+                        error=str(exc),
+                        traceback="".join(
+                            traceback.format_exception(
+                                type(exc), exc, exc.__traceback__
+                            )
+                        ),
+                    )
+                    raise
+                finally:
+                    log_optimization_event("run_end")
+        finally:
+            _event_logger = previous_event_logger
+            logging.basicConfig(level=logging.WARNING, force=True)
+
+
+def log_optimization_event(event: str, **payload: Any) -> None:
+    if _event_logger is not None:
+        _event_logger.write(event, **payload)
+
+
+def json_ready(value: Any) -> Any:
+    if isinstance(value, BaseModel):
+        return value.model_dump(mode="json")
+    if isinstance(value, Path):
+        return str(value)
+    if isinstance(value, dict):
+        return {str(key): json_ready(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [json_ready(item) for item in value]
+    return value
 
 
 def write_optimization_result(
@@ -632,6 +847,7 @@ def write_optimization_result(
     optimization_target: str | None,
     model: str,
     auto: AutoMode | None,
+    max_metric_calls: int | None = None,
     num_threads: int | None,
     seed: int,
     task_ids: SplitTaskIds,
@@ -639,14 +855,15 @@ def write_optimization_result(
     optimized_scores: dict[str, SplitScore],
     output_dir: Path,
     verbose: bool,
+    artifact_stem: str | None = None,
+    run_log_path: Path | None = None,
+    event_log_path: Path | None = None,
 ) -> OptimizationRunResult:
     output_dir.mkdir(parents=True, exist_ok=True)
-    slug_parts = ["human_eval_dspy", generation_type]
-    if optimization_target:
-        slug_parts.append(optimization_target)
-    slug_parts.append("optimized")
-    slug_parts.append(timestamp_slug())
-    stem = "_".join(slug_parts)
+    stem = artifact_stem or optimization_artifact_stem(
+        generation_type=generation_type,
+        optimization_target=optimization_target,
+    )
     program_path = output_dir / f"{stem}.json"
     summary_path = output_dir / f"{stem}_summary.json"
     optimized_program.save(program_path)
@@ -656,6 +873,7 @@ def write_optimization_result(
         optimization_target=optimization_target,
         model=model,
         auto=auto,
+        max_metric_calls=max_metric_calls,
         num_threads=num_threads,
         seed=seed,
         train_task_ids=task_ids.train,
@@ -665,10 +883,19 @@ def write_optimization_result(
         optimized_scores=optimized_scores,
         optimized_program_path=program_path,
         summary_path=summary_path,
+        run_log_path=run_log_path,
+        event_log_path=event_log_path,
     )
     summary_path.write_text(
         json.dumps(summary.model_dump(mode="json"), indent=2) + "\n",
         encoding="utf-8",
+    )
+    log_optimization_event(
+        "artifacts_saved",
+        optimized_program_path=program_path,
+        summary_path=summary_path,
+        run_log_path=run_log_path,
+        event_log_path=event_log_path,
     )
     log_step(f"Saved optimized program: {program_path}", verbose=verbose)
     log_step(f"Saved optimization summary: {summary_path}", verbose=verbose)
@@ -915,4 +1142,6 @@ def api_key_from_env() -> str:
     api_key = os.getenv("OPENROUTER_API_KEY")
     if not api_key:
         raise ValueError("OPENROUTER_API_KEY must be set")
+    if api_key.strip() in {"...", "REPLACE_ME", "YOUR_KEY"}:
+        raise ValueError("OPENROUTER_API_KEY is still a placeholder")
     return api_key

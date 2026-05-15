@@ -132,6 +132,7 @@ def configure_dspy_lm(
 ) -> Any:
     os.environ["OPENROUTER_API_KEY"] = api_key
     os.environ["OPENROUTER_API_BASE"] = api_base
+    os.environ["OPENAI_API_KEY"] = api_key
     lm = dspy.LM(
         model,
         api_key=api_key,

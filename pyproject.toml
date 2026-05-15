@@ -17,6 +17,7 @@ dependencies = [
     "dr-docker==0.4.5",
     "dspy>=3.2.1",
     "marimo>=0.23.6",
+    "optuna>=4.8.0",
 ]
 
 [project.optional-dependencies]

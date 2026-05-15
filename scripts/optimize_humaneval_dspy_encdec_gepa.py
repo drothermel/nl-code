@@ -10,14 +10,14 @@ from nl_code.optim.dspy_generators import (
     DEFAULT_OPENROUTER_BASE_URL,
     DEFAULT_REASONING_EFFORT,
 )
+from nl_code.optim.humaneval_dspy_gepa import (
+    optimize_encoder_decoder_generation_gepa,
+)
 from nl_code.optim.humaneval_dspy_optimize import (
     EncDecOptimizationTarget,
     SplitTaskIds,
     api_key_from_env,
     normalize_auto,
-    optimization_artifact_paths,
-    optimization_log_context,
-    optimize_encoder_decoder_generation,
     parse_task_ids,
     require_task_ids,
 )
@@ -48,7 +48,7 @@ def main(
     model: str = typer.Option(
         DEFAULT_DSPY_MODEL,
         "--model",
-        help="DSPy/LiteLLM model name.",
+        help="DSPy/LiteLLM model name used for task and reflection calls.",
     ),
     reasoning_effort: str | None = typer.Option(
         DEFAULT_REASONING_EFFORT,
@@ -65,28 +65,24 @@ def main(
         "--output-dir",
         help="Directory for optimized program and summary logs.",
     ),
-    run_log_path: Path | None = typer.Option(
-        None,
-        "--run-log-path",
-        help="Stdout/stderr log path. Defaults to the run artifact namespace.",
-    ),
-    event_log_path: Path | None = typer.Option(
-        None,
-        "--event-log-path",
-        help="Structured JSONL event log path. Defaults to the run artifact namespace.",
-    ),
     auto: str | None = typer.Option(
-        "medium",
+        "light",
         "--auto",
-        help="MIPROv2 auto budget: light, medium, or heavy.",
+        help="GEPA auto budget: light, medium, or heavy. Ignored when --max-metric-calls is set.",
+    ),
+    max_metric_calls: int | None = typer.Option(
+        None,
+        "--max-metric-calls",
+        min=1,
+        help="Explicit GEPA metric-call budget. Useful for smoke tests; overrides --auto.",
     ),
     num_threads: int | None = typer.Option(
         8,
         "--num-threads",
         min=1,
-        help="Number of parallel MIPRO/evaluation workers.",
+        help="Number of parallel GEPA/evaluation workers.",
     ),
-    seed: int = typer.Option(42, "--seed", help="MIPRO and sampling seed."),
+    seed: int = typer.Option(42, "--seed", help="GEPA seed."),
     timeout_seconds: float = typer.Option(
         30.0,
         "--timeout-seconds",
@@ -113,44 +109,32 @@ def main(
     try:
         require_task_ids(task_ids)
         api_key = api_key_from_env()
-        auto_mode = normalize_auto(auto)
+        auto_mode = None if max_metric_calls is not None else normalize_auto(auto)
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc
-
-    artifacts = optimization_artifact_paths(
-        output_dir=output_dir,
-        generation_type="encdec",
-        optimization_target=optimize_target.value,
-    )
-    run_log_path = run_log_path or artifacts.run_log_path
-    event_log_path = event_log_path or artifacts.event_log_path
-
-    with optimization_log_context(
-        run_log_path=run_log_path,
-        event_log_path=event_log_path,
-    ):
-        run = optimize_encoder_decoder_generation(
-            task_ids=task_ids,
-            target=optimize_target,
-            model=model,
-            api_key=api_key,
-            api_base=api_base,
-            reasoning_effort=reasoning_effort,
-            output_dir=output_dir,
-            auto=auto_mode,
-            num_threads=num_threads,
-            seed=seed,
-            timeout_seconds=timeout_seconds,
-            docker_image=docker_image,
-            verbose=verbose,
-            artifact_stem=artifacts.stem,
-            run_log_path=run_log_path,
-            event_log_path=event_log_path,
+    if auto_mode is None and max_metric_calls is None:
+        raise typer.BadParameter(
+            "Either --auto or --max-metric-calls is required for GEPA"
         )
-        typer.echo(f"Optimized program: {run.summary.optimized_program_path}")
-        typer.echo(f"Summary: {run.summary.summary_path}")
-        typer.echo(f"Run log: {run_log_path}")
-        typer.echo(f"Event log: {event_log_path}")
+
+    run = optimize_encoder_decoder_generation_gepa(
+        task_ids=task_ids,
+        target=optimize_target,
+        model=model,
+        api_key=api_key,
+        api_base=api_base,
+        reasoning_effort=reasoning_effort,
+        output_dir=output_dir,
+        auto=auto_mode,
+        max_metric_calls=max_metric_calls,
+        num_threads=num_threads,
+        seed=seed,
+        timeout_seconds=timeout_seconds,
+        docker_image=docker_image,
+        verbose=verbose,
+    )
+    typer.echo(f"Optimized program: {run.summary.optimized_program_path}")
+    typer.echo(f"Summary: {run.summary.summary_path}")
 
 
 if __name__ == "__main__":
