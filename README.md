@@ -73,6 +73,37 @@ Across task families, `new_official_prompt`, `new_code_stub`, and `new_code_stub
 
 A FastAPI + React app for browsing and comparing datasets. Run from `ui/dataset-explorer/`.
 
+## HumanEval DSPy Experiments
+
+This branch adds a small DSPy evaluation workflow for comparing direct code
+generation against an encoder-decoder setup on HumanEval.
+
+- `scripts/humaneval_dspy_eval.py` runs the evaluation from the command line.
+  It writes a run JSON plus generation-history JSONL records under `logs/`.
+- `src/nl_code/optim/humaneval_dspy_eval.py` contains the reusable evaluation
+  loop, generation config, per-attempt results, and summary models.
+- `src/nl_code/optim/dspy_generators.py` defines the direct generator and the
+  encoder-decoder generator used by the eval.
+- `src/nl_code/optim/humaneval_dspy_logs.py` parses eval logs into a nested
+  Pydantic snapshot for notebook analysis. It preserves run stats, per-attempt
+  results, and individual LM calls, including both encoder and decoder calls
+  for new encoder-decoder runs.
+- `scripts/parse_humaneval_dspy_logs.py` is a thin wrapper that parses the
+  current `logs/` directory into a snapshot JSON.
+- `nbs/exp/human_eval_dspy.py` is a marimo notebook for inspecting the workflow,
+  loading the parsed snapshot, comparing pass rates, and stepping through failed
+  cases side by side for direct and encoder-decoder generations.
+- `scripts/sample_humaneval_dspy_splits.py` samples train/dev/eval task splits
+  from the full direct and encoder-decoder eval logs.
+
+Typical usage:
+
+```bash
+OPENROUTER_API_KEY=... uv run python scripts/humaneval_dspy_eval.py --generation-type both --n-samples 20
+uv run python scripts/parse_humaneval_dspy_logs.py --logs-dir logs --output-path logs/human_eval_dspy_snapshot_latest.json
+uv run marimo edit nbs/exp/human_eval_dspy.py
+```
+
 ## Headless validation runs
 
 General dataset validation/debugging commands that import `matplotlib` should run headlessly with:

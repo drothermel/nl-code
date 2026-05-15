@@ -26,6 +26,16 @@ class ParsedHumanEvalDspyLogFile(BaseModel):
     record_count: int = 0
 
 
+class HumanEvalDspyGenerationAttemptRef(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    generation_type: str | None = None
+    dataset_index: int | None = None
+    task_id: str | None = None
+    repeat_index: int | None = None
+    call_index: int | None = None
+
+
 class HumanEvalDspyGenerationCall(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -42,6 +52,7 @@ class HumanEvalDspyGenerationCall(BaseModel):
     outputs: list[str] = Field(default_factory=list)
     usage: dict[str, Any] = Field(default_factory=dict)
     cost: float | None = None
+    attempt: HumanEvalDspyGenerationAttemptRef | None = None
 
     @model_validator(mode="before")
     @classmethod
@@ -67,6 +78,7 @@ class HumanEvalDspyGenerationCall(BaseModel):
             "outputs": record.get("outputs") or response_outputs(record),
             "usage": usage,
             "cost": record.get("cost") or usage.get("cost"),
+            "attempt": record.get("attempt"),
         }
 
     @property
@@ -97,6 +109,17 @@ class HumanEvalDspyGenerationCall(BaseModel):
             ),
             "total_tokens": token_count(self.usage, "total_tokens"),
             "cost": self.cost,
+            "attempt_generation_type": (
+                self.attempt.generation_type if self.attempt else None
+            ),
+            "attempt_dataset_index": (
+                self.attempt.dataset_index if self.attempt else None
+            ),
+            "attempt_task_id": self.attempt.task_id if self.attempt else None,
+            "attempt_repeat_index": (
+                self.attempt.repeat_index if self.attempt else None
+            ),
+            "attempt_call_index": self.attempt.call_index if self.attempt else None,
         }
 
 
@@ -292,11 +315,7 @@ class HumanEvalDspyLogSnapshot(BaseModel):
         )
 
     def attempts_for_task(self, task_id: str) -> list[HumanEvalDspyAttemptSnapshot]:
-        return [
-            attempt
-            for attempt in self.attempts
-            if attempt.task_id == task_id
-        ]
+        return [attempt for attempt in self.attempts if attempt.task_id == task_id]
 
     def run_rows(self) -> list[dict[str, Any]]:
         return [run.row() for run in self.runs]
@@ -309,6 +328,24 @@ class HumanEvalDspyLogSnapshot(BaseModel):
 
     def pipeline_rows(self) -> list[dict[str, Any]]:
         return [pipeline.row() for pipeline in self.pipelines]
+
+    def generation_calls_for_attempt(
+        self,
+        attempt: HumanEvalDspyAttemptSnapshot | None,
+    ) -> list[HumanEvalDspyGenerationCall]:
+        if attempt is None:
+            return []
+        return sorted(
+            [
+                call
+                for call in self.generation_calls
+                if call_matches_attempt(call, attempt)
+            ],
+            key=lambda call: (
+                str(call.source_file),
+                call.record_index,
+            ),
+        )
 
 
 def parse_humaneval_dspy_logs(logs_dir: Path) -> HumanEvalDspyLogSnapshot:
@@ -323,9 +360,7 @@ def parse_humaneval_dspy_logs(logs_dir: Path) -> HumanEvalDspyLogSnapshot:
             runs.append(run)
 
     generation_calls = [
-        call
-        for calls in generation_calls_by_file.values()
-        for call in calls
+        call for calls in generation_calls_by_file.values() for call in calls
     ]
     return HumanEvalDspyLogSnapshot(
         created_at=datetime.now(timezone.utc),
@@ -349,7 +384,9 @@ def write_humaneval_dspy_log_snapshot(
 
 
 def load_humaneval_dspy_log_snapshot(path: Path) -> HumanEvalDspyLogSnapshot:
-    return HumanEvalDspyLogSnapshot.model_validate_json(path.read_text(encoding="utf-8"))
+    return HumanEvalDspyLogSnapshot.model_validate_json(
+        path.read_text(encoding="utf-8")
+    )
 
 
 def parse_generation_history_files(
@@ -360,7 +397,9 @@ def parse_generation_history_files(
     for path in sorted(logs_dir.glob("human_eval_dspy*.jsonl")):
         calls: list[HumanEvalDspyGenerationCall] = []
         parse_error = None
-        for record_index, line in enumerate(path.read_text(encoding="utf-8").splitlines()):
+        for record_index, line in enumerate(
+            path.read_text(encoding="utf-8").splitlines()
+        ):
             if not line.strip():
                 continue
             try:
@@ -369,10 +408,12 @@ def parse_generation_history_files(
                 parse_error = str(exc)
                 continue
             calls.append(
-                HumanEvalDspyGenerationCall(
-                    source_file=path,
-                    record_index=record_index,
-                    raw_record=raw_record,
+                HumanEvalDspyGenerationCall.model_validate(
+                    {
+                        "source_file": path,
+                        "record_index": record_index,
+                        "raw_record": raw_record,
+                    }
                 )
             )
         calls_by_file[path.resolve()] = calls
@@ -477,9 +518,7 @@ def parse_legacy_eval_run(
             "seed": payload.get("seed"),
         },
         selected_dataset_indices=payload.get("dataset_indices") or [],
-        stats_by_generation_type={
-            str(generation_type): stats_for_attempts(attempts)
-        },
+        stats_by_generation_type={str(generation_type): stats_for_attempts(attempts)},
         attempts=attempts,
     )
     return run_with_generation_metadata(run, generation_calls_by_file)
@@ -593,7 +632,9 @@ def run_with_generation_metadata(
                 }
             ),
             "prompt_fingerprints": dominant_prompt_fingerprints(relevant_calls),
-            "model_names": sorted({call.model for call in relevant_calls if call.model}),
+            "model_names": sorted(
+                {call.model for call in relevant_calls if call.model}
+            ),
             "generation_call_count": len(relevant_calls),
         }
     )
@@ -662,7 +703,9 @@ def stats_for_attempts(
     best_by_sample: dict[str, bool] = {}
     for attempt in evaluated:
         sample_id = attempt.task_id or str(attempt.dataset_index)
-        best_by_sample[sample_id] = best_by_sample.get(sample_id, False) or attempt.passed
+        best_by_sample[sample_id] = (
+            best_by_sample.get(sample_id, False) or attempt.passed
+        )
     return HumanEvalDspyRunStats(
         total_attempts=len(attempts),
         evaluated_attempts=len(evaluated),
@@ -680,6 +723,25 @@ def stats_for_attempts(
             if evaluated
             else 0.0
         ),
+    )
+
+
+def call_matches_attempt(
+    call: HumanEvalDspyGenerationCall,
+    attempt: HumanEvalDspyAttemptSnapshot,
+) -> bool:
+    if call.attempt is None:
+        return False
+    if call.attempt.task_id != attempt.task_id:
+        return False
+    if call.attempt.generation_type != attempt.generation_type:
+        return False
+    if call.attempt.repeat_index != attempt.repeat_index:
+        return False
+    return (
+        call.attempt.dataset_index is None
+        or attempt.dataset_index is None
+        or call.attempt.dataset_index == attempt.dataset_index
     )
 
 

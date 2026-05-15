@@ -34,12 +34,19 @@ with app.setup:
         GenerationType,
         HumanEvalDspyEvalConfig,
         build_test_cases,
-        dump_latest_lm_history,
+        dump_lm_history_since,
         evaluate_completed_code as evaluate_completed_code_from_library,
+        lm_history_length,
         run_humaneval_dspy_eval,
         select_dataset_indices,
         _failed_eval_results as failed_eval_results_from_library,
         _timestamped_log_path as timestamped_log_path_from_library,
+    )
+    from nl_code.optim.humaneval_dspy_logs import (
+        HumanEvalDspyAttemptSnapshot,
+        load_humaneval_dspy_log_snapshot,
+        parse_humaneval_dspy_logs,
+        token_count,
     )
 
     NOTEBOOK_PATH = Path(__file__).resolve()
@@ -48,6 +55,9 @@ with app.setup:
     LOGS_DIR.mkdir(exist_ok=True)
     HUMAN_EVAL_DSPY_LOG_PATH = LOGS_DIR / (
         f"human_eval_dspy_{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}.jsonl"
+    )
+    HUMAN_EVAL_DSPY_SNAPSHOT_PATH = (
+        LOGS_DIR / "human_eval_dspy_snapshot_latest.json"
     )
     HUMAN_EVAL_DSPY_LOG_PATH.touch(exist_ok=True)
 
@@ -84,7 +94,7 @@ def _():
     """),
         ]
     )
-    return
+    return (ds,)
 
 
 @app.cell
@@ -111,9 +121,355 @@ def _(OPENROUTER_API_KEY, OPENROUTER_BASE_URL, model, reasoning_effort):
 @app.cell(hide_code=True)
 def _():
     mo.md(r"""
+    ### Parsed Eval Snapshot
+    """)
+    return
+
+
+@app.cell(hide_code=True)
+def _():
+    if HUMAN_EVAL_DSPY_SNAPSHOT_PATH.exists():
+        human_eval_log_snapshot = load_humaneval_dspy_log_snapshot(
+            HUMAN_EVAL_DSPY_SNAPSHOT_PATH
+        )
+        snapshot_source = HUMAN_EVAL_DSPY_SNAPSHOT_PATH
+    else:
+        human_eval_log_snapshot = parse_humaneval_dspy_logs(LOGS_DIR)
+        snapshot_source = LOGS_DIR
+
+    mo.vstack(
+        [
+            mo.md(
+                f"""
+    Loaded **{len(human_eval_log_snapshot.runs)}** runs, **{len(human_eval_log_snapshot.attempts)}** attempts, **{len(human_eval_log_snapshot.failed_attempts)}** failed attempts, and **{len(human_eval_log_snapshot.generation_calls)}** generation calls from `{snapshot_source.relative_to(REPO_ROOT)}`.
+    """
+            ),
+            mo.ui.table(
+                pd.DataFrame.from_records(human_eval_log_snapshot.pipeline_rows()),
+                page_size=10,
+            ),
+        ]
+    )
+    return (human_eval_log_snapshot,)
+
+
+@app.cell(hide_code=True)
+def _(human_eval_log_snapshot):
+    eval_runs_df = pd.DataFrame.from_records(human_eval_log_snapshot.run_rows())
+    eval_attempts_df = pd.DataFrame.from_records(
+        human_eval_log_snapshot.attempt_rows()
+    )
+    generation_calls_df = pd.DataFrame.from_records(
+        human_eval_log_snapshot.generation_call_rows()
+    )
+
+    if eval_attempts_df.empty:
+        aggregate_pass_df = pd.DataFrame()
+        failed_attempts_df = pd.DataFrame()
+    else:
+        evaluated_attempts_df = eval_attempts_df.loc[
+            ~eval_attempts_df["skipped"].fillna(False)
+        ].copy()
+        aggregate_attempt_df = (
+            evaluated_attempts_df.groupby("generation_type", dropna=False)
+            .agg(
+                evaluated_attempts=("passed", "size"),
+                full_pass_attempts=("passed", "sum"),
+                average_test_pass_rate=("pass_rate", "mean"),
+                mean_failed_tests=("failed_test_count", "mean"),
+            )
+            .reset_index()
+        )
+        sample_best_df = (
+            evaluated_attempts_df.groupby(
+                ["generation_type", "task_id"], dropna=False
+            )["passed"]
+            .max()
+            .reset_index()
+            .groupby("generation_type", dropna=False)
+            .agg(
+                unique_samples=("task_id", "size"),
+                best_of_n_passes=("passed", "sum"),
+            )
+            .reset_index()
+        )
+        aggregate_pass_df = aggregate_attempt_df.merge(
+            sample_best_df,
+            on="generation_type",
+            how="left",
+        )
+        aggregate_pass_df["attempt_pass_rate"] = (
+            aggregate_pass_df["full_pass_attempts"]
+            / aggregate_pass_df["evaluated_attempts"]
+        )
+        aggregate_pass_df["best_of_n_sample_pass_rate"] = (
+            aggregate_pass_df["best_of_n_passes"]
+            / aggregate_pass_df["unique_samples"]
+        )
+        failed_attempts_df = (
+            evaluated_attempts_df.loc[evaluated_attempts_df["pass_rate"] < 1.0]
+            .sort_values(
+                ["task_id", "generation_type", "timestamp", "run_log_name"],
+                na_position="last",
+            )
+            .reset_index(drop=True)
+        )
+    return (
+        aggregate_pass_df,
+        eval_runs_df,
+        failed_attempts_df,
+        generation_calls_df,
+    )
+
+
+@app.cell(hide_code=True)
+def _(aggregate_pass_df, eval_runs_df, generation_calls_df):
+    if eval_runs_df.empty:
+        log_summary_display = mo.md("No parsed HumanEval DSPy eval logs found.")
+    else:
+        generation_usage_display = (
+            mo.md("_No generation call records found._")
+            if generation_calls_df.empty
+            else mo.ui.table(
+                generation_calls_df[
+                    [
+                        "generation_log_name",
+                        "record_index",
+                        "prompt_kind",
+                        "model",
+                        "total_tokens",
+                        "cost",
+                    ]
+                ].head(100),
+                page_size=10,
+            )
+        )
+        log_summary_display = mo.vstack(
+            [
+                mo.md("#### Run Summary"),
+                mo.ui.table(eval_runs_df, page_size=10),
+                mo.md("#### Aggregate Pass Rates"),
+                mo.ui.table(aggregate_pass_df, page_size=10),
+                # mo.md("#### Generation Call Usage"),
+                # generation_usage_display,
+            ]
+        )
+
+    log_summary_display
+    return
+
+
+@app.cell(hide_code=True)
+def _(failed_attempts_df, human_eval_log_snapshot):
+    failed_task_ids = human_eval_log_snapshot.failed_task_ids
+    if not failed_task_ids:
+        failed_task_control = None
+        failed_task_selector_display = mo.md(
+            "No failed tasks found in the parsed snapshot."
+        )
+    else:
+        failed_task_control = mo.ui.dropdown(
+            options=failed_task_ids,
+            value=failed_task_ids[0],
+            label="Failed task",
+        )
+        overview_columns = [
+            "generation_type",
+            "dataset_index",
+            "task_id",
+            "repeat_index",
+            "pass_rate",
+            "failed_test_count",
+            "first_failed_error",
+            "run_log_name",
+        ]
+        failed_task_selector_display = mo.vstack(
+            [
+                mo.md(f"#### Failed Tasks ({len(failed_task_ids)})"),
+                failed_task_control,
+                mo.ui.table(
+                    failed_attempts_df[overview_columns].head(100),
+                    page_size=10,
+                    wrapped_columns=["first_failed_error", "run_log_name"],
+                ),
+            ]
+        )
+
+    failed_task_selector_display
+    return (failed_task_control,)
+
+
+@app.cell(hide_code=True)
+def _():
+    mo.md(r"""
     ### Helpers
     """)
     return
+
+
+@app.function(hide_code=True)
+def render_attempt_generation_calls(generation_calls):
+    if not generation_calls:
+        return mo.md("_No per-call LM history is available for this attempt._")
+    return mo.vstack(
+        [
+            mo.accordion(
+                {
+                    f"{call.attempt.call_index if call.attempt else call.record_index}: {call.prompt_kind or 'unknown prompt'}": mo.vstack(
+                        [
+                            mo.md("##### Messages"),
+                            mo.ui.code_editor(
+                                json.dumps(call.messages, indent=2),
+                                language="json",
+                            ),
+                            mo.md("##### Output"),
+                            mo.ui.code_editor(
+                                "\n\n".join(call.outputs),
+                                language="text",
+                            ),
+                            mo.md("##### Usage"),
+                            mo.ui.table(
+                                pd.DataFrame(
+                                    [
+                                        {
+                                            "model": call.model,
+                                            "response_model": call.response_model,
+                                            "prompt_tokens": token_count(
+                                                call.usage,
+                                                "prompt_tokens",
+                                                "input_tokens",
+                                            ),
+                                            "completion_tokens": token_count(
+                                                call.usage,
+                                                "completion_tokens",
+                                                "output_tokens",
+                                            ),
+                                            "total_tokens": token_count(
+                                                call.usage,
+                                                "total_tokens",
+                                            ),
+                                            "cost": call.cost,
+                                        }
+                                    ]
+                                )
+                            ),
+                        ]
+                    )
+                }
+            )
+            for call in generation_calls
+        ]
+    )
+
+
+@app.function(hide_code=True)
+def render_encdec_attempt_sequence(sample, attempt, generation_calls=None):
+    if attempt is None:
+        return mo.md(
+            "_No encoder-decoder attempt is available for this task._"
+        )
+    return mo.vstack(
+        [
+            mo.md("### Encoder-Decoder Generation"),
+            attempt_metadata_table(attempt),
+            mo.md("#### 1. Ground-truth code sent to encoder"),
+            mo.ui.code_editor(sample.gt_solution, language="python"),
+            mo.md("#### 2. Encoded natural-language specification"),
+            mo.ui.code_editor(attempt.code_spec or "", language="markdown"),
+            mo.md("#### 3. Raw LM calls logged for this attempt"),
+            render_attempt_generation_calls(generation_calls or []),
+            mo.md("#### 4. Function stub sent to decoder"),
+            mo.ui.code_editor(sample.function_stub, language="python"),
+            mo.md("#### 5. Raw decoded completion"),
+            mo.ui.code_editor(attempt.raw_completed_code, language="python"),
+            mo.md("#### 6. Extracted code evaluated"),
+            mo.ui.code_editor(attempt.extracted_code, language="python"),
+            mo.md("#### 7. Test execution results"),
+            attempt_results_table(attempt),
+        ]
+    )
+
+
+@app.function(hide_code=True)
+def render_direct_attempt_sequence(sample, attempt, generation_calls=None):
+    if attempt is None:
+        return mo.md("_No direct attempt is available for this task._")
+    return mo.vstack(
+        [
+            mo.md("### Direct Generation"),
+            attempt_metadata_table(attempt),
+            mo.md("#### 1. Prompt sent to the model"),
+            mo.ui.code_editor(sample.source__prompt, language="python"),
+            mo.md("#### 2. Raw LM calls logged for this attempt"),
+            render_attempt_generation_calls(generation_calls or []),
+            mo.md("#### 3. Raw model completion"),
+            mo.ui.code_editor(attempt.raw_completed_code, language="python"),
+            mo.md("#### 4. Extracted code evaluated"),
+            mo.ui.code_editor(attempt.extracted_code, language="python"),
+            mo.md("#### 5. Ground-truth reference"),
+            mo.ui.code_editor(sample.gt_solution, language="python"),
+            mo.md("#### 6. Test execution results"),
+            attempt_results_table(attempt),
+        ]
+    )
+
+
+@app.function(hide_code=True)
+def attempt_metadata_table(attempt: HumanEvalDspyAttemptSnapshot):
+    return mo.ui.table(
+        pd.DataFrame(
+            [
+                {
+                    "run": attempt.source_file.name,
+                    "task_id": attempt.task_id,
+                    "dataset_index": attempt.dataset_index,
+                    "repeat_index": attempt.repeat_index,
+                    "pass_rate": attempt.test_pass_rate,
+                    "failed_tests": attempt.failed_test_count,
+                    "error": attempt.error,
+                }
+            ]
+        ),
+        selection=None,
+        wrapped_columns=["run", "error"],
+    )
+
+
+@app.function(hide_code=True)
+def latest_attempt_for_generation(
+    human_eval_log_snapshot,
+    task_id: str,
+    generation_type: str,
+) -> HumanEvalDspyAttemptSnapshot | None:
+    attempts = [
+        attempt
+        for attempt in human_eval_log_snapshot.attempts_for_task(task_id)
+        if attempt.generation_type == generation_type
+    ]
+    if not attempts:
+        return None
+    return sorted(
+        attempts,
+        key=lambda attempt: (
+            attempt.timestamp or datetime.min.replace(tzinfo=timezone.utc),
+            attempt.run_id,
+            attempt.repeat_index or 0,
+        ),
+    )[-1]
+
+
+@app.function(hide_code=True)
+def attempt_results_table(attempt: HumanEvalDspyAttemptSnapshot):
+    results_df = pd.DataFrame.from_records(
+        [result.model_dump() for result in attempt.test_case_results]
+    )
+    if results_df.empty:
+        return mo.md("_No test case results recorded._")
+    return mo.ui.table(
+        results_df,
+        page_size=10,
+        wrapped_columns=["error", "compile_error"],
+    )
 
 
 @app.cell
@@ -413,12 +769,20 @@ def _(lm):
             }
 
         output = {"skipped": False, "error": None, "task_id": data_sample.task_id}
+        history_start_index = lm_history_length(lm)
         output["prediction"] = generator(
             code_stub=data_sample.source__prompt,
         )
-        output["log_file"] = dump_latest_lm_history(
+        output["log_file"] = dump_lm_history_since(
             lm,
             Path(log_file) if log_file is not None else None,
+            start_index=history_start_index,
+            attempt_metadata={
+                "generation_type": "direct",
+                "dataset_index": None,
+                "task_id": data_sample.task_id,
+                "repeat_index": 0,
+            },
         )
         output["extracted"] = extract_python_code(
             output["prediction"].completed_code
@@ -454,13 +818,21 @@ def _(lm):
             }
 
         output = {"skipped": False, "error": None, "task_id": data_sample.task_id}
+        history_start_index = lm_history_length(lm)
         output["prediction"] = generator(
             input_code=data_sample.gt_solution,
             function_stub=data_sample.function_stub,
         )
-        output["log_file"] = dump_latest_lm_history(
+        output["log_file"] = dump_lm_history_since(
             lm,
             Path(log_file) if log_file is not None else None,
+            start_index=history_start_index,
+            attempt_metadata={
+                "generation_type": "encdec",
+                "dataset_index": None,
+                "task_id": data_sample.task_id,
+                "repeat_index": 0,
+            },
         )
         output["extracted"] = extract_python_code(
             output["prediction"].completed_code
@@ -638,14 +1010,74 @@ def render_sample_fields(sample, *, prefix=None, suppress_prefix=None):
 
 
 @app.cell(column=1, hide_code=True)
-def _():
-    mo.md(r"""
-    ### Logged Eval Analysis
-    """)
-    return
+def _(ds, failed_task_control, human_eval_log_snapshot):
+    if failed_task_control is None:
+        encdec_attempt = None
+        encdec_generation_calls = []
+        selected_sample = None
+        failed_task_detail_display = mo.md(
+            "Select a failed task to inspect the full direct and encoder-decoder sequences."
+        )
+    else:
+        selected_task_id = failed_task_control.value
+        selected_sample = ds.raw_samples.get(selected_task_id)
+        if selected_sample is None:
+            task_attempts = human_eval_log_snapshot.attempts_for_task(
+                selected_task_id
+            )
+            selected_sample = ds.get_raw_sample_at_index(
+                int(task_attempts[0].dataset_index)
+            )
+        direct_attempt = latest_attempt_for_generation(
+            human_eval_log_snapshot,
+            selected_task_id,
+            "direct",
+        )
+        encdec_attempt = latest_attempt_for_generation(
+            human_eval_log_snapshot,
+            selected_task_id,
+            "encdec",
+        )
+        direct_generation_calls = human_eval_log_snapshot.generation_calls_for_attempt(
+            direct_attempt
+        )
+        encdec_generation_calls = human_eval_log_snapshot.generation_calls_for_attempt(
+            encdec_attempt
+        )
+        failed_task_detail_display = mo.vstack(
+            [
+                mo.md(f"## Failed Case: `{selected_task_id}`"),
+                mo.hstack(
+                    [
+                        render_direct_attempt_sequence(
+                            selected_sample,
+                            direct_attempt,
+                            direct_generation_calls,
+                        ),
+                    ]
+                ),
+            ]
+        )
+
+    failed_task_detail_display
+    return encdec_attempt, encdec_generation_calls, selected_sample
 
 
 @app.cell(column=2, hide_code=True)
+def _(encdec_attempt, encdec_generation_calls, selected_sample):
+    (
+        mo.md("Select a failed task to inspect the encoder-decoder sequence.")
+        if selected_sample is None
+        else render_encdec_attempt_sequence(
+            selected_sample,
+            encdec_attempt,
+            encdec_generation_calls,
+        )
+    )
+    return
+
+
+@app.cell(column=3, hide_code=True)
 def _():
     mo.md(r"""
     (leave space)

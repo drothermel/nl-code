@@ -363,12 +363,45 @@ def dump_latest_lm_history(lm_instance: Any, log_file: Path | None) -> Path | No
     history = getattr(lm_instance, "history", None)
     if not history:
         return None
+    return dump_lm_history_since(
+        lm_instance,
+        log_file,
+        start_index=len(history) - 1,
+    )
 
-    record = dict(history[-1])
-    record.setdefault("timestamp", datetime.now(timezone.utc).isoformat())
+
+def lm_history_length(lm_instance: Any) -> int:
+    history = getattr(lm_instance, "history", None)
+    return len(history) if history else 0
+
+
+def dump_lm_history_since(
+    lm_instance: Any,
+    log_file: Path | None,
+    *,
+    start_index: int,
+    attempt_metadata: dict[str, Any] | None = None,
+) -> Path | None:
+    if log_file is None:
+        return None
+    history = getattr(lm_instance, "history", None)
+    if not history or start_index >= len(history):
+        return None
+
+    records = []
+    for offset, history_record in enumerate(history[start_index:], start=start_index):
+        record = dict(history_record)
+        record.setdefault("timestamp", datetime.now(timezone.utc).isoformat())
+        if attempt_metadata is not None:
+            record["attempt"] = attempt_metadata | {"call_index": offset - start_index}
+        records.append(record)
+
     log_file.parent.mkdir(parents=True, exist_ok=True)
     with log_file.open("a", encoding="utf-8") as file:
-        file.write(json.dumps(record, default=_json_default, ensure_ascii=False) + "\n")
+        for record in records:
+            file.write(
+                json.dumps(record, default=_json_default, ensure_ascii=False) + "\n"
+            )
     return log_file
 
 
@@ -396,6 +429,7 @@ def _run_attempt(
             generation_log_file=None,
         )
 
+    history_start_index = lm_history_length(lm)
     prediction = _generate_prediction(
         sample=sample,
         generation_type=generation_type,
@@ -404,7 +438,17 @@ def _run_attempt(
     )
     completed_code = _prediction_field(prediction, "completed_code", default="")
     code_spec = _prediction_field(prediction, "code_spec", default=None)
-    logged_history_path = dump_latest_lm_history(lm, generation_log_file)
+    logged_history_path = dump_lm_history_since(
+        lm,
+        generation_log_file,
+        start_index=history_start_index,
+        attempt_metadata={
+            "generation_type": generation_type.value,
+            "dataset_index": dataset_index,
+            "task_id": sample.task_id,
+            "repeat_index": repeat_index,
+        },
+    )
     try:
         extracted_code, test_case_results, pass_rate = evaluate_completed_code(
             completed_code=completed_code,

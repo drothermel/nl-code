@@ -67,6 +67,11 @@ class FakeLm:
     history: list[dict[str, Any]] = [{"model": "fake"}]
 
 
+class MutableFakeLm:
+    def __init__(self) -> None:
+        self.history: list[dict[str, Any]] = []
+
+
 def test_select_dataset_indices_skips_unevaluable_samples() -> None:
     dataset = _fake_dataset()
 
@@ -206,6 +211,47 @@ def test_fenced_code_is_extracted_before_eval(
     assert "```" not in captured_code
 
 
+def test_encdec_eval_logs_all_lm_calls_from_attempt(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(eval_mod, "run_test_cases", _fake_run_test_cases)
+    lm = MutableFakeLm()
+    generation_log_file = tmp_path / "generations.jsonl"
+
+    class RecordingEncoderDecoderGenerator:
+        def __call__(self, *, input_code: str, function_stub: str) -> FakePrediction:
+            lm.history.append(_history_record("encode", input_code))
+            lm.history.append(_history_record("decode", function_stub))
+            return FakePrediction(
+                code_spec="add one",
+                completed_code="def add_one(x):\n    return x + 1\n",
+            )
+
+    run = eval_mod.run_humaneval_dspy_eval(
+        HumanEvalDspyEvalConfig(
+            generation_type=GenerationType.ENCDEC,
+            sample_indices=[0],
+            output_dir=tmp_path,
+            generation_log_file=generation_log_file,
+        ),
+        dataset=_fake_dataset(),
+        direct_generator=FakeDirectGenerator(),
+        encoder_decoder_generator=RecordingEncoderDecoderGenerator(),
+        lm=lm,
+    )
+
+    records = [
+        json.loads(line)
+        for line in generation_log_file.read_text(encoding="utf-8").splitlines()
+    ]
+    assert run.attempts[0].generation_log_file == generation_log_file
+    assert [record["kind"] for record in records] == ["encode", "decode"]
+    assert [record["attempt"]["call_index"] for record in records] == [0, 1]
+    assert {record["attempt"]["task_id"] for record in records} == {"HumanEval/0"}
+    assert {record["attempt"]["generation_type"] for record in records} == {"encdec"}
+
+
 def test_summary_reports_attempt_and_best_of_n_rates() -> None:
     summary = summarize_attempts(
         [
@@ -313,6 +359,15 @@ def _fake_run_test_cases(**kwargs: Any) -> tuple[list[TestCaseResult], float]:
         )
         for test_case in test_cases
     ], 1.0
+
+
+def _history_record(kind: str, content: str) -> dict[str, Any]:
+    return {
+        "kind": kind,
+        "messages": [{"role": "user", "content": content}],
+        "outputs": [content],
+        "usage": {"total_tokens": 1},
+    }
 
 
 def _attempt(
