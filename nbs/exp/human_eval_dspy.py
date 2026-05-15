@@ -12,6 +12,9 @@ app = marimo.App(width="columns")
 
 with app.setup:
     import marimo as mo
+    import os
+    from litellm import completion
+    import dspy
 
     from nl_code.datasets import HumanEvalDataset
 
@@ -115,11 +118,100 @@ def _(ex):
 
 
 @app.cell
-def _():
+def _(OPENROUTER_API_KEY, OPENROUTER_BASE_URL, model):
+    lm = dspy.LM(model, api_key=OPENROUTER_API_KEY, api_base=OPENROUTER_BASE_URL)
+    dspy.configure(lm=lm)
+    dspy.configure_cache(
+        enable_disk_cache=False,
+        enable_memory_cache=False,
+    )
+    return (lm,)
+
+
+@app.cell
+def _(lm):
+    lm("Say this is a test!")
+    return
+
+
+@app.cell
+def _(lm, messages, reasoning):
+    lm(messages=messages, reasoning=reasoning)
     return
 
 
 @app.cell(column=2, hide_code=True)
+def _():
+    mo.md(r"""
+    ### Test out LiteLLM Direct
+    """)
+    return
+
+
+@app.cell
+def _():
+    # Configure with environment variables
+    OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+    OPENROUTER_BASE_URL = os.getenv(
+        "OPENROUTER_API_BASE", "https://openrouter.ai/api/v1"
+    )
+
+    # Set environment for LiteLLM
+    os.environ["OPENROUTER_API_KEY"] = OPENROUTER_API_KEY
+    os.environ["OPENROUTER_API_BASE"] = OPENROUTER_BASE_URL
+    return OPENROUTER_API_KEY, OPENROUTER_BASE_URL
+
+
+@app.cell
+def _():
+    model = "openrouter/openai/gpt-5-nano"
+    return (model,)
+
+
+@app.cell
+def _():
+    messages = [{"role": "user", "content": "Hello, how are you?"}]
+    return (messages,)
+
+
+@app.cell
+def _():
+    reasoning = {
+        "effort": "minimal",
+    }
+    return (reasoning,)
+
+
+@app.cell
+def _(OPENROUTER_BASE_URL, messages, model):
+    response = completion(
+        model=model,
+        messages=messages,
+        base_url=OPENROUTER_BASE_URL,
+    )
+    response
+    return (response,)
+
+
+@app.cell(hide_code=True)
+def _(response):
+    mo.vstack(
+        [
+            mo.md(f">{response.choices[0].message.content}"),
+            dict(response),
+            dict(response.choices[0].message),
+            dict(response.usage),
+        ]
+    )
+    return
+
+
+@app.cell
+def _():
+    return
+
+
+@app.cell(column=3, hide_code=True)
 def _():
     mo.md(r"""
     (leave space)
