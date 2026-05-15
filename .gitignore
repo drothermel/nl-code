@@ -1,4 +1,6 @@
 .env
+__marimo__/
+
 # Python
 __pycache__/
 *.pyc
