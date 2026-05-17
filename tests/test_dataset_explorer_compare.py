@@ -133,13 +133,9 @@ def test_get_comparison_summarizes_counts_metrics_and_ratios(
     assert human_row.flawed_rate == 1.0
 
     human_metric_stats = _metric_stats_by_key(human_row)
-    human_task = explorer_service.DATASET_CACHE["humaneval-plus"].tasks["HumanEval/0"]
     human_raw = cast(
         RawHumanEvalTask,
         explorer_service.DATASET_CACHE["humaneval-plus"].raw_samples["HumanEval/0"],
-    )
-    assert human_metric_stats["description_length_chars"].median == float(
-        len(human_task.description)
     )
     assert human_metric_stats["prompt_length_chars"].median == float(
         len(human_raw.source.prompt)
@@ -199,11 +195,11 @@ def test_compare_endpoint_returns_compare_payload(
         "mbpp-pro",
     ]
     assert any(
-        series["key"] == "description_length_chars"
+        series["key"] == "derived_code_length_chars"
         for series in payload["metric_series"]
     )
     assert any(
-        series["key"] == "description_to_prompt_ratio"
+        series["key"] == "derived_code_to_raw_source_ratio"
         for series in payload["ratio_series"]
     )
 

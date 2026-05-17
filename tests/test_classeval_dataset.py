@@ -29,7 +29,6 @@ class TestClassEvalDataset:
         task = ds.tasks["ClassEval_0"]
         raw_task = cast(RawClassEvalTask, ds.raw_samples["ClassEval_0"])
         assert task.entry_point_name == "Calculator"
-        assert task.description == "A simple calculator."
         assert "class Calculator" in task.gt_solution
         assert task.gt_solution == raw_task.gt_code
 

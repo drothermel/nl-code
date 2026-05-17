@@ -7,10 +7,6 @@ from nl_code.datasets.humaneval_task import (
     RawHumanEvalTask,
     build_assertion_test_code,
     build_function_source,
-    build_function_without_comments,
-    build_function_stub,
-    extract_docstrings,
-    extract_prompt_comment,
     parse_inputs_ref_func_test,
     parse_inputs_results_test,
 )
@@ -23,31 +19,9 @@ class TestHelperFunctions:
         result = build_function_source("def foo():", "    pass")
         assert result == "def foo():\n    pass\n"
 
-    def test_build_function_without_comments(self) -> None:
-        result = build_function_without_comments(
-            '# comment\ndef foo():\n    """Hello world."""\n',
-            "    pass\n",
-        )
-        assert result == "def foo():\n    pass\n"
-
     def test_merge_rejects_non_strings(self) -> None:
         with pytest.raises(TypeError, match="prompt must be a string"):
             build_function_source(123, "x")
-
-    def test_extract_docstrings(self) -> None:
-        prompt = 'def foo():\n    """Hello world."""\n'
-        assert extract_docstrings(prompt, "foo") == "Hello world."
-
-    def test_extract_prompt_comment(self) -> None:
-        prompt = "# a comment\ndef foo():\n    pass\n"
-        assert extract_prompt_comment(prompt) == "a comment"
-
-    def test_extract_prompt_comment_none(self) -> None:
-        assert extract_prompt_comment("def foo():\n    pass\n") == ""
-
-    def test_build_function_stub(self) -> None:
-        prompt = 'def foo():\n    """Hello world."""\n'
-        assert build_function_stub(prompt) == "def foo():\n"
 
     def test_build_assertion_test_code(self) -> None:
         test_source = "def check(candidate):\n    assert candidate(1, 2) == 3\n"
@@ -175,9 +149,7 @@ class TestHelperFunctions:
 class TestRawHumanEvalTask:
     def test_non_code_fields(self) -> None:
         assert RawHumanEvalTask.non_code_fields == (
-            "docstrings",
             "entry_point",
-            "prompt_comment",
             "task_id",
             "validated",
             "version",
@@ -193,7 +165,7 @@ class TestRawHumanEvalTask:
         assert valid_raw_task.test_suite.source == valid_raw_task.source.test
         assert valid_raw_task.validated is False
 
-    def test_additional_derived_prompt_fields(self) -> None:
+    def test_additional_derived_solution_fields(self) -> None:
         row = make_raw_humaneval_task_input(
             prompt=textwrap.dedent('''\
                 # Add two integers.
@@ -211,27 +183,16 @@ class TestRawHumanEvalTask:
         )
         task = RawHumanEvalTask.model_validate(row)
 
-        assert task.docstrings == "Return the sum."
-        assert task.prompt_comment == "Add two integers."
-        assert task.function_stub == textwrap.dedent("""\
-            # Add two integers.
-            def add(a: int, b: int) -> int:
-        """)
-        assert task.function_stub_with_comments == row["source"]["prompt"]
-        assert task.new_code_stub == task.function_stub
-        assert task.new_code_stub_with_comments == task.function_stub_with_comments
-        assert task.function_with_comments == textwrap.dedent('''\
+        assert task.gt_solution_with_comments == textwrap.dedent('''\
             # Add two integers.
             def add(a: int, b: int) -> int:
                 """Return the sum."""
                 return a + b
         ''')
-        assert task.function == textwrap.dedent("""\
+        assert task.gt_solution == textwrap.dedent("""\
             def add(a: int, b: int) -> int:
                 return a + b
         """)
-        assert task.gt_solution_with_comments == task.function_with_comments
-        assert task.gt_solution == task.function
         assert task.test_suite.shape == "inputs_results"
         assert task.test_suite.inputs == [[1, 2], [0, 0]]
         assert task.test_suite.results == [3, 0]
@@ -258,17 +219,6 @@ class TestRawHumanEvalTask:
     ) -> None:
         assert '"""' in valid_raw_task.gt_solution_with_comments
         assert "add" in valid_raw_task.gt_solution_with_comments
-
-    def test_computed_function_without_comments(
-        self,
-        valid_raw_task: RawHumanEvalTask,
-    ) -> None:
-        assert '"""' not in valid_raw_task.function
-        assert "#" not in valid_raw_task.function
-        assert "def add" in valid_raw_task.function
-
-    def test_computed_docstrings(self, valid_raw_task: RawHumanEvalTask) -> None:
-        assert valid_raw_task.docstrings == "Add two integers and return the result."
 
     def test_computed_test_suite(self, valid_raw_task: RawHumanEvalTask) -> None:
         assert valid_raw_task.test_suite.inputs == [[1, 2], [0, 0], [-1, 1]]

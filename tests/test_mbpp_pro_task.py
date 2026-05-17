@@ -156,8 +156,6 @@ class TestRawMbppProTask:
             def add_pairs(pairs: list[tuple[int, int]]) -> list[int]:
         """)
         assert task.new_function_stub_with_comments == row["new_problem"]
-        assert task.new_code_stub == task.new_function_stub
-        assert task.new_code_stub_with_comments == task.new_function_stub_with_comments
         assert task.new_two_part_function_stub == textwrap.dedent("""\
             import math
             from collections import deque

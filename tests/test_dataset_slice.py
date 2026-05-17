@@ -105,17 +105,3 @@ class TestDatasetSlice:
         prompt = sl.get_official_prompt("HumanEval/0")
         assert prompt.startswith("def add")
         assert '"""' in prompt
-
-    def test_get_code_stub(self, loaded_dataset: HumanEvalDataset) -> None:
-        sl = DatasetSlice(dataset=loaded_dataset)
-        code_stub = sl.get_code_stub("HumanEval/0")
-        assert "def add" in code_stub
-        assert '"""' not in code_stub
-
-    def test_get_code_stub_with_comments(
-        self, loaded_dataset: HumanEvalDataset
-    ) -> None:
-        sl = DatasetSlice(dataset=loaded_dataset)
-        code_stub = sl.get_code_stub_with_comments("HumanEval/0")
-        assert "def add" in code_stub
-        assert '"""' in code_stub

@@ -32,8 +32,7 @@ with app.setup:
     from nl_code.datasets.humaneval_dataset import HumanEvalDataset
     from nl_code.datasets.humaneval_pro_dataset import HumanEvalProDataset
     from nl_code.datasets.mbpp_pro_dataset import MbppProDataset
-    from nl_code.evaluation.length import compression_ratio, measure_length
-    from nl_code.evaluation.overlap import lexical_overlap
+    from nl_code.evaluation.length import measure_length
     from nl_code.evaluation.tokenizer import tokenize
 
     def normalize_analysis_output(value):
@@ -99,13 +98,7 @@ with app.setup:
             "aggregate_analysis": aggregate_analysis,
             "text_code_metrics": {
                 "code_tokens": tokenize(extracted_code),
-                "description_tokens": tokenize(task.description),
                 "code_length": measure_length(extracted_code),
-                "description_length": measure_length(task.description),
-                "compression_ratio": compression_ratio(
-                    task.description, extracted_code
-                ),
-                "lexical_overlap": lexical_overlap(task.description, extracted_code),
             },
         }
         return normalize_analysis_output(results)

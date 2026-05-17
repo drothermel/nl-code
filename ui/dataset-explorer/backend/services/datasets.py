@@ -110,8 +110,6 @@ DATASET_CACHE: dict[str, Dataset] = {}
 DATASET_LOAD_LOCKS: dict[str, Lock] = {key: Lock() for key in DATASET_REGISTRY}
 
 METRIC_LABELS: dict[str, str] = {
-    "description_length_chars": "Description Length (chars)",
-    "description_length_tokens": "Description Length (tokens)",
     "derived_code_length_chars": "Derived Code Length (chars)",
     "derived_code_length_tokens": "Derived Code Length (tokens)",
     "derived_code_length_lines": "Derived Code Length (lines)",
@@ -121,12 +119,6 @@ METRIC_LABELS: dict[str, str] = {
 }
 
 RATIO_DEFINITIONS: tuple[tuple[str, str, str, str], ...] = (
-    (
-        "description_to_prompt_ratio",
-        "Description / Prompt",
-        "description_length_chars",
-        "prompt_length_chars",
-    ),
     (
         "derived_code_to_raw_source_ratio",
         "Derived Code / Raw Source",
@@ -343,7 +335,6 @@ def list_tasks(
             for row in rows
             if needle in row.task_id.lower()
             or needle in (row.entry_point_name or "").lower()
-            or needle in (row.description_preview or "").lower()
             or needle in (row.error_summary or "").lower()
         ]
 
@@ -378,7 +369,6 @@ def get_task_detail(dataset_key: str, task_id: str) -> TaskDetailResponse:
         dataset=_dataset_option(entry),
         task_id=task_id,
         entry_point_name=task.entry_point_name,
-        description=task.description,
         gt_solution=task.gt_solution,
         metrics=[
             NumericMetric(key=key, label=METRIC_LABELS[key], value=float(value))
@@ -499,11 +489,6 @@ def _build_task_rows(dataset: Dataset, entry: DatasetRegistryEntry) -> list[Task
                 status="valid",
                 has_derived_task=True,
                 entry_point_name=task.entry_point_name,
-                description_preview=_preview(task.description),
-                description_length_chars=_safe_int(metrics["description_length_chars"]),
-                description_length_tokens=_safe_int(
-                    metrics["description_length_tokens"]
-                ),
                 derived_code_length_chars=_safe_int(
                     metrics["derived_code_length_chars"]
                 ),
@@ -536,31 +521,14 @@ def _build_task_rows(dataset: Dataset, entry: DatasetRegistryEntry) -> list[Task
 def _build_scatter_plots(
     dataset: Dataset, entry: DatasetRegistryEntry
 ) -> list[MetricScatter]:
-    description_vs_code: list[ScatterPoint] = []
-    description_tokens_vs_code_tokens: list[ScatterPoint] = []
     prompt_vs_code: list[ScatterPoint] = []
 
     for task_id, task in dataset.tasks.items():
         raw = dataset.raw_samples[task_id]
         metrics = _extract_metrics(entry.family, raw, task)
-        description_length = metrics["description_length_chars"]
-        description_tokens = metrics["description_length_tokens"]
         prompt_length = metrics["prompt_length_chars"]
         code_length = metrics["derived_code_length_chars"]
-        code_tokens = metrics["derived_code_length_tokens"]
 
-        if description_length is not None and code_length is not None:
-            description_vs_code.append(
-                ScatterPoint(
-                    task_id=task_id, x=float(description_length), y=float(code_length)
-                )
-            )
-        if description_tokens is not None and code_tokens is not None:
-            description_tokens_vs_code_tokens.append(
-                ScatterPoint(
-                    task_id=task_id, x=float(description_tokens), y=float(code_tokens)
-                )
-            )
         if prompt_length is not None and code_length is not None:
             prompt_vs_code.append(
                 ScatterPoint(
@@ -568,29 +536,7 @@ def _build_scatter_plots(
                 )
             )
 
-    plots = [
-        MetricScatter(
-            key="description-vs-code",
-            label="Description vs Derived Code Length",
-            x_key="description_length_chars",
-            x_label=METRIC_LABELS["description_length_chars"],
-            y_key="derived_code_length_chars",
-            y_label=METRIC_LABELS["derived_code_length_chars"],
-            points=description_vs_code,
-        )
-    ]
-    if description_tokens_vs_code_tokens:
-        plots.append(
-            MetricScatter(
-                key="description-tokens-vs-code-tokens",
-                label="Description vs Derived Code Length (tokens)",
-                x_key="description_length_tokens",
-                x_label=METRIC_LABELS["description_length_tokens"],
-                y_key="derived_code_length_tokens",
-                y_label=METRIC_LABELS["derived_code_length_tokens"],
-                points=description_tokens_vs_code_tokens,
-            )
-        )
+    plots: list[MetricScatter] = []
     if prompt_vs_code:
         plots.append(
             MetricScatter(
@@ -623,11 +569,8 @@ def _build_error_groups(dataset: Dataset) -> list[FlawedErrorGroup]:
 
 
 def _extract_metrics(family: str, raw: Any, task: Task) -> dict[str, int | None]:
-    description_metrics = measure_length(task.description)
     derived_code_metrics = measure_length(task.gt_solution)
     metrics: dict[str, int | None] = {
-        "description_length_chars": description_metrics.char_count,
-        "description_length_tokens": description_metrics.token_count,
         "derived_code_length_chars": derived_code_metrics.char_count,
         "derived_code_length_tokens": derived_code_metrics.token_count,
         "derived_code_length_lines": _line_count(task.gt_solution),
@@ -669,9 +612,6 @@ def _build_derived_fields(
                 source="raw.entry_point",
             ),
             DerivedFieldSummary(
-                name="Task.description", value=task.description, source="raw.docstrings"
-            ),
-            DerivedFieldSummary(
                 name="Task.gt_solution",
                 value=task.gt_solution,
                 source="raw.gt_solution",
@@ -688,11 +628,6 @@ def _build_derived_fields(
                 source="raw.new_entry_point",
             ),
             DerivedFieldSummary(
-                name="Task.description",
-                value=task.description,
-                source="raw.new_description",
-            ),
-            DerivedFieldSummary(
                 name="Task.gt_solution",
                 value=task.gt_solution,
                 source="raw.gt_solution",
@@ -704,11 +639,6 @@ def _build_derived_fields(
             name="Task.entry_point_name",
             value=task.entry_point_name,
             source="raw.class_name",
-        ),
-        DerivedFieldSummary(
-            name="Task.description",
-            value=task.description,
-            source="raw.class_description",
         ),
         DerivedFieldSummary(
             name="Task.gt_solution", value=task.gt_solution, source="raw.gt_code"
@@ -793,18 +723,6 @@ def _humaneval_sections(raw: RawHumanEvalTask) -> list[InspectorSection]:
                     kind="text",
                     value=str(raw.validated),
                 ),
-                InspectorField(
-                    key="docstrings",
-                    label="Docstrings",
-                    kind="text",
-                    value=raw.docstrings,
-                ),
-                InspectorField(
-                    key="prompt_comment",
-                    label="Prompt Comment",
-                    kind="text",
-                    value=raw.prompt_comment,
-                ),
             ],
         ),
         InspectorSection(
@@ -817,31 +735,10 @@ def _humaneval_sections(raw: RawHumanEvalTask) -> list[InspectorSection]:
                     value=raw.source.prompt,
                 ),
                 InspectorField(
-                    key="function_stub",
-                    label="Function Stub",
-                    kind="code",
-                    value=raw.function_stub,
-                ),
-                InspectorField(
-                    key="function_stub_with_comments",
-                    label="Function Stub With Comments",
-                    kind="code",
-                    value=raw.function_stub_with_comments,
-                ),
-                InspectorField(
                     key="source.canonical_solution",
                     label="Source Canonical Solution",
                     kind="code",
                     value=raw.source.canonical_solution,
-                ),
-                InspectorField(
-                    key="function_with_comments",
-                    label="Function With Comments",
-                    kind="code",
-                    value=raw.function_with_comments,
-                ),
-                InspectorField(
-                    key="function", label="Function", kind="code", value=raw.function
                 ),
                 InspectorField(
                     key="gt_solution_with_comments",

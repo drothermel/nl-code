@@ -94,7 +94,6 @@ class BigCodeBenchLiteProDataset(Dataset):
             dataset=self.dataset_id,
             task_id=task_id,
             entry_point_name=raw.new_entry_point,
-            description=raw.new_description,
             gt_solution=raw.gt_solution,
             version=raw.version,
         )

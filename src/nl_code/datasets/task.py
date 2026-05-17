@@ -16,7 +16,6 @@ class Task(BaseModel):
     dataset: CodeDataset
     task_id: str
     entry_point_name: str
-    description: str
     gt_solution: str
     version: Literal["v1", "v2"] = "v2"
 

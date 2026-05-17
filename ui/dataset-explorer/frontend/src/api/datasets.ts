@@ -14,7 +14,6 @@ export interface TaskListParams {
   status?: "all" | "valid" | "flawed";
   sort?:
     | "task_id"
-    | "description_length_chars"
     | "derived_code_length_chars"
     | "prompt_length_chars"
     | "raw_source_length_chars"

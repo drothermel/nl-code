@@ -26,7 +26,6 @@ class TestMbppProDataset:
 
         task = ds.tasks["MbppPro/0"]
         assert task.entry_point_name == "add_pairs"
-        assert "list of pairs" in task.description
         assert '"""' not in task.gt_solution
 
     def test_flawed_rows_tracked(self, monkeypatch: pytest.MonkeyPatch) -> None:

@@ -44,12 +44,6 @@ class DatasetSlice(BaseModel):
             return raw.source.prompt
         return self._get_raw_str_field(task_id, "new_official_prompt")
 
-    def get_code_stub(self, task_id: str) -> str:
-        return self._get_raw_str_field(task_id, "new_code_stub")
-
-    def get_code_stub_with_comments(self, task_id: str) -> str:
-        return self._get_raw_str_field(task_id, "new_code_stub_with_comments")
-
     def _get_raw_str_field(self, task_id: str, field: str) -> str:
         raw = self.dataset.raw_samples[task_id]
         if not hasattr(raw, field):
