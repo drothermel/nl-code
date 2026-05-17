@@ -37,6 +37,11 @@ class DatasetSlice(BaseModel):
         return self._get_raw_str_field(task_id, self.raw_source_field)
 
     def get_official_prompt(self, task_id: str) -> str:
+        from nl_code.datasets.humaneval_task import RawHumanEvalTask
+
+        raw = self.dataset.raw_samples[task_id]
+        if isinstance(raw, RawHumanEvalTask):
+            return raw.source.prompt
         return self._get_raw_str_field(task_id, "new_official_prompt")
 
     def get_code_stub(self, task_id: str) -> str:
@@ -48,9 +53,7 @@ class DatasetSlice(BaseModel):
     def _get_raw_str_field(self, task_id: str, field: str) -> str:
         raw = self.dataset.raw_samples[task_id]
         if not hasattr(raw, field):
-            raise AttributeError(
-                f"Task {task_id!r}: raw sample has no field {field!r}"
-            )
+            raise AttributeError(f"Task {task_id!r}: raw sample has no field {field!r}")
         value = getattr(raw, field)
         if not isinstance(value, str):
             raise TypeError(

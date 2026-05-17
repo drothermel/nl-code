@@ -637,9 +637,9 @@ def _extract_metrics(family: str, raw: Any, task: Task) -> dict[str, int | None]
     }
     if family == "humaneval":
         assert isinstance(raw, RawHumanEvalTask)
-        metrics["prompt_length_chars"] = len(raw.official_prompt)
+        metrics["prompt_length_chars"] = len(raw.source.prompt)
         metrics["raw_source_length_chars"] = len(raw.gt_solution_with_comments)
-        metrics["test_length_chars"] = len(raw.test_suite.source__test)
+        metrics["test_length_chars"] = len(raw.source.test)
         return metrics
     if family == "pro":
         assert isinstance(
@@ -729,10 +729,10 @@ def _humaneval_sections(raw: RawHumanEvalTask) -> list[InspectorSection]:
             value=str(test_suite.case_count),
         ),
         InspectorField(
-            key="test_suite.source__test",
+            key="source.test",
             label="Source Test Suite",
             kind="code",
-            value=test_suite.source__test,
+            value=raw.source.test,
         ),
         InspectorField(
             key="test_suite.assertion_test_code",
@@ -811,16 +811,10 @@ def _humaneval_sections(raw: RawHumanEvalTask) -> list[InspectorSection]:
             title="Prompt and Solutions",
             fields=[
                 InspectorField(
-                    key="source__prompt",
+                    key="source.prompt",
                     label="Source Prompt",
                     kind="code",
-                    value=raw.source__prompt,
-                ),
-                InspectorField(
-                    key="official_prompt",
-                    label="Official Prompt",
-                    kind="code",
-                    value=raw.official_prompt,
+                    value=raw.source.prompt,
                 ),
                 InspectorField(
                     key="function_stub",
@@ -835,10 +829,10 @@ def _humaneval_sections(raw: RawHumanEvalTask) -> list[InspectorSection]:
                     value=raw.function_stub_with_comments,
                 ),
                 InspectorField(
-                    key="source__canonical_solution",
+                    key="source.canonical_solution",
                     label="Source Canonical Solution",
                     kind="code",
-                    value=raw.source__canonical_solution,
+                    value=raw.source.canonical_solution,
                 ),
                 InspectorField(
                     key="function_with_comments",

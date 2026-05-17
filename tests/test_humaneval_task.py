@@ -8,7 +8,6 @@ from nl_code.datasets.humaneval_task import (
     build_assertion_test_code,
     build_function_source,
     build_function_without_comments,
-    build_official_prompt,
     build_function_stub,
     extract_docstrings,
     extract_prompt_comment,
@@ -16,7 +15,7 @@ from nl_code.datasets.humaneval_task import (
     parse_inputs_results_test,
 )
 
-from conftest import make_humaneval_row
+from conftest import make_raw_humaneval_task_input
 
 
 class TestHelperFunctions:
@@ -56,21 +55,6 @@ class TestHelperFunctions:
             build_assertion_test_code(test_source, "add")
             == "def check(candidate):\n    assert candidate(1, 2) == 3\n\n\ncheck(add)\n"
         )
-
-    def test_build_official_prompt(self) -> None:
-        prompt = 'def foo():\n    """Hello world."""\n'
-        assert build_official_prompt(prompt) == prompt
-
-    def test_cached_official_prompt_fields_are_normalized_to_prompt(self) -> None:
-        prompt = 'def foo():\n    """Hello world."""\n'
-        row = make_humaneval_row(entry_point="foo", prompt=prompt)
-        row["official_prompt"] = "wrapped prompt"
-        row["new_official_prompt"] = "wrapped prompt"
-
-        task = RawHumanEvalTask.model_validate(row)
-
-        assert task.official_prompt == prompt
-        assert task.new_official_prompt == prompt
 
     def test_parse_inputs_results_test_preserves_test_suite(self) -> None:
         test_source = textwrap.dedent("""\
@@ -180,7 +164,7 @@ class TestHelperFunctions:
             match="inputs_results test shape requires results",
         ):
             HumanEvalTest(
-                source__test="def check(candidate):\n    pass\n",
+                source="def check(candidate):\n    pass\n",
                 entry_point="foo",
                 shape="inputs_results",
                 inputs=[[1]],
@@ -203,18 +187,14 @@ class TestRawHumanEvalTask:
         assert valid_raw_task.task_id == "HumanEval/0"
         assert valid_raw_task.entry_point == "add"
         assert valid_raw_task.version == "v2"
-        assert valid_raw_task.source__prompt
-        assert valid_raw_task.source__canonical_solution == "    return a + b\n"
-        assert valid_raw_task.source__test
-        assert valid_raw_task.test_suite.source__test == valid_raw_task.source__test
+        assert valid_raw_task.source.prompt
+        assert valid_raw_task.source.canonical_solution == "    return a + b\n"
+        assert valid_raw_task.source.test
+        assert valid_raw_task.test_suite.source == valid_raw_task.source.test
         assert valid_raw_task.validated is False
-        assert valid_raw_task.official_prompt == build_official_prompt(
-            valid_raw_task.source__prompt
-        )
-        assert valid_raw_task.new_official_prompt == valid_raw_task.official_prompt
 
     def test_additional_derived_prompt_fields(self) -> None:
-        row = make_humaneval_row(
+        row = make_raw_humaneval_task_input(
             prompt=textwrap.dedent('''\
                 # Add two integers.
                 def add(a: int, b: int) -> int:
@@ -231,15 +211,13 @@ class TestRawHumanEvalTask:
         )
         task = RawHumanEvalTask.model_validate(row)
 
-        assert task.official_prompt == build_official_prompt(row["prompt"])
-        assert task.new_official_prompt == task.official_prompt
         assert task.docstrings == "Return the sum."
         assert task.prompt_comment == "Add two integers."
         assert task.function_stub == textwrap.dedent("""\
             # Add two integers.
             def add(a: int, b: int) -> int:
         """)
-        assert task.function_stub_with_comments == row["prompt"]
+        assert task.function_stub_with_comments == row["source"]["prompt"]
         assert task.new_code_stub == task.function_stub
         assert task.new_code_stub_with_comments == task.function_stub_with_comments
         assert task.function_with_comments == textwrap.dedent('''\
@@ -296,13 +274,21 @@ class TestRawHumanEvalTask:
         assert valid_raw_task.test_suite.inputs == [[1, 2], [0, 0], [-1, 1]]
         assert valid_raw_task.test_suite.results == [3, 0, 0]
 
-    def test_model_dump_serializes_test_suite_only(
+    def test_model_dump_serializes_source_only(
         self, valid_raw_task: RawHumanEvalTask
     ) -> None:
         dumped = valid_raw_task.model_dump(mode="json")
 
-        assert dumped["test_suite"]["source__test"] == valid_raw_task.source__test
-        assert dumped["test_suite"]["inputs"] == valid_raw_task.test_suite.inputs
+        assert dumped["source"]["prompt"] == valid_raw_task.source.prompt
+        assert dumped["source"]["canonical_solution"] == (
+            valid_raw_task.source.canonical_solution
+        )
+        assert dumped["source"]["test"] == valid_raw_task.source.test
+        assert "test_suite" not in dumped
+        assert "official_prompt" not in dumped
+        assert "new_official_prompt" not in dumped
+        assert "source__prompt" not in dumped
+        assert "source__canonical_solution" not in dumped
         assert "source__test" not in dumped
         assert "test_inputs" not in dumped
         assert "test_results" not in dumped
@@ -320,7 +306,7 @@ class TestRawHumanEvalTask:
         assert "results = [3]" in valid_raw_task.test_suite.source_for_index(0)
 
     def test_mismatched_test_inputs_and_results_raise(self) -> None:
-        row = make_humaneval_row(
+        row = make_raw_humaneval_task_input(
             test=textwrap.dedent("""\
                 def check(candidate):
                     inputs = [[1, 2], [0, 0]]
@@ -343,13 +329,13 @@ class TestRawHumanEvalTask:
         assert valid_raw_task.test_suite.run_test(bad_code) is False
 
     def test_construction_allows_failing_solution(self) -> None:
-        row = make_humaneval_row(canonical_solution="    return a - b\n")
+        row = make_raw_humaneval_task_input(canonical_solution="    return a - b\n")
         task = RawHumanEvalTask.model_validate(row)
         assert task.validated is False
         assert task.test_suite.run_test(task.gt_solution) is False
 
     def test_validated_flag_skips_validation(self) -> None:
-        row = make_humaneval_row(canonical_solution="    return a - b\n")
+        row = make_raw_humaneval_task_input(canonical_solution="    return a - b\n")
         row["validated"] = True
         task = RawHumanEvalTask.model_validate(row)
         assert task.validated is True

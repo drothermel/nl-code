@@ -1,5 +1,6 @@
 import ast
 from collections.abc import Iterator
+from functools import cached_property
 from typing import Any, ClassVar, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -214,7 +215,7 @@ def _normalize_sequence_index(index: int, size: int, *, collection_name: str) ->
 class HumanEvalTest(BaseModel):
     """A parsed HumanEval test suite preserving the original source shape."""
 
-    source__test: str
+    source: str
     entry_point: str
     shape: HumanEvalTestShape
     inputs: list[Any]
@@ -260,7 +261,7 @@ class HumanEvalTest(BaseModel):
 
     def source_for_index(self, index: int) -> str:
         case = self.case_at_index(index)
-        test_source_str = self.source__test
+        test_source_str = self.source
         check_fn = find_named_function(test_source_str, "check")
         inputs_assign, inputs, input_nodes = _literal_check_assignment(
             check_fn,
@@ -296,7 +297,7 @@ class HumanEvalTest(BaseModel):
         return _replace_source_spans(test_source_str, replacements)
 
     def assertion_test_code(self) -> str:
-        return build_assertion_test_code(self.source__test, self.entry_point)
+        return build_assertion_test_code(self.source, self.entry_point)
 
     def assertion_test_code_for_index(self, index: int) -> str:
         return build_assertion_test_code(self.source_for_index(index), self.entry_point)
@@ -320,7 +321,7 @@ def parse_inputs_results_test(
     if len(inputs) != len(results):
         raise ValueError("test inputs and results must have the same length")
     return HumanEvalTest(
-        source__test=test_source_str,
+        source=test_source_str,
         entry_point=entry_point_str,
         shape="inputs_results",
         inputs=inputs,
@@ -341,7 +342,7 @@ def parse_inputs_ref_func_test(
     if not _check_references_name(check_fn, "ref_func"):
         raise ValueError("inputs/ref_func test shape must reference `ref_func`")
     return HumanEvalTest(
-        source__test=test_source_str,
+        source=test_source_str,
         entry_point=entry_point_str,
         shape="inputs_ref_func",
         inputs=inputs,
@@ -371,6 +372,12 @@ def iter_inputs_ref_func_test_cases(
     return parse_inputs_ref_func_test(test_source, entry_point).iter_cases()
 
 
+class HumanEvalSource(BaseModel):
+    prompt: str
+    canonical_solution: str
+    test: str
+
+
 class RawHumanEvalTask(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
     non_code_fields: ClassVar[tuple[str, ...]] = (
@@ -384,32 +391,24 @@ class RawHumanEvalTask(BaseModel):
 
     task_id: str
     entry_point: str
-    source__prompt: str = Field(alias="prompt")
-    source__canonical_solution: str = Field(alias="canonical_solution")
-    test_suite: HumanEvalTest
+    source: HumanEvalSource
     version: Literal["v1", "v2"] = "v2"
     validated: bool = False
 
-    official_prompt: str = Field(
-        default_factory=lambda data: build_official_prompt(data.get("source__prompt"))
-    )
-    new_official_prompt: str = Field(
-        default_factory=lambda data: data.get("official_prompt")
-    )
     docstrings: str = Field(
         default_factory=lambda data: extract_docstrings(
-            data.get("source__prompt"),
+            data["source"].prompt,
             data.get("entry_point"),
         )
     )
     prompt_comment: str = Field(
-        default_factory=lambda data: extract_prompt_comment(data.get("source__prompt"))
+        default_factory=lambda data: extract_prompt_comment(data["source"].prompt)
     )
     function_stub: str = Field(
-        default_factory=lambda data: build_function_stub(data.get("source__prompt"))
+        default_factory=lambda data: build_function_stub(data["source"].prompt)
     )
     function_stub_with_comments: str = Field(
-        default_factory=lambda data: data.get("source__prompt")
+        default_factory=lambda data: data["source"].prompt
     )
     new_code_stub: str = Field(default_factory=lambda data: data.get("function_stub"))
     new_code_stub_with_comments: str = Field(
@@ -417,14 +416,14 @@ class RawHumanEvalTask(BaseModel):
     )
     function_with_comments: str = Field(
         default_factory=lambda data: build_function_source(
-            data.get("source__prompt"),
-            data.get("source__canonical_solution"),
+            data["source"].prompt,
+            data["source"].canonical_solution,
         )
     )
     function: str = Field(
         default_factory=lambda data: build_function_without_comments(
-            data.get("source__prompt"),
-            data.get("source__canonical_solution"),
+            data["source"].prompt,
+            data["source"].canonical_solution,
         )
     )
     gt_solution_with_comments: str = Field(
@@ -436,35 +435,14 @@ class RawHumanEvalTask(BaseModel):
         )
     )
 
-    @model_validator(mode="before")
-    @classmethod
-    def normalize_raw_fields(cls, data: Any) -> Any:
-        if not isinstance(data, dict):
-            return data
-        normalized = dict(data)
-        prompt = data.get("prompt", data.get("source__prompt"))
-        if isinstance(prompt, str):
-            normalized["official_prompt"] = prompt
-            normalized["new_official_prompt"] = prompt
-        if "test_suite" not in normalized:
-            test_source = data.get("test", data.get("source__test"))
-            entry_point = data.get("entry_point")
-            if isinstance(test_source, str) and isinstance(entry_point, str):
-                normalized["test_suite"] = parse_humaneval_test(
-                    test_source,
-                    entry_point,
-                )
-        return normalized
-
     @model_validator(mode="after")
     def validate_eval_task(self) -> Self:
-        if self.test_suite.entry_point != self.entry_point:
-            raise ValueError("test suite entry point must match task entry point")
+        parse_humaneval_test(self.source.test, self.entry_point)
         return self
 
-    @property
-    def source__test(self) -> str:
-        return self.test_suite.source__test
+    @cached_property
+    def test_suite(self) -> HumanEvalTest:
+        return parse_humaneval_test(self.source.test, self.entry_point)
 
     def _display_(self) -> Any:
         model_dump = self.model_dump()
@@ -479,16 +457,14 @@ class RawHumanEvalTask(BaseModel):
                 mo.md(f"**{model_name}** - {self.task_id}"),
                 mo.md("Prompt"),
                 mo.ui.code_editor(
-                    value=strip_surrounding_empty_lines(self.source__prompt),
+                    value=strip_surrounding_empty_lines(self.source.prompt),
                     language="python",
                     disabled=True,
                     min_height=1,
                 ),
                 mo.md("Canonical Solution"),
                 mo.ui.code_editor(
-                    value=strip_surrounding_empty_lines(
-                        self.source__canonical_solution
-                    ),
+                    value=strip_surrounding_empty_lines(self.source.canonical_solution),
                     language="python",
                     disabled=True,
                     min_height=1,

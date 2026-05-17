@@ -56,8 +56,8 @@ def _():
 
 @app.cell
 def _(ds, num_picker):
-    ds.get_raw_sample_at_index(num_picker.value).model_dump()[
-        "source__test"
+    ds.get_raw_sample_at_index(num_picker.value).model_dump()["source"][
+        "test"
     ].split("\n")
     return
 
