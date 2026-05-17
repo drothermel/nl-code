@@ -12,7 +12,7 @@ from pydantic import BaseModel
 
 from nl_code.datasets.task import CodeDataset
 
-PARSED_DATASET_CACHE_VERSION = 1
+PARSED_DATASET_CACHE_VERSION = 2
 MANIFEST_FILENAME = "manifest.json"
 PAYLOAD_FILENAME = "payload.json.gz"
 DEFAULT_CACHE_DIR = Path.home() / ".cache" / "nl-code" / "datasets"

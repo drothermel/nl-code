@@ -3,6 +3,7 @@ import textwrap
 import pytest
 
 from nl_code.datasets.humaneval_task import (
+    HumanEvalTest,
     RawHumanEvalTask,
     build_assertion_test_code,
     build_function_source,
@@ -11,6 +12,8 @@ from nl_code.datasets.humaneval_task import (
     build_function_stub,
     extract_docstrings,
     extract_prompt_comment,
+    parse_inputs_ref_func_test,
+    parse_inputs_results_test,
 )
 
 from conftest import make_humaneval_row
@@ -69,6 +72,120 @@ class TestHelperFunctions:
         assert task.official_prompt == prompt
         assert task.new_official_prompt == prompt
 
+    def test_parse_inputs_results_test_preserves_test_suite(self) -> None:
+        test_source = textwrap.dedent("""\
+            import numpy as np
+
+            def assertion(out, exp, atol):
+                assert out == exp
+
+
+            def check(candidate):
+                inputs = [[1, 2], [3, 4]]
+                results = [3, 7]
+                for i, (inp, exp) in enumerate(zip(inputs, results)):
+                    assertion(candidate(*inp), exp, 0)
+        """)
+
+        parsed = parse_inputs_results_test(test_source, "add")
+        cases = list(parsed.iter_cases())
+
+        assert parsed.shape == "inputs_results"
+        assert parsed.inputs == [[1, 2], [3, 4]]
+        assert parsed.results == [3, 7]
+        assert len(cases) == 2
+        assert cases[0].input_value == [1, 2]
+        assert cases[0].expected_output == 3
+        assert cases[0].has_expected_output is True
+        assert parsed.source_for_index(0) == textwrap.dedent("""\
+            import numpy as np
+
+            def assertion(out, exp, atol):
+                assert out == exp
+
+
+            def check(candidate):
+                inputs = [[1, 2]]
+                results = [3]
+                for i, (inp, exp) in enumerate(zip(inputs, results)):
+                    assertion(candidate(*inp), exp, 0)
+        """)
+        assert parsed.assertion_test_code_for_index(0).endswith("\n\ncheck(add)\n")
+        assert parsed.source_for_index(1) == textwrap.dedent("""\
+            import numpy as np
+
+            def assertion(out, exp, atol):
+                assert out == exp
+
+
+            def check(candidate):
+                inputs = [[3, 4]]
+                results = [7]
+                for i, (inp, exp) in enumerate(zip(inputs, results)):
+                    assertion(candidate(*inp), exp, 0)
+        """)
+
+    def test_parse_inputs_ref_func_test_preserves_test_suite(self) -> None:
+        test_source = textwrap.dedent("""\
+            import numpy as np
+
+            def assertion(out, exp, atol):
+                assert out == exp
+
+
+            def ref_func(x):
+                return x + 1
+
+
+            def check(candidate):
+                inputs = [[1], [2]]
+                for i, inp in enumerate(inputs):
+                    assertion(candidate(*inp), ref_func(*inp), 0)
+        """)
+
+        parsed = parse_inputs_ref_func_test(test_source, "increment")
+        cases = list(parsed.iter_cases())
+
+        assert parsed.shape == "inputs_ref_func"
+        assert parsed.inputs == [[1], [2]]
+        assert parsed.results is None
+        assert len(cases) == 2
+        assert cases[0].input_value == [1]
+        assert cases[0].expected_output is None
+        assert cases[0].has_expected_output is False
+        assert parsed.source_for_index(0) == textwrap.dedent("""\
+            import numpy as np
+
+            def assertion(out, exp, atol):
+                assert out == exp
+
+
+            def ref_func(x):
+                return x + 1
+
+
+            def check(candidate):
+                inputs = [[1]]
+                for i, inp in enumerate(inputs):
+                    assertion(candidate(*inp), ref_func(*inp), 0)
+        """)
+        assert "def ref_func" in parsed.source_for_index(1)
+        assert parsed.source_for_index(1).endswith(
+            "        assertion(candidate(*inp), ref_func(*inp), 0)\n"
+        )
+
+    def test_humaneval_test_validates_shape(self) -> None:
+        with pytest.raises(
+            ValueError,
+            match="inputs_results test shape requires results",
+        ):
+            HumanEvalTest(
+                source__test="def check(candidate):\n    pass\n",
+                entry_point="foo",
+                shape="inputs_results",
+                inputs=[[1]],
+            )
+
 
 @pytest.mark.docker
 class TestRawHumanEvalTask:
@@ -89,6 +206,7 @@ class TestRawHumanEvalTask:
         assert valid_raw_task.source__prompt
         assert valid_raw_task.source__canonical_solution == "    return a + b\n"
         assert valid_raw_task.source__test
+        assert valid_raw_task.test_suite.source__test == valid_raw_task.source__test
         assert valid_raw_task.validated is False
         assert valid_raw_task.official_prompt == build_official_prompt(
             valid_raw_task.source__prompt
@@ -136,7 +254,10 @@ class TestRawHumanEvalTask:
         """)
         assert task.gt_solution_with_comments == task.function_with_comments
         assert task.gt_solution == task.function
-        assert task.assertion_test_code == textwrap.dedent("""\
+        assert task.test_suite.shape == "inputs_results"
+        assert task.test_suite.inputs == [[1, 2], [0, 0]]
+        assert task.test_suite.results == [3, 0]
+        assert task.test_suite.assertion_test_code() == textwrap.dedent("""\
             def check(candidate):
                 inputs = [[1, 2], [0, 0]]
                 results = [3, 0]
@@ -171,9 +292,32 @@ class TestRawHumanEvalTask:
     def test_computed_docstrings(self, valid_raw_task: RawHumanEvalTask) -> None:
         assert valid_raw_task.docstrings == "Add two integers and return the result."
 
-    def test_computed_test_inputs(self, valid_raw_task: RawHumanEvalTask) -> None:
-        assert valid_raw_task.test_inputs == [[1, 2], [0, 0], [-1, 1]]
-        assert valid_raw_task.test_results == [3, 0, 0]
+    def test_computed_test_suite(self, valid_raw_task: RawHumanEvalTask) -> None:
+        assert valid_raw_task.test_suite.inputs == [[1, 2], [0, 0], [-1, 1]]
+        assert valid_raw_task.test_suite.results == [3, 0, 0]
+
+    def test_model_dump_serializes_test_suite_only(
+        self, valid_raw_task: RawHumanEvalTask
+    ) -> None:
+        dumped = valid_raw_task.model_dump(mode="json")
+
+        assert dumped["test_suite"]["source__test"] == valid_raw_task.source__test
+        assert dumped["test_suite"]["inputs"] == valid_raw_task.test_suite.inputs
+        assert "source__test" not in dumped
+        assert "test_inputs" not in dumped
+        assert "test_results" not in dumped
+        assert "assertion_test_code" not in dumped
+
+    def test_test_suite_iter_cases_uses_matching_shape(
+        self, valid_raw_task: RawHumanEvalTask
+    ) -> None:
+        cases = list(valid_raw_task.test_suite.iter_cases())
+
+        assert [case.input_value for case in cases] == [[1, 2], [0, 0], [-1, 1]]
+        assert [case.expected_output for case in cases] == [3, 0, 0]
+        assert all(case.has_expected_output for case in cases)
+        assert "inputs = [[1, 2]]" in valid_raw_task.test_suite.source_for_index(0)
+        assert "results = [3]" in valid_raw_task.test_suite.source_for_index(0)
 
     def test_mismatched_test_inputs_and_results_raise(self) -> None:
         row = make_humaneval_row(
@@ -192,17 +336,17 @@ class TestRawHumanEvalTask:
             RawHumanEvalTask.model_validate(row)
 
     def test_run_test_passes_gt(self, valid_raw_task: RawHumanEvalTask) -> None:
-        assert valid_raw_task.run_test_on_gt_solution() is True
+        assert valid_raw_task.test_suite.run_test(valid_raw_task.gt_solution) is True
 
     def test_run_test_fails_bad_code(self, valid_raw_task: RawHumanEvalTask) -> None:
         bad_code = "def add(a, b):\n    return a - b\n"
-        assert valid_raw_task.run_test(bad_code) is False
+        assert valid_raw_task.test_suite.run_test(bad_code) is False
 
     def test_construction_allows_failing_solution(self) -> None:
         row = make_humaneval_row(canonical_solution="    return a - b\n")
         task = RawHumanEvalTask.model_validate(row)
         assert task.validated is False
-        assert task.run_test_on_gt_solution() is False
+        assert task.test_suite.run_test(task.gt_solution) is False
 
     def test_validated_flag_skips_validation(self) -> None:
         row = make_humaneval_row(canonical_solution="    return a - b\n")

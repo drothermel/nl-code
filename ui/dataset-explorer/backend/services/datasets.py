@@ -107,9 +107,7 @@ DATASET_REGISTRY: dict[str, DatasetRegistryEntry] = {
 }
 
 DATASET_CACHE: dict[str, Dataset] = {}
-DATASET_LOAD_LOCKS: dict[str, Lock] = {
-    key: Lock() for key in DATASET_REGISTRY
-}
+DATASET_LOAD_LOCKS: dict[str, Lock] = {key: Lock() for key in DATASET_REGISTRY}
 
 METRIC_LABELS: dict[str, str] = {
     "description_length_chars": "Description Length (chars)",
@@ -414,8 +412,18 @@ def get_raw_detail(dataset_key: str, task_id: str) -> RawDetailResponse:
                 InspectorSection(
                     title="Validation Error",
                     fields=[
-                        InspectorField(key="error", label="Validation Error", kind="error", value=flawed.error),
-                        InspectorField(key="raw_input", label="Raw Input JSON", kind="json", value=flawed.raw_input),
+                        InspectorField(
+                            key="error",
+                            label="Validation Error",
+                            kind="error",
+                            value=flawed.error,
+                        ),
+                        InspectorField(
+                            key="raw_input",
+                            label="Raw Input JSON",
+                            kind="json",
+                            value=flawed.raw_input,
+                        ),
                     ],
                 )
             ],
@@ -445,7 +453,9 @@ def get_raw_detail(dataset_key: str, task_id: str) -> RawDetailResponse:
         )
 
     if entry.family == "pro":
-        assert isinstance(raw, RawHumanEvalProTask | RawMbppProTask | RawBigCodeBenchLiteProTask)
+        assert isinstance(
+            raw, RawHumanEvalProTask | RawMbppProTask | RawBigCodeBenchLiteProTask
+        )
         return ProRawDetail(
             detail_kind="pro_raw_detail",
             dataset=_dataset_option(entry),
@@ -491,10 +501,18 @@ def _build_task_rows(dataset: Dataset, entry: DatasetRegistryEntry) -> list[Task
                 entry_point_name=task.entry_point_name,
                 description_preview=_preview(task.description),
                 description_length_chars=_safe_int(metrics["description_length_chars"]),
-                description_length_tokens=_safe_int(metrics["description_length_tokens"]),
-                derived_code_length_chars=_safe_int(metrics["derived_code_length_chars"]),
-                derived_code_length_tokens=_safe_int(metrics["derived_code_length_tokens"]),
-                derived_code_length_lines=_safe_int(metrics["derived_code_length_lines"]),
+                description_length_tokens=_safe_int(
+                    metrics["description_length_tokens"]
+                ),
+                derived_code_length_chars=_safe_int(
+                    metrics["derived_code_length_chars"]
+                ),
+                derived_code_length_tokens=_safe_int(
+                    metrics["derived_code_length_tokens"]
+                ),
+                derived_code_length_lines=_safe_int(
+                    metrics["derived_code_length_lines"]
+                ),
                 prompt_length_chars=_safe_int(metrics["prompt_length_chars"]),
                 raw_source_length_chars=_safe_int(metrics["raw_source_length_chars"]),
                 test_length_chars=_safe_int(metrics["test_length_chars"]),
@@ -515,7 +533,9 @@ def _build_task_rows(dataset: Dataset, entry: DatasetRegistryEntry) -> list[Task
     return rows
 
 
-def _build_scatter_plots(dataset: Dataset, entry: DatasetRegistryEntry) -> list[MetricScatter]:
+def _build_scatter_plots(
+    dataset: Dataset, entry: DatasetRegistryEntry
+) -> list[MetricScatter]:
     description_vs_code: list[ScatterPoint] = []
     description_tokens_vs_code_tokens: list[ScatterPoint] = []
     prompt_vs_code: list[ScatterPoint] = []
@@ -530,13 +550,23 @@ def _build_scatter_plots(dataset: Dataset, entry: DatasetRegistryEntry) -> list[
         code_tokens = metrics["derived_code_length_tokens"]
 
         if description_length is not None and code_length is not None:
-            description_vs_code.append(ScatterPoint(task_id=task_id, x=float(description_length), y=float(code_length)))
+            description_vs_code.append(
+                ScatterPoint(
+                    task_id=task_id, x=float(description_length), y=float(code_length)
+                )
+            )
         if description_tokens is not None and code_tokens is not None:
             description_tokens_vs_code_tokens.append(
-                ScatterPoint(task_id=task_id, x=float(description_tokens), y=float(code_tokens))
+                ScatterPoint(
+                    task_id=task_id, x=float(description_tokens), y=float(code_tokens)
+                )
             )
         if prompt_length is not None and code_length is not None:
-            prompt_vs_code.append(ScatterPoint(task_id=task_id, x=float(prompt_length), y=float(code_length)))
+            prompt_vs_code.append(
+                ScatterPoint(
+                    task_id=task_id, x=float(prompt_length), y=float(code_length)
+                )
+            )
 
     plots = [
         MetricScatter(
@@ -609,10 +639,12 @@ def _extract_metrics(family: str, raw: Any, task: Task) -> dict[str, int | None]
         assert isinstance(raw, RawHumanEvalTask)
         metrics["prompt_length_chars"] = len(raw.official_prompt)
         metrics["raw_source_length_chars"] = len(raw.gt_solution_with_comments)
-        metrics["test_length_chars"] = len(raw.source__test)
+        metrics["test_length_chars"] = len(raw.test_suite.source__test)
         return metrics
     if family == "pro":
-        assert isinstance(raw, RawHumanEvalProTask | RawMbppProTask | RawBigCodeBenchLiteProTask)
+        assert isinstance(
+            raw, RawHumanEvalProTask | RawMbppProTask | RawBigCodeBenchLiteProTask
+        )
         metrics["prompt_length_chars"] = len(raw.new_official_prompt)
         metrics["raw_source_length_chars"] = len(raw.gt_solution_with_comments)
         metrics["test_length_chars"] = len(raw.source__test_code)
@@ -625,12 +657,20 @@ def _extract_metrics(family: str, raw: Any, task: Task) -> dict[str, int | None]
     return metrics
 
 
-def _build_derived_fields(family: str, raw: Any, task: Task) -> list[DerivedFieldSummary]:
+def _build_derived_fields(
+    family: str, raw: Any, task: Task
+) -> list[DerivedFieldSummary]:
     if family == "humaneval":
         assert isinstance(raw, RawHumanEvalTask)
         return [
-            DerivedFieldSummary(name="Task.entry_point_name", value=task.entry_point_name, source="raw.entry_point"),
-            DerivedFieldSummary(name="Task.description", value=task.description, source="raw.docstrings"),
+            DerivedFieldSummary(
+                name="Task.entry_point_name",
+                value=task.entry_point_name,
+                source="raw.entry_point",
+            ),
+            DerivedFieldSummary(
+                name="Task.description", value=task.description, source="raw.docstrings"
+            ),
             DerivedFieldSummary(
                 name="Task.gt_solution",
                 value=task.gt_solution,
@@ -638,10 +678,20 @@ def _build_derived_fields(family: str, raw: Any, task: Task) -> list[DerivedFiel
             ),
         ]
     if family == "pro":
-        assert isinstance(raw, RawHumanEvalProTask | RawMbppProTask | RawBigCodeBenchLiteProTask)
+        assert isinstance(
+            raw, RawHumanEvalProTask | RawMbppProTask | RawBigCodeBenchLiteProTask
+        )
         return [
-            DerivedFieldSummary(name="Task.entry_point_name", value=task.entry_point_name, source="raw.new_entry_point"),
-            DerivedFieldSummary(name="Task.description", value=task.description, source="raw.new_description"),
+            DerivedFieldSummary(
+                name="Task.entry_point_name",
+                value=task.entry_point_name,
+                source="raw.new_entry_point",
+            ),
+            DerivedFieldSummary(
+                name="Task.description",
+                value=task.description,
+                source="raw.new_description",
+            ),
             DerivedFieldSummary(
                 name="Task.gt_solution",
                 value=task.gt_solution,
@@ -650,29 +700,134 @@ def _build_derived_fields(family: str, raw: Any, task: Task) -> list[DerivedFiel
         ]
     assert isinstance(raw, RawClassEvalTask)
     return [
-        DerivedFieldSummary(name="Task.entry_point_name", value=task.entry_point_name, source="raw.class_name"),
-        DerivedFieldSummary(name="Task.description", value=task.description, source="raw.class_description"),
-        DerivedFieldSummary(name="Task.gt_solution", value=task.gt_solution, source="raw.gt_code"),
+        DerivedFieldSummary(
+            name="Task.entry_point_name",
+            value=task.entry_point_name,
+            source="raw.class_name",
+        ),
+        DerivedFieldSummary(
+            name="Task.description",
+            value=task.description,
+            source="raw.class_description",
+        ),
+        DerivedFieldSummary(
+            name="Task.gt_solution", value=task.gt_solution, source="raw.gt_code"
+        ),
     ]
 
 
 def _humaneval_sections(raw: RawHumanEvalTask) -> list[InspectorSection]:
+    test_suite = raw.test_suite
+    test_fields = [
+        InspectorField(
+            key="test_shape", label="Test Shape", kind="text", value=test_suite.shape
+        ),
+        InspectorField(
+            key="test_case_count",
+            label="Test Case Count",
+            kind="text",
+            value=str(test_suite.case_count),
+        ),
+        InspectorField(
+            key="test_suite.source__test",
+            label="Source Test Suite",
+            kind="code",
+            value=test_suite.source__test,
+        ),
+        InspectorField(
+            key="test_suite.assertion_test_code",
+            label="Assertion Test Code",
+            kind="code",
+            value=test_suite.assertion_test_code(),
+        ),
+        InspectorField(
+            key="test_suite.inputs",
+            label="Test Inputs",
+            kind="json",
+            value=test_suite.inputs,
+        ),
+        InspectorField(
+            key="test_suite.results",
+            label="Test Results",
+            kind="json",
+            value=test_suite.results,
+        ),
+    ]
+    if test_suite.case_count > 0:
+        first_case = test_suite.case_at_index(0)
+        test_fields.extend(
+            [
+                InspectorField(
+                    key="test_suite.first_case",
+                    label="First Test Case",
+                    kind="json",
+                    value=first_case.model_dump(mode="json"),
+                ),
+                InspectorField(
+                    key="test_suite.first_case_source",
+                    label="First Case Source Suite",
+                    kind="code",
+                    value=test_suite.source_for_index(0),
+                ),
+                InspectorField(
+                    key="test_suite.first_case_assertion_code",
+                    label="First Case Assertion Code",
+                    kind="code",
+                    value=test_suite.assertion_test_code_for_index(0),
+                ),
+            ]
+        )
     return [
         InspectorSection(
             title="Overview",
             fields=[
-                InspectorField(key="entry_point", label="Entry Point", kind="text", value=raw.entry_point),
-                InspectorField(key="validated", label="Validated", kind="text", value=str(raw.validated)),
-                InspectorField(key="docstrings", label="Docstrings", kind="text", value=raw.docstrings),
-                InspectorField(key="prompt_comment", label="Prompt Comment", kind="text", value=raw.prompt_comment),
+                InspectorField(
+                    key="entry_point",
+                    label="Entry Point",
+                    kind="text",
+                    value=raw.entry_point,
+                ),
+                InspectorField(
+                    key="validated",
+                    label="Validated",
+                    kind="text",
+                    value=str(raw.validated),
+                ),
+                InspectorField(
+                    key="docstrings",
+                    label="Docstrings",
+                    kind="text",
+                    value=raw.docstrings,
+                ),
+                InspectorField(
+                    key="prompt_comment",
+                    label="Prompt Comment",
+                    kind="text",
+                    value=raw.prompt_comment,
+                ),
             ],
         ),
         InspectorSection(
             title="Prompt and Solutions",
             fields=[
-                InspectorField(key="source__prompt", label="Source Prompt", kind="code", value=raw.source__prompt),
-                InspectorField(key="official_prompt", label="Official Prompt", kind="code", value=raw.official_prompt),
-                InspectorField(key="function_stub", label="Function Stub", kind="code", value=raw.function_stub),
+                InspectorField(
+                    key="source__prompt",
+                    label="Source Prompt",
+                    kind="code",
+                    value=raw.source__prompt,
+                ),
+                InspectorField(
+                    key="official_prompt",
+                    label="Official Prompt",
+                    kind="code",
+                    value=raw.official_prompt,
+                ),
+                InspectorField(
+                    key="function_stub",
+                    label="Function Stub",
+                    kind="code",
+                    value=raw.function_stub,
+                ),
                 InspectorField(
                     key="function_stub_with_comments",
                     label="Function Stub With Comments",
@@ -691,7 +846,9 @@ def _humaneval_sections(raw: RawHumanEvalTask) -> list[InspectorSection]:
                     kind="code",
                     value=raw.function_with_comments,
                 ),
-                InspectorField(key="function", label="Function", kind="code", value=raw.function),
+                InspectorField(
+                    key="function", label="Function", kind="code", value=raw.function
+                ),
                 InspectorField(
                     key="gt_solution_with_comments",
                     label="GT Solution With Comments",
@@ -708,51 +865,88 @@ def _humaneval_sections(raw: RawHumanEvalTask) -> list[InspectorSection]:
         ),
         InspectorSection(
             title="Tests",
-            fields=[
-                InspectorField(key="source__test", label="Source Test Harness", kind="code", value=raw.source__test),
-                InspectorField(
-                    key="assertion_test_code",
-                    label="Assertion Test Code",
-                    kind="code",
-                    value=raw.assertion_test_code,
-                ),
-                InspectorField(key="test_inputs", label="Test Inputs", kind="json", value=raw.test_inputs),
-                InspectorField(key="test_results", label="Test Results", kind="json", value=raw.test_results),
-            ],
+            fields=test_fields,
         ),
     ]
 
 
-def _pro_sections(raw: RawHumanEvalProTask | RawMbppProTask | RawBigCodeBenchLiteProTask) -> list[InspectorSection]:
+def _pro_sections(
+    raw: RawHumanEvalProTask | RawMbppProTask | RawBigCodeBenchLiteProTask,
+) -> list[InspectorSection]:
     return [
         InspectorSection(
             title="Overview",
             fields=[
-                InspectorField(key="validated", label="Validated", kind="text", value=str(raw.validated)),
-                InspectorField(key="new_entry_point", label="Derived Entry Point", kind="text", value=raw.new_entry_point),
-                InspectorField(key="new_description", label="Derived Description", kind="text", value=raw.new_description),
+                InspectorField(
+                    key="validated",
+                    label="Validated",
+                    kind="text",
+                    value=str(raw.validated),
+                ),
+                InspectorField(
+                    key="new_entry_point",
+                    label="Derived Entry Point",
+                    kind="text",
+                    value=raw.new_entry_point,
+                ),
+                InspectorField(
+                    key="new_description",
+                    label="Derived Description",
+                    kind="text",
+                    value=raw.new_description,
+                ),
             ],
         ),
         InspectorSection(
             title="Problems",
             fields=[
-                InspectorField(key="source__raw_problem", label="Raw Problem", kind="code", value=raw.source__raw_problem),
-                InspectorField(key="source__new_problem", label="New Problem", kind="code", value=raw.source__new_problem),
+                InspectorField(
+                    key="source__raw_problem",
+                    label="Raw Problem",
+                    kind="code",
+                    value=raw.source__raw_problem,
+                ),
+                InspectorField(
+                    key="source__new_problem",
+                    label="New Problem",
+                    kind="code",
+                    value=raw.source__new_problem,
+                ),
             ],
         ),
         InspectorSection(
             title="Solutions and Tests",
             fields=[
-                InspectorField(key="source__raw_solution", label="Raw Solution", kind="code", value=raw.source__raw_solution),
-                InspectorField(key="source__new_solution", label="New Solution", kind="code", value=raw.source__new_solution),
+                InspectorField(
+                    key="source__raw_solution",
+                    label="Raw Solution",
+                    kind="code",
+                    value=raw.source__raw_solution,
+                ),
+                InspectorField(
+                    key="source__new_solution",
+                    label="New Solution",
+                    kind="code",
+                    value=raw.source__new_solution,
+                ),
                 InspectorField(
                     key="gt_solution_with_comments",
                     label="GT Solution With Comments",
                     kind="code",
                     value=raw.gt_solution_with_comments,
                 ),
-                InspectorField(key="gt_solution", label="GT Solution", kind="code", value=raw.gt_solution),
-                InspectorField(key="source__test_code", label="Test Code", kind="code", value=raw.source__test_code),
+                InspectorField(
+                    key="gt_solution",
+                    label="GT Solution",
+                    kind="code",
+                    value=raw.gt_solution,
+                ),
+                InspectorField(
+                    key="source__test_code",
+                    label="Test Code",
+                    kind="code",
+                    value=raw.source__test_code,
+                ),
             ],
         ),
     ]
@@ -768,8 +962,18 @@ def _classeval_sections(raw: RawClassEvalTask) -> list[InspectorSection]:
         InspectorSection(
             title="Overview",
             fields=[
-                InspectorField(key="class_name", label="Class Name", kind="text", value=raw.class_name),
-                InspectorField(key="validated", label="Validated", kind="text", value=str(raw.validated)),
+                InspectorField(
+                    key="class_name",
+                    label="Class Name",
+                    kind="text",
+                    value=raw.class_name,
+                ),
+                InspectorField(
+                    key="validated",
+                    label="Validated",
+                    kind="text",
+                    value=str(raw.validated),
+                ),
                 InspectorField(
                     key="postprocess_solution",
                     label="Postprocessed Solution",
@@ -787,22 +991,65 @@ def _classeval_sections(raw: RawClassEvalTask) -> list[InspectorSection]:
         InspectorSection(
             title="Class Structure",
             fields=[
-                InspectorField(key="class_description", label="Class Description", kind="text", value=raw.class_description),
-                InspectorField(key="class_constructor", label="Class Constructor", kind="code", value=raw.class_constructor),
-                InspectorField(key="fields", label="Fields", kind="json", value=raw.fields),
-                InspectorField(key="import_statement", label="Import Statements", kind="json", value=raw.import_statement),
+                InspectorField(
+                    key="class_description",
+                    label="Class Description",
+                    kind="text",
+                    value=raw.class_description,
+                ),
+                InspectorField(
+                    key="class_constructor",
+                    label="Class Constructor",
+                    kind="code",
+                    value=raw.class_constructor,
+                ),
+                InspectorField(
+                    key="fields", label="Fields", kind="json", value=raw.fields
+                ),
+                InspectorField(
+                    key="import_statement",
+                    label="Import Statements",
+                    kind="json",
+                    value=raw.import_statement,
+                ),
             ],
         ),
         InspectorSection(
             title="Code and Tests",
             fields=[
-                InspectorField(key="skeleton", label="Skeleton", kind="code", value=raw.skeleton),
-                InspectorField(key="solution_code", label="Solution Code", kind="code", value=raw.solution_code),
-                InspectorField(key="gt_code", label="GT Code", kind="code", value=raw.gt_code),
-                InspectorField(key="test", label="Test Code", kind="code", value=raw.test),
-                InspectorField(key="test_classes", label="Test Classes", kind="json", value=raw.test_classes),
-                InspectorField(key="methods_info", label="Methods Info", kind="json", value=raw.methods_info),
-                InspectorField(key="test_result", label="GT Test Result", kind="json", value=test_result),
+                InspectorField(
+                    key="skeleton", label="Skeleton", kind="code", value=raw.skeleton
+                ),
+                InspectorField(
+                    key="solution_code",
+                    label="Solution Code",
+                    kind="code",
+                    value=raw.solution_code,
+                ),
+                InspectorField(
+                    key="gt_code", label="GT Code", kind="code", value=raw.gt_code
+                ),
+                InspectorField(
+                    key="test", label="Test Code", kind="code", value=raw.test
+                ),
+                InspectorField(
+                    key="test_classes",
+                    label="Test Classes",
+                    kind="json",
+                    value=raw.test_classes,
+                ),
+                InspectorField(
+                    key="methods_info",
+                    label="Methods Info",
+                    kind="json",
+                    value=raw.methods_info,
+                ),
+                InspectorField(
+                    key="test_result",
+                    label="GT Test Result",
+                    kind="json",
+                    value=test_result,
+                ),
             ],
         ),
     ]
@@ -841,7 +1088,9 @@ def _get_dataset(entry: DatasetRegistryEntry) -> Dataset:
         return dataset
 
 
-def _neighbor_ids(ordered_ids: list[str], task_id: str) -> tuple[str | None, str | None]:
+def _neighbor_ids(
+    ordered_ids: list[str], task_id: str
+) -> tuple[str | None, str | None]:
     try:
         index = ordered_ids.index(task_id)
     except ValueError:

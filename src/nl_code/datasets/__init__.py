@@ -9,7 +9,11 @@ from nl_code.datasets.dataset_slice import DatasetSlice
 from nl_code.datasets.humaneval_dataset import HumanEvalDataset
 from nl_code.datasets.humaneval_pro_dataset import HumanEvalProDataset
 from nl_code.datasets.humaneval_pro_task import RawHumanEvalProTask
-from nl_code.datasets.humaneval_task import RawHumanEvalTask
+from nl_code.datasets.humaneval_task import (
+    HumanEvalTest,
+    HumanEvalTestCase,
+    RawHumanEvalTask,
+)
 from nl_code.datasets.mbpp_pro_dataset import MbppProDataset
 from nl_code.datasets.mbpp_pro_task import RawMbppProTask
 from nl_code.datasets.task import Task
@@ -21,6 +25,8 @@ __all__ = [
     "DatasetSlice",
     "HumanEvalDataset",
     "HumanEvalProDataset",
+    "HumanEvalTest",
+    "HumanEvalTestCase",
     "MbppProDataset",
     "RawBigCodeBenchLiteProTask",
     "RawClassEvalTask",

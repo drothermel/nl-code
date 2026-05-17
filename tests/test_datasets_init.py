@@ -5,6 +5,8 @@ from nl_code.datasets import (
     DatasetSlice,
     HumanEvalDataset,
     HumanEvalProDataset,
+    HumanEvalTest,
+    HumanEvalTestCase,
     MbppProDataset,
     RawBigCodeBenchLiteProTask,
     RawClassEvalTask,
@@ -22,6 +24,8 @@ def test_dataset_package_re_exports_task_and_dataset_classes() -> None:
 
     assert HumanEvalDataset.__name__ == "HumanEvalDataset"
     assert HumanEvalProDataset.__name__ == "HumanEvalProDataset"
+    assert HumanEvalTest.__name__ == "HumanEvalTest"
+    assert HumanEvalTestCase.__name__ == "HumanEvalTestCase"
     assert MbppProDataset.__name__ == "MbppProDataset"
     assert BigCodeBenchLiteProDataset.__name__ == "BigCodeBenchLiteProDataset"
     assert ClassEvalDataset.__name__ == "ClassEvalDataset"
