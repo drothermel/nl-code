@@ -210,6 +210,16 @@ def test_humaneval_raw_detail_uses_test_suite_design(
     detail = explorer_service.get_raw_detail("humaneval-plus", "HumanEval/0")
 
     assert detail.detail_kind == "humaneval_raw_detail"
+    solution_section = next(
+        section
+        for section in detail.sections
+        if section.title == "Prompt and Solutions"
+    )
+    solution_fields = {field.key: field for field in solution_section.fields}
+    assert "def add" in solution_fields["gt_solution.code"].value
+    assert '"""' not in solution_fields["gt_solution.code"].value
+    assert '"""' in solution_fields["gt_solution.code_with_comments"].value
+
     tests_section = next(
         section for section in detail.sections if section.title == "Tests"
     )
@@ -222,6 +232,7 @@ def test_humaneval_raw_detail_uses_test_suite_design(
     assert "check(add)" in fields["test_suite.first_case_assertion_code"].value
     assert detail.raw_json["source"]["test"]
     assert "test_suite" not in detail.raw_json
+    assert "gt_solution" not in detail.raw_json
 
 
 def test_refresh_endpoint_reloads_cached_dataset(

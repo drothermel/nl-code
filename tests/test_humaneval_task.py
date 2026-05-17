@@ -3,6 +3,7 @@ import textwrap
 import pytest
 
 from nl_code.datasets.humaneval_task import (
+    GTSolution,
     HumanEvalTest,
     RawHumanEvalTask,
     build_assertion_test_code,
@@ -154,6 +155,7 @@ class TestRawHumanEvalTask:
         assert valid_raw_task.source.prompt
         assert valid_raw_task.source.canonical_solution == "    return a + b\n"
         assert valid_raw_task.source.test
+        assert isinstance(valid_raw_task.gt_solution, GTSolution)
         assert valid_raw_task.test_suite.source == valid_raw_task.source.test
         assert valid_raw_task.validated is False
 
@@ -175,13 +177,13 @@ class TestRawHumanEvalTask:
         )
         task = RawHumanEvalTask.model_validate(row)
 
-        assert task.gt_solution_with_comments == textwrap.dedent('''\
+        assert task.gt_solution.code_with_comments == textwrap.dedent('''\
             # Add two integers.
             def add(a: int, b: int) -> int:
                 """Return the sum."""
                 return a + b
         ''')
-        assert task.gt_solution == textwrap.dedent("""\
+        assert task.gt_solution.code == textwrap.dedent("""\
             def add(a: int, b: int) -> int:
                 return a + b
         """)
@@ -200,17 +202,17 @@ class TestRawHumanEvalTask:
         """)
 
     def test_computed_gt_solution(self, valid_raw_task: RawHumanEvalTask) -> None:
-        assert '"""' not in valid_raw_task.gt_solution
-        assert "#" not in valid_raw_task.gt_solution
-        assert "def add" in valid_raw_task.gt_solution
-        assert "return a + b" in valid_raw_task.gt_solution
+        assert '"""' not in valid_raw_task.gt_solution.code
+        assert "#" not in valid_raw_task.gt_solution.code
+        assert "def add" in valid_raw_task.gt_solution.code
+        assert "return a + b" in valid_raw_task.gt_solution.code
 
     def test_computed_gt_solution_with_comments(
         self,
         valid_raw_task: RawHumanEvalTask,
     ) -> None:
-        assert '"""' in valid_raw_task.gt_solution_with_comments
-        assert "add" in valid_raw_task.gt_solution_with_comments
+        assert '"""' in valid_raw_task.gt_solution.code_with_comments
+        assert "add" in valid_raw_task.gt_solution.code_with_comments
 
     def test_computed_test_suite(self, valid_raw_task: RawHumanEvalTask) -> None:
         assert valid_raw_task.test_suite.inputs == [[1, 2], [0, 0], [-1, 1]]
@@ -235,6 +237,8 @@ class TestRawHumanEvalTask:
         assert "test_inputs" not in dumped
         assert "test_results" not in dumped
         assert "assertion_test_code" not in dumped
+        assert "gt_solution" not in dumped
+        assert "gt_solution_with_comments" not in dumped
 
     def test_test_suite_iter_cases_uses_matching_shape(
         self, valid_raw_task: RawHumanEvalTask
@@ -257,14 +261,15 @@ class TestRawHumanEvalTask:
                         assert candidate(*inp) == expected
             """)
         )
+        task = RawHumanEvalTask.model_validate(row)
         with pytest.raises(
             ValueError,
             match="test inputs and results must have the same length",
         ):
-            RawHumanEvalTask.model_validate(row)
+            _ = task.test_suite
 
     def test_run_test_passes_gt(self, valid_raw_task: RawHumanEvalTask) -> None:
-        assert valid_raw_task.test_suite.run_test(valid_raw_task.gt_solution) is True
+        assert valid_raw_task.gt_solution.run_test(valid_raw_task.test_suite) is True
 
     def test_run_test_fails_bad_code(self, valid_raw_task: RawHumanEvalTask) -> None:
         bad_code = "def add(a, b):\n    return a - b\n"
@@ -274,7 +279,7 @@ class TestRawHumanEvalTask:
         row = make_raw_humaneval_task_input(canonical_solution="    return a - b\n")
         task = RawHumanEvalTask.model_validate(row)
         assert task.validated is False
-        assert task.test_suite.run_test(task.gt_solution) is False
+        assert task.gt_solution.run_test(task.test_suite) is False
 
     def test_validated_flag_skips_validation(self) -> None:
         row = make_raw_humaneval_task_input(canonical_solution="    return a - b\n")

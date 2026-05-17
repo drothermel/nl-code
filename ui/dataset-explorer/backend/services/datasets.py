@@ -581,7 +581,7 @@ def _extract_metrics(family: str, raw: Any, task: Task) -> dict[str, int | None]
     if family == "humaneval":
         assert isinstance(raw, RawHumanEvalTask)
         metrics["prompt_length_chars"] = len(raw.source.prompt)
-        metrics["raw_source_length_chars"] = len(raw.gt_solution_with_comments)
+        metrics["raw_source_length_chars"] = len(raw.gt_solution.code_with_comments)
         metrics["test_length_chars"] = len(raw.source.test)
         return metrics
     if family == "pro":
@@ -614,7 +614,7 @@ def _build_derived_fields(
             DerivedFieldSummary(
                 name="Task.gt_solution",
                 value=task.gt_solution,
-                source="raw.gt_solution",
+                source="raw.gt_solution.code",
             ),
         ]
     if family == "pro":
@@ -741,16 +741,16 @@ def _humaneval_sections(raw: RawHumanEvalTask) -> list[InspectorSection]:
                     value=raw.source.canonical_solution,
                 ),
                 InspectorField(
-                    key="gt_solution_with_comments",
+                    key="gt_solution.code_with_comments",
                     label="GT Solution With Comments",
                     kind="code",
-                    value=raw.gt_solution_with_comments,
+                    value=raw.gt_solution.code_with_comments,
                 ),
                 InspectorField(
-                    key="gt_solution",
+                    key="gt_solution.code",
                     label="GT Solution",
                     kind="code",
-                    value=raw.gt_solution,
+                    value=raw.gt_solution.code,
                 ),
             ],
         ),

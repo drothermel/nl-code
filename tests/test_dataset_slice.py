@@ -86,14 +86,15 @@ class TestDatasetSlice:
         with pytest.raises(ValueError, match="seed requires shuffle=True"):
             DatasetSlice(dataset=loaded_dataset, seed=7)
 
-    def test_get_source_code_with_field(self, loaded_dataset: HumanEvalDataset) -> None:
+    def test_get_source_code_rejects_object_field(
+        self, loaded_dataset: HumanEvalDataset
+    ) -> None:
         sl = DatasetSlice(
             dataset=loaded_dataset,
             raw_source_field="gt_solution",
         )
-        code = sl.get_source_code("HumanEval/0")
-        assert "add" in code
-        assert '"""' not in code
+        with pytest.raises(TypeError, match="expected str"):
+            sl.get_source_code("HumanEval/0")
 
     def test_get_source_code_none_field(self, loaded_dataset: HumanEvalDataset) -> None:
         sl = DatasetSlice(dataset=loaded_dataset, raw_source_field=None)
