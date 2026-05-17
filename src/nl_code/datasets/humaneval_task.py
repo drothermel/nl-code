@@ -225,3 +225,41 @@ class RawHumanEvalTask(BaseModel):
 
     def run_test_on_gt_solution(self) -> bool:
         return self.run_test(self.gt_solution)
+
+    def _display_(self) -> Any:
+        model_dump = self.model_dump()
+        try:
+            import marimo as mo
+        except ImportError:
+            return model_dump
+
+        def strip_surrounding_empty_lines(value: str) -> str:
+            lines = value.splitlines()
+            while lines and not lines[0].strip():
+                lines.pop(0)
+            while lines and not lines[-1].strip():
+                lines.pop()
+            return "\n".join(lines)
+
+        model_name = type(self).__name__
+        return mo.vstack(
+            [
+                mo.md(f"**{model_name}** - {self.task_id}"),
+                mo.md("Prompt"),
+                mo.ui.code_editor(
+                    value=strip_surrounding_empty_lines(self.source__prompt),
+                    language="python",
+                    disabled=True,
+                    min_height=1,
+                ),
+                mo.md("Canonical Solution"),
+                mo.ui.code_editor(
+                    value=strip_surrounding_empty_lines(
+                        self.source__canonical_solution
+                    ),
+                    language="python",
+                    disabled=True,
+                    min_height=1,
+                ),
+            ]
+        )
