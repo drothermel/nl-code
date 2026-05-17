@@ -2,7 +2,7 @@ from collections.abc import Iterator
 from functools import cached_property
 from typing import Any, Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, model_validator
 
 from nl_code.code_execution.runner import run_assertion_test
 from nl_code.code_parsing import (
@@ -231,6 +231,24 @@ class HumanEvalSource(BaseModel):
     test: str
 
 
+class GTSolution(BaseModel):
+    source: HumanEvalSource
+
+    @cached_property
+    def code_with_comments(self) -> str:
+        return build_function_source(
+            self.source.prompt,
+            self.source.canonical_solution,
+        )
+
+    @cached_property
+    def code(self) -> str:
+        return remove_docstrings_and_comments(self.code_with_comments)
+
+    def run_test(self, test_suite: HumanEvalTest) -> bool:
+        return test_suite.run_test(self.code)
+
+
 class RawHumanEvalTask(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
     task_id: str
@@ -240,17 +258,9 @@ class RawHumanEvalTask(BaseModel):
 
     source: HumanEvalSource
 
-    gt_solution_with_comments: str = Field(
-        default_factory=lambda data: build_function_source(
-            data["source"].prompt,
-            data["source"].canonical_solution,
-        )
-    )
-    gt_solution: str = Field(
-        default_factory=lambda data: remove_docstrings_and_comments(
-            data.get("gt_solution_with_comments")
-        )
-    )
+    @cached_property
+    def gt_solution(self) -> GTSolution:
+        return GTSolution(source=self.source)
 
     @cached_property
     def test_suite(self) -> HumanEvalTest:

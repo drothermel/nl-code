@@ -10,6 +10,7 @@ from nl_code.datasets.humaneval_dataset import HumanEvalDataset
 from nl_code.datasets.humaneval_pro_dataset import HumanEvalProDataset
 from nl_code.datasets.humaneval_pro_task import RawHumanEvalProTask
 from nl_code.datasets.humaneval_task import (
+    GTSolution,
     HumanEvalSource,
     HumanEvalTest,
     HumanEvalTestCase,
@@ -24,6 +25,7 @@ __all__ = [
     "ClassEvalDataset",
     "Dataset",
     "DatasetSlice",
+    "GTSolution",
     "HumanEvalDataset",
     "HumanEvalProDataset",
     "HumanEvalSource",

@@ -47,7 +47,7 @@ class HumanEvalDataset(Dataset):
             (
                 task_id,
                 AssertionBatchItem(
-                    code=raw.gt_solution_with_comments,
+                    code=raw.gt_solution.code_with_comments,
                     test_code=raw.test_suite.assertion_test_code(),
                 ),
             )
@@ -96,6 +96,6 @@ class HumanEvalDataset(Dataset):
             dataset=self.dataset_id,
             task_id=task_id,
             entry_point_name=raw.entry_point,
-            gt_solution=raw.gt_solution,
+            gt_solution=raw.gt_solution.code,
             version=raw.version,
         )
