@@ -435,11 +435,6 @@ class RawHumanEvalTask(BaseModel):
         )
     )
 
-    @model_validator(mode="after")
-    def validate_eval_task(self) -> Self:
-        parse_humaneval_test(self.source.test, self.entry_point)
-        return self
-
     @cached_property
     def test_suite(self) -> HumanEvalTest:
         return parse_humaneval_test(self.source.test, self.entry_point)

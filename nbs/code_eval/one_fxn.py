@@ -33,7 +33,7 @@ def _(ds):
         start=0,
         stop=len(ds.raw_samples) - 1,
         step=1,
-        value=random.randrange(len(ds.raw_samples)),
+        value=110,  # random.randrange(len(ds.raw_samples)),
         label="Sample index",
     )
     num_picker
@@ -51,6 +51,12 @@ def _():
     mo.md(r"""
     ### Extract Tests - Clean
     """)
+    return
+
+
+@app.cell
+def _():
+    # 13, 14, 82, 99, 129, 138 are exceptions
     return
 
 
