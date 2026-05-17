@@ -201,27 +201,6 @@ class RawClassEvalTask(BaseModel):
         "test_classes",
         "methods_info",
     )
-    non_code_fields: ClassVar[tuple[str, ...]] = (
-        "task_id",
-        "validated",
-        "version",
-        "postprocess_solution",
-        "postprocess_test",
-        "auto_fail_reason",
-        "source__class_name",
-        "source__class_description",
-        "source__fields",
-        "source__import_statement",
-        "source__test_classes",
-        "source__methods_info",
-        "class_name",
-        "class_description",
-        "fields",
-        "import_statement",
-        "test_classes",
-        "methods_info",
-    )
-
     task_id: str
     source__class_name: str
     source__class_description: str

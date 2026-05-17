@@ -147,14 +147,6 @@ class TestHelperFunctions:
 
 @pytest.mark.docker
 class TestRawHumanEvalTask:
-    def test_non_code_fields(self) -> None:
-        assert RawHumanEvalTask.non_code_fields == (
-            "entry_point",
-            "task_id",
-            "validated",
-            "version",
-        )
-
     def test_construction(self, valid_raw_task: RawHumanEvalTask) -> None:
         assert valid_raw_task.task_id == "HumanEval/0"
         assert valid_raw_task.entry_point == "add"

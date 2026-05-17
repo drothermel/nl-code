@@ -36,21 +36,10 @@ def _():
 def render_sample_fields(sample, *, prefix=None, suppress_prefix=None):
     return mo.vstack(
         [
-            mo.accordion(
-                {
-                    field: (
-                        mo.plain_text(str(value))
-                        if field in sample.non_code_fields
-                        else mo.ui.code_editor(str(value))
-                    )
-                }
-            )
+            mo.accordion({field: mo.ui.code_editor(str(value))})
             for field, value in sample.model_dump().items()
             if (prefix is None or field.startswith(prefix))
-            and (
-                suppress_prefix is None
-                or not field.startswith(suppress_prefix)
-            )
+            and (suppress_prefix is None or not field.startswith(suppress_prefix))
         ]
     )
 

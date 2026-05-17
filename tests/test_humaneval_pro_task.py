@@ -37,17 +37,6 @@ def _expected_new_official_prompt(raw_problem: str, new_problem: str) -> str:
 
 
 class TestRawHumanEvalProTask:
-    def test_non_code_fields(self) -> None:
-        assert RawHumanEvalProTask.non_code_fields == (
-            "new_description",
-            "new_problem_comment",
-            "new_docstrings_and_comments",
-            "original_docstrings_and_comments",
-            "task_id",
-            "validated",
-            "version",
-        )
-
     def test_construction(self) -> None:
         row = make_humaneval_pro_row()
         row["task_id"] = "HumanEvalPro/0"
