@@ -1,5 +1,6 @@
 import pytest
 
+from nl_code.datasets.collections import normalize_sequence_index
 from nl_code.datasets.text import strip_surrounding_empty_lines
 from nl_code.datasets.validation import require_string
 
@@ -15,3 +16,13 @@ def test_require_string_rejects_non_string() -> None:
 
 def test_strip_surrounding_empty_lines() -> None:
     assert strip_surrounding_empty_lines("\n\n  hello\n\n") == "  hello"
+
+
+def test_normalize_sequence_index() -> None:
+    assert normalize_sequence_index(1, 3, collection_name="item") == 1
+    assert normalize_sequence_index(-1, 3, collection_name="item") == 2
+
+
+def test_normalize_sequence_index_rejects_out_of_range() -> None:
+    with pytest.raises(IndexError, match="item index 3 out of range for 3 items"):
+        normalize_sequence_index(3, 3, collection_name="item")
