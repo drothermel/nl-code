@@ -4,6 +4,7 @@ from typing import Any, ClassVar, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from nl_code.code_execution.runner import run_assertion_test
 from nl_code.code_parsing import (
     find_named_assignment_in_body,
     find_named_function,
@@ -16,7 +17,6 @@ from nl_code.code_parsing import (
     replace_source_spans,
     single_item_list_source,
 )
-from nl_code.code_execution.runner import run_assertion_test
 from nl_code.datasets.collections import normalize_sequence_index
 from nl_code.datasets.text import strip_surrounding_empty_lines
 from nl_code.datasets.validation import require_string
@@ -257,11 +257,6 @@ class RawHumanEvalTask(BaseModel):
             data.get("gt_solution_with_comments")
         )
     )
-
-    @model_validator(mode="after")
-    def validate_eval_task(self) -> Self:
-        parse_humaneval_test(self.source.test, self.entry_point)
-        return self
 
     @cached_property
     def test_suite(self) -> HumanEvalTest:
