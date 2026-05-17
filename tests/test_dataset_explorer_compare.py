@@ -208,6 +208,25 @@ def test_compare_endpoint_returns_compare_payload(
     )
 
 
+def test_humaneval_raw_detail_uses_test_suite_design(
+    configured_compare_registry: None,
+) -> None:
+    detail = explorer_service.get_raw_detail("humaneval-plus", "HumanEval/0")
+
+    assert detail.detail_kind == "humaneval_raw_detail"
+    tests_section = next(
+        section for section in detail.sections if section.title == "Tests"
+    )
+    fields = {field.key: field for field in tests_section.fields}
+    assert fields["test_shape"].value == "inputs_results"
+    assert fields["test_case_count"].value == "3"
+    assert fields["test_suite.inputs"].value == [[1, 2], [0, 0], [-1, 1]]
+    assert fields["test_suite.results"].value == [3, 0, 0]
+    assert "inputs = [[1, 2]]" in fields["test_suite.first_case_source"].value
+    assert "check(add)" in fields["test_suite.first_case_assertion_code"].value
+    assert "test_suite" in detail.raw_json
+
+
 def test_refresh_endpoint_reloads_cached_dataset(
     configured_compare_registry: None,
 ) -> None:

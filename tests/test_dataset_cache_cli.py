@@ -3,7 +3,7 @@ import os
 import pytest
 from typer.testing import CliRunner
 
-from nl_code.datasets.cache import read_manifest
+from nl_code.datasets.cache import PARSED_DATASET_CACHE_VERSION, read_manifest
 from nl_code.datasets.cache_cli import app
 from nl_code.datasets.humaneval_dataset import HumanEvalDataset
 
@@ -28,6 +28,7 @@ def test_cli_rebuild_status_and_clear(monkeypatch) -> None:
     manifest = read_manifest(HumanEvalDataset().dataset_id, HumanEvalDataset().split)
     assert manifest is not None
     assert manifest.task_count == 1
+    assert manifest.cache_schema_version == PARSED_DATASET_CACHE_VERSION
 
     monkeypatch.setattr("nl_code.datasets.dataset.load_dataset", fail_on_hf)
 

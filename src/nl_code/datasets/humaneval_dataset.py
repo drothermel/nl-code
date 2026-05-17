@@ -1,3 +1,4 @@
+from collections.abc import Iterator
 from typing import Any, ClassVar
 
 from pydantic import BaseModel
@@ -6,7 +7,7 @@ from nl_code.code_execution.models import AssertionBatchItem
 from nl_code.code_execution.runner import batch_run_assertion_tests
 from nl_code.datasets.dataset import Dataset
 from nl_code.datasets.gt_verification import run_batched_with_infra_isolation
-from nl_code.datasets.humaneval_task import RawHumanEvalTask
+from nl_code.datasets.humaneval_task import HumanEvalTestCase, RawHumanEvalTask
 from nl_code.datasets.task import CodeDataset, Task
 
 
@@ -22,6 +23,11 @@ class HumanEvalDataset(Dataset):
     def _extract_task_id(self, row: dict[str, Any]) -> str:
         return str(row["task_id"])
 
+    def get_test_cases_at_index(self, index: int) -> Iterator[HumanEvalTestCase]:
+        raw = self.get_raw_sample_at_index(index)
+        assert isinstance(raw, RawHumanEvalTask)
+        return raw.test_suite.iter_cases()
+
     def _verify_ground_truth_samples(
         self,
         raw_samples: dict[str, BaseModel],
@@ -32,7 +38,7 @@ class HumanEvalDataset(Dataset):
                 task_id,
                 AssertionBatchItem(
                     code=raw.gt_solution_with_comments,
-                    test_code=raw.assertion_test_code,
+                    test_code=raw.test_suite.assertion_test_code(),
                 ),
             )
             for task_id, raw_base in raw_samples.items()
