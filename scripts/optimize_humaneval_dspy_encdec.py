@@ -9,6 +9,7 @@ from nl_code.optim.dspy_generators import (
     DEFAULT_DSPY_MODEL,
     DEFAULT_OPENROUTER_BASE_URL,
     DEFAULT_REASONING_EFFORT,
+    resolve_openrouter_llm_config,
 )
 from nl_code.optim.humaneval_dspy_optimize import (
     EncDecOptimizationTarget,
@@ -48,7 +49,12 @@ def main(
     model: str = typer.Option(
         DEFAULT_DSPY_MODEL,
         "--model",
-        help="DSPy/LiteLLM model name.",
+        help="DSPy/LiteLLM model name. Overridden by --llm-config-id.",
+    ),
+    llm_config_id: str | None = typer.Option(
+        None,
+        "--llm-config-id",
+        help="Supported OpenRouter catalog config id. Overrides --model and --reasoning-effort.",
     ),
     reasoning_effort: str | None = typer.Option(
         DEFAULT_REASONING_EFFORT,
@@ -114,6 +120,12 @@ def main(
         require_task_ids(task_ids)
         api_key = api_key_from_env()
         auto_mode = normalize_auto(auto)
+        reasoning_config = None
+        if llm_config_id:
+            lm_catalog_config = resolve_openrouter_llm_config(llm_config_id)
+            model = lm_catalog_config.model
+            reasoning_effort = None
+            reasoning_config = lm_catalog_config.reasoning
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc
 
@@ -136,6 +148,8 @@ def main(
             api_key=api_key,
             api_base=api_base,
             reasoning_effort=reasoning_effort,
+            reasoning_config=reasoning_config,
+            llm_config_id=llm_config_id,
             output_dir=output_dir,
             auto=auto_mode,
             num_threads=num_threads,

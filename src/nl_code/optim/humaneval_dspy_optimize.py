@@ -64,6 +64,8 @@ class OptimizationSummary(BaseModel):
     generation_type: str
     optimization_target: str | None = None
     model: str
+    llm_config_id: str | None = None
+    reasoning_config: dict[str, Any] | None = None
     auto: AutoMode | None
     max_metric_calls: int | None = None
     num_threads: int | None
@@ -236,6 +238,8 @@ def optimize_direct_generation(
     api_key: str,
     api_base: str,
     reasoning_effort: str | None,
+    reasoning_config: dict[str, str | bool] | None = None,
+    llm_config_id: str | None = None,
     output_dir: Path,
     auto: AutoMode | None,
     num_threads: int | None,
@@ -261,6 +265,7 @@ def optimize_direct_generation(
         api_key=api_key,
         api_base=api_base,
         reasoning_effort=reasoning_effort,
+        reasoning=reasoning_config,
     )
 
     baseline = DirectCodeGenerator()
@@ -307,6 +312,8 @@ def optimize_direct_generation(
         generation_type="direct",
         optimization_target=None,
         model=model,
+        llm_config_id=llm_config_id,
+        reasoning_config=reasoning_config,
         auto=auto,
         num_threads=num_threads,
         seed=seed,
@@ -329,6 +336,8 @@ def optimize_encoder_decoder_generation(
     api_key: str,
     api_base: str,
     reasoning_effort: str | None,
+    reasoning_config: dict[str, str | bool] | None = None,
+    llm_config_id: str | None = None,
     output_dir: Path,
     auto: AutoMode | None,
     num_threads: int | None,
@@ -352,6 +361,7 @@ def optimize_encoder_decoder_generation(
         api_key=api_key,
         api_base=api_base,
         reasoning_effort=reasoning_effort,
+        reasoning=reasoning_config,
     )
 
     baseline = EncoderDecoderCodeGenerator()
@@ -374,6 +384,8 @@ def optimize_encoder_decoder_generation(
         generation_type="encdec",
         optimization_target=target.value,
         model=model,
+        llm_config_id=llm_config_id,
+        reasoning_config=reasoning_config,
         auto=auto,
         num_threads=num_threads,
         seed=seed,
@@ -846,6 +858,8 @@ def write_optimization_result(
     generation_type: str,
     optimization_target: str | None,
     model: str,
+    llm_config_id: str | None = None,
+    reasoning_config: dict[str, Any] | None = None,
     auto: AutoMode | None,
     max_metric_calls: int | None = None,
     num_threads: int | None,
@@ -872,6 +886,8 @@ def write_optimization_result(
         generation_type=generation_type,
         optimization_target=optimization_target,
         model=model,
+        llm_config_id=llm_config_id,
+        reasoning_config=reasoning_config,
         auto=auto,
         max_metric_calls=max_metric_calls,
         num_threads=num_threads,

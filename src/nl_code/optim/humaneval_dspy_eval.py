@@ -19,6 +19,8 @@ from nl_code.code_execution.models import (
 from nl_code.code_execution.runner import run_test_cases
 from nl_code.datasets import HumanEvalDataset
 from nl_code.optim.dspy_generators import (
+    CodeSpecDecoder,
+    CodeSpecEncoder,
     DEFAULT_DSPY_MODEL,
     DEFAULT_OPENROUTER_BASE_URL,
     DEFAULT_REASONING_EFFORT,
@@ -51,6 +53,10 @@ class HumanEvalDspyEvalConfig(BaseModel):
     output_dir: Path = Path("logs")
     generation_log_file: Path | None = None
     run_log_file: Path | None = None
+    direct_program_path: Path | None = None
+    encdec_program_path: Path | None = None
+    encoder_program_path: Path | None = None
+    decoder_program_path: Path | None = None
     timeout_seconds: float = 30.0
     docker_image: str | None = None
     log_every: int = 0
@@ -70,6 +76,13 @@ class HumanEvalDspyEvalConfig(BaseModel):
         if (self.sample_indices or self.task_ids) and self.n_samples != 1:
             raise ValueError(
                 "n_samples cannot be combined with explicit sample_indices or task_ids"
+            )
+        if self.encdec_program_path and (
+            self.encoder_program_path or self.decoder_program_path
+        ):
+            raise ValueError(
+                "encdec_program_path cannot be combined with encoder_program_path "
+                "or decoder_program_path"
             )
         return self
 
@@ -213,9 +226,13 @@ def run_humaneval_dspy_eval(
             reasoning_effort=config.reasoning_effort,
         )
     if needs_direct_generator and direct_generator is None:
-        direct_generator = DirectCodeGenerator()
+        direct_generator = load_direct_generator(config.direct_program_path)
     if needs_encoder_decoder_generator and encoder_decoder_generator is None:
-        encoder_decoder_generator = EncoderDecoderCodeGenerator()
+        encoder_decoder_generator = load_encoder_decoder_generator(
+            encdec_program_path=config.encdec_program_path,
+            encoder_program_path=config.encoder_program_path,
+            decoder_program_path=config.decoder_program_path,
+        )
 
     generation_log_file = config.generation_log_file or _timestamped_log_path(
         config.output_dir,
@@ -275,6 +292,36 @@ def run_humaneval_dspy_eval(
         or _timestamped_log_path(config.output_dir, "run", suffix=".json"),
     )
     return run.model_copy(update={"run_log_file": run_log_file})
+
+
+def load_direct_generator(program_path: Path | None = None) -> DirectCodeGenerator:
+    generator = DirectCodeGenerator()
+    load_program_if_configured(generator, program_path)
+    return generator
+
+
+def load_encoder_decoder_generator(
+    *,
+    encdec_program_path: Path | None = None,
+    encoder_program_path: Path | None = None,
+    decoder_program_path: Path | None = None,
+) -> EncoderDecoderCodeGenerator:
+    if encdec_program_path is not None:
+        generator = EncoderDecoderCodeGenerator()
+        load_program_if_configured(generator, encdec_program_path)
+        return generator
+
+    encoder = CodeSpecEncoder()
+    decoder = CodeSpecDecoder()
+    load_program_if_configured(encoder, encoder_program_path)
+    load_program_if_configured(decoder, decoder_program_path)
+    return EncoderDecoderCodeGenerator(encoder=encoder, decoder=decoder)
+
+
+def load_program_if_configured(program: Any, program_path: Path | None) -> None:
+    if program_path is None:
+        return
+    program.load(program_path)
 
 
 def summarize_attempts_by_generation_type(

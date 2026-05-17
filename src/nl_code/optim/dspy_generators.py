@@ -4,6 +4,7 @@ import os
 from typing import Any
 
 import dspy
+from pydantic import BaseModel, ConfigDict
 
 DEFAULT_CODE_GENERATION_INSTRUCTIONS = (
     "Implement the requested function using the provided specification. "
@@ -16,6 +17,63 @@ DEFAULT_ENCODER_INSTRUCTIONS = (
 DEFAULT_OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 DEFAULT_DSPY_MODEL = "openrouter/openai/gpt-5-nano"
 DEFAULT_REASONING_EFFORT = "minimal"
+
+
+class DspyLmCatalogConfig(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    model: str
+    reasoning: dict[str, str | bool] | None = None
+
+
+SUPPORTED_OPENROUTER_LLM_CONFIGS: dict[str, DspyLmCatalogConfig] = {
+    "openrouter/openai/gpt-oss-20b/low/v1": DspyLmCatalogConfig(
+        model="openrouter/openai/gpt-oss-20b",
+        reasoning={"effort": "low"},
+    ),
+    "openrouter/deepseek/deepseek-chat-v3.1/off/v1": DspyLmCatalogConfig(
+        model="openrouter/deepseek/deepseek-chat-v3.1",
+        reasoning={"enabled": False},
+    ),
+    "openrouter/xiaomi/mimo-v2-flash/off/v1": DspyLmCatalogConfig(
+        model="openrouter/xiaomi/mimo-v2-flash",
+        reasoning={"enabled": False},
+    ),
+    "openrouter/nvidia/llama-3.3-nemotron-super-49b-v1.5/off/v1": DspyLmCatalogConfig(
+        model="openrouter/nvidia/llama-3.3-nemotron-super-49b-v1.5",
+        reasoning={"enabled": False},
+    ),
+    "openrouter/baidu/ernie-4.5-21b-a3b/na/v1": DspyLmCatalogConfig(
+        model="openrouter/baidu/ernie-4.5-21b-a3b",
+    ),
+    "openrouter/bytedance-seed/seed-2.0-mini/off/v1": DspyLmCatalogConfig(
+        model="openrouter/bytedance-seed/seed-2.0-mini",
+        reasoning={"enabled": False},
+    ),
+    "openrouter/mistralai/devstral-small/na/v1": DspyLmCatalogConfig(
+        model="openrouter/mistralai/devstral-small",
+    ),
+    "openrouter/meta-llama/llama-4-scout/na/v1": DspyLmCatalogConfig(
+        model="openrouter/meta-llama/llama-4-scout",
+    ),
+    "openrouter/qwen/qwen3-coder-30b-a3b-instruct/na/v1": DspyLmCatalogConfig(
+        model="openrouter/qwen/qwen3-coder-30b-a3b-instruct",
+    ),
+}
+
+
+def supported_openrouter_llm_config_ids() -> tuple[str, ...]:
+    return tuple(SUPPORTED_OPENROUTER_LLM_CONFIGS)
+
+
+def resolve_openrouter_llm_config(config_id: str) -> DspyLmCatalogConfig:
+    try:
+        return SUPPORTED_OPENROUTER_LLM_CONFIGS[config_id]
+    except KeyError as exc:
+        supported = ", ".join(supported_openrouter_llm_config_ids())
+        raise ValueError(
+            f"unsupported --llm-config-id {config_id!r}; supported values: {supported}"
+        ) from exc
 
 
 def reasoning_from_effort(effort: str | None) -> dict[str, str] | None:
@@ -128,6 +186,7 @@ def configure_dspy_lm(
     api_key: str,
     api_base: str = DEFAULT_OPENROUTER_BASE_URL,
     reasoning_effort: str | None = DEFAULT_REASONING_EFFORT,
+    reasoning: dict[str, str | bool] | None = None,
     disable_cache: bool = True,
 ) -> Any:
     os.environ["OPENROUTER_API_KEY"] = api_key
@@ -137,7 +196,9 @@ def configure_dspy_lm(
         model,
         api_key=api_key,
         api_base=api_base,
-        reasoning=reasoning_from_effort(reasoning_effort),
+        reasoning=reasoning
+        if reasoning is not None
+        else reasoning_from_effort(reasoning_effort),
     )
     dspy.configure(lm=lm)
     if disable_cache:

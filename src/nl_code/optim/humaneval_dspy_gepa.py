@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import threading
 from collections.abc import Callable, Sequence
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -27,11 +29,13 @@ from nl_code.optim.humaneval_dspy_optimize import (
     SplitScore,
     SplitTaskIds,
     completed_code_metric,
+    configure_optimization_logging,
     decoder_examples,
     direct_examples,
     encoder_examples,
     encdec_examples,
     evaluate_splits,
+    log_optimization_event,
     log_split_sizes,
     log_step,
     precompute_code_specs,
@@ -51,12 +55,16 @@ class HumanEvalGepaFeedbackMetric:
         timeout_seconds: float,
         docker_image: str | None,
         label: str,
+        verbose: bool = False,
     ) -> None:
         self.samples_by_task_id = samples_by_task_id
         self.prediction_to_completed_code = prediction_to_completed_code
         self.timeout_seconds = timeout_seconds
         self.docker_image = docker_image
         self.label = label
+        self.verbose = verbose
+        self._lock = threading.Lock()
+        self._call_count = 0
 
     def __call__(
         self,
@@ -78,6 +86,12 @@ class HumanEvalGepaFeedbackMetric:
                 docker_image=self.docker_image,
             )
         except CodeExecutionInfrastructureError as exc:
+            self._log_score(
+                task_id=task_id,
+                pred_name=pred_name,
+                pass_rate=0.0,
+                error=str(exc),
+            )
             return ScoreWithFeedback(
                 score=0.0,
                 feedback=(
@@ -87,6 +101,12 @@ class HumanEvalGepaFeedbackMetric:
                 ),
             )
 
+        self._log_score(
+            task_id=task_id,
+            pred_name=pred_name,
+            pass_rate=pass_rate,
+            error=None,
+        )
         feedback = self._feedback(
             task_id=task_id,
             pred_name=pred_name,
@@ -153,6 +173,37 @@ class HumanEvalGepaFeedbackMetric:
             "produces correct executable Python."
         )
 
+    def _log_score(
+        self,
+        *,
+        task_id: str,
+        pred_name: str | None,
+        pass_rate: float,
+        error: str | None,
+    ) -> None:
+        with self._lock:
+            self._call_count += 1
+            call_count = self._call_count
+        log_optimization_event(
+            "gepa_metric_call",
+            label=self.label,
+            metric_call=call_count,
+            task_id=task_id,
+            predictor=pred_name,
+            pass_rate=pass_rate,
+            error=error,
+        )
+        if not self.verbose:
+            return
+        timestamp = datetime.now(timezone.utc).isoformat()
+        predictor = f" predictor={pred_name}" if pred_name else ""
+        suffix = f" error={error}" if error else ""
+        print(
+            f"{timestamp} [{self.label}] metric_call={call_count} "
+            f"task_id={task_id}{predictor} pass_rate={pass_rate:.3f}{suffix}",
+            flush=True,
+        )
+
 
 def optimize_direct_generation_gepa(
     *,
@@ -161,6 +212,8 @@ def optimize_direct_generation_gepa(
     api_key: str,
     api_base: str,
     reasoning_effort: str | None,
+    reasoning_config: dict[str, str | bool] | None = None,
+    llm_config_id: str | None = None,
     output_dir: Path,
     auto: AutoMode | None,
     max_metric_calls: int | None,
@@ -169,7 +222,11 @@ def optimize_direct_generation_gepa(
     timeout_seconds: float,
     docker_image: str | None,
     verbose: bool,
+    artifact_stem: str | None = None,
+    run_log_path: Path | None = None,
+    event_log_path: Path | None = None,
 ) -> OptimizationRunResult:
+    configure_optimization_logging(verbose)
     log_step("Loading HumanEval dataset", verbose=verbose)
     dataset = HumanEvalDataset().load()
     samples_by_task_id = samples_for_splits(dataset, task_ids)
@@ -181,6 +238,7 @@ def optimize_direct_generation_gepa(
         api_key=api_key,
         api_base=api_base,
         reasoning_effort=reasoning_effort,
+        reasoning=reasoning_config,
     )
     baseline = DirectCodeGenerator()
     eval_metric = completed_code_metric(
@@ -194,6 +252,7 @@ def optimize_direct_generation_gepa(
         samples_by_task_id=samples_by_task_id,
         timeout_seconds=timeout_seconds,
         docker_image=docker_image,
+        verbose=verbose,
     )
 
     baseline_scores = evaluate_splits(
@@ -232,6 +291,8 @@ def optimize_direct_generation_gepa(
         generation_type="direct_gepa",
         optimization_target=None,
         model=model,
+        llm_config_id=llm_config_id,
+        reasoning_config=reasoning_config,
         auto=auto,
         max_metric_calls=max_metric_calls,
         num_threads=num_threads,
@@ -241,6 +302,9 @@ def optimize_direct_generation_gepa(
         optimized_scores=optimized_scores,
         output_dir=output_dir,
         verbose=verbose,
+        artifact_stem=artifact_stem,
+        run_log_path=run_log_path,
+        event_log_path=event_log_path,
     )
 
 
@@ -252,6 +316,8 @@ def optimize_encoder_decoder_generation_gepa(
     api_key: str,
     api_base: str,
     reasoning_effort: str | None,
+    reasoning_config: dict[str, str | bool] | None = None,
+    llm_config_id: str | None = None,
     output_dir: Path,
     auto: AutoMode | None,
     max_metric_calls: int | None,
@@ -260,7 +326,11 @@ def optimize_encoder_decoder_generation_gepa(
     timeout_seconds: float,
     docker_image: str | None,
     verbose: bool,
+    artifact_stem: str | None = None,
+    run_log_path: Path | None = None,
+    event_log_path: Path | None = None,
 ) -> OptimizationRunResult:
+    configure_optimization_logging(verbose)
     log_step("Loading HumanEval dataset", verbose=verbose)
     dataset = HumanEvalDataset().load()
     samples_by_task_id = samples_for_splits(dataset, task_ids)
@@ -272,6 +342,7 @@ def optimize_encoder_decoder_generation_gepa(
         api_key=api_key,
         api_base=api_base,
         reasoning_effort=reasoning_effort,
+        reasoning=reasoning_config,
     )
     baseline = EncoderDecoderCodeGenerator()
     optimized_program, baseline_scores, optimized_scores = _optimize_encdec_gepa(
@@ -294,6 +365,8 @@ def optimize_encoder_decoder_generation_gepa(
         generation_type="encdec_gepa",
         optimization_target=target.value,
         model=model,
+        llm_config_id=llm_config_id,
+        reasoning_config=reasoning_config,
         auto=auto,
         max_metric_calls=max_metric_calls,
         num_threads=num_threads,
@@ -303,6 +376,9 @@ def optimize_encoder_decoder_generation_gepa(
         optimized_scores=optimized_scores,
         output_dir=output_dir,
         verbose=verbose,
+        artifact_stem=artifact_stem,
+        run_log_path=run_log_path,
+        event_log_path=event_log_path,
     )
 
 
@@ -311,6 +387,7 @@ def direct_gepa_metric(
     samples_by_task_id: dict[str, Any],
     timeout_seconds: float,
     docker_image: str | None,
+    verbose: bool = False,
 ) -> HumanEvalGepaFeedbackMetric:
     return HumanEvalGepaFeedbackMetric(
         samples_by_task_id=samples_by_task_id,
@@ -321,6 +398,7 @@ def direct_gepa_metric(
         timeout_seconds=timeout_seconds,
         docker_image=docker_image,
         label="direct-gepa",
+        verbose=verbose,
     )
 
 
@@ -330,6 +408,7 @@ def encoder_gepa_metric(
     samples_by_task_id: dict[str, Any],
     timeout_seconds: float,
     docker_image: str | None,
+    verbose: bool = False,
 ) -> HumanEvalGepaFeedbackMetric:
     def decode_prediction(example: dspy.Example, prediction: Any) -> str:
         decoded = decoder(
@@ -344,6 +423,7 @@ def encoder_gepa_metric(
         timeout_seconds=timeout_seconds,
         docker_image=docker_image,
         label="encoder-gepa",
+        verbose=verbose,
     )
 
 
@@ -468,6 +548,7 @@ def _optimize_encoder_gepa(
         samples_by_task_id=samples_by_task_id,
         timeout_seconds=timeout_seconds,
         docker_image=docker_image,
+        verbose=verbose,
     )
     baseline_scores = evaluate_splits(
         program=baseline.encoder,
@@ -533,6 +614,7 @@ def _optimize_decoder_gepa(
         samples_by_task_id=samples_by_task_id,
         timeout_seconds=timeout_seconds,
         docker_image=docker_image,
+        verbose=verbose,
     )
     baseline_scores = evaluate_splits(
         program=baseline.decoder,
@@ -587,6 +669,7 @@ def _optimize_both_gepa(
         samples_by_task_id=samples_by_task_id,
         timeout_seconds=timeout_seconds,
         docker_image=docker_image,
+        verbose=verbose,
     )
     baseline_scores = evaluate_splits(
         program=baseline,

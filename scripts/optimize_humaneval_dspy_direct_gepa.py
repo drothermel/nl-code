@@ -9,12 +9,15 @@ from nl_code.optim.dspy_generators import (
     DEFAULT_DSPY_MODEL,
     DEFAULT_OPENROUTER_BASE_URL,
     DEFAULT_REASONING_EFFORT,
+    resolve_openrouter_llm_config,
 )
 from nl_code.optim.humaneval_dspy_gepa import optimize_direct_generation_gepa
 from nl_code.optim.humaneval_dspy_optimize import (
     SplitTaskIds,
     api_key_from_env,
     normalize_auto,
+    optimization_artifact_paths,
+    optimization_log_context,
     parse_task_ids,
     require_task_ids,
 )
@@ -39,7 +42,12 @@ def main(
     model: str = typer.Option(
         DEFAULT_DSPY_MODEL,
         "--model",
-        help="DSPy/LiteLLM model name used for task and reflection calls.",
+        help="DSPy/LiteLLM model name used for task and reflection calls. Overridden by --llm-config-id.",
+    ),
+    llm_config_id: str | None = typer.Option(
+        None,
+        "--llm-config-id",
+        help="Supported OpenRouter catalog config id. Overrides --model and --reasoning-effort.",
     ),
     reasoning_effort: str | None = typer.Option(
         DEFAULT_REASONING_EFFORT,
@@ -55,6 +63,16 @@ def main(
         Path("logs/dspy_optimized"),
         "--output-dir",
         help="Directory for optimized program and summary logs.",
+    ),
+    run_log_path: Path | None = typer.Option(
+        None,
+        "--run-log-path",
+        help="Stdout/stderr log path. Defaults to the run artifact namespace.",
+    ),
+    event_log_path: Path | None = typer.Option(
+        None,
+        "--event-log-path",
+        help="Structured JSONL event log path. Defaults to the run artifact namespace.",
     ),
     auto: str | None = typer.Option(
         "light",
@@ -101,6 +119,12 @@ def main(
         require_task_ids(task_ids)
         api_key = api_key_from_env()
         auto_mode = None if max_metric_calls is not None else normalize_auto(auto)
+        reasoning_config = None
+        if llm_config_id:
+            lm_catalog_config = resolve_openrouter_llm_config(llm_config_id)
+            model = lm_catalog_config.model
+            reasoning_effort = None
+            reasoning_config = lm_catalog_config.reasoning
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc
     if auto_mode is None and max_metric_calls is None:
@@ -108,23 +132,42 @@ def main(
             "Either --auto or --max-metric-calls is required for GEPA"
         )
 
-    run = optimize_direct_generation_gepa(
-        task_ids=task_ids,
-        model=model,
-        api_key=api_key,
-        api_base=api_base,
-        reasoning_effort=reasoning_effort,
+    artifacts = optimization_artifact_paths(
         output_dir=output_dir,
-        auto=auto_mode,
-        max_metric_calls=max_metric_calls,
-        num_threads=num_threads,
-        seed=seed,
-        timeout_seconds=timeout_seconds,
-        docker_image=docker_image,
-        verbose=verbose,
+        generation_type="direct_gepa",
+        optimization_target=None,
     )
-    typer.echo(f"Optimized program: {run.summary.optimized_program_path}")
-    typer.echo(f"Summary: {run.summary.summary_path}")
+    run_log_path = run_log_path or artifacts.run_log_path
+    event_log_path = event_log_path or artifacts.event_log_path
+
+    with optimization_log_context(
+        run_log_path=run_log_path,
+        event_log_path=event_log_path,
+    ):
+        run = optimize_direct_generation_gepa(
+            task_ids=task_ids,
+            model=model,
+            api_key=api_key,
+            api_base=api_base,
+            reasoning_effort=reasoning_effort,
+            reasoning_config=reasoning_config,
+            llm_config_id=llm_config_id,
+            output_dir=output_dir,
+            auto=auto_mode,
+            max_metric_calls=max_metric_calls,
+            num_threads=num_threads,
+            seed=seed,
+            timeout_seconds=timeout_seconds,
+            docker_image=docker_image,
+            verbose=verbose,
+            artifact_stem=artifacts.stem,
+            run_log_path=run_log_path,
+            event_log_path=event_log_path,
+        )
+        typer.echo(f"Optimized program: {run.summary.optimized_program_path}")
+        typer.echo(f"Summary: {run.summary.summary_path}")
+        typer.echo(f"Run log: {run_log_path}")
+        typer.echo(f"Event log: {event_log_path}")
 
 
 if __name__ == "__main__":

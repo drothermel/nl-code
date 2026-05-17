@@ -72,6 +72,25 @@ class MutableFakeLm:
         self.history: list[dict[str, Any]] = []
 
 
+class FakeLoadableProgram:
+    def __init__(self) -> None:
+        self.loaded_path: Path | None = None
+
+    def load(self, path: Path) -> None:
+        self.loaded_path = path
+
+
+class FakeEncDecProgram(FakeLoadableProgram):
+    def __init__(
+        self,
+        encoder: FakeLoadableProgram | None = None,
+        decoder: FakeLoadableProgram | None = None,
+    ) -> None:
+        super().__init__()
+        self.encoder = encoder
+        self.decoder = decoder
+
+
 def test_select_dataset_indices_skips_unevaluable_samples() -> None:
     dataset = _fake_dataset()
 
@@ -114,6 +133,66 @@ def test_config_rejects_nonpositive_repeats() -> None:
 def test_config_rejects_negative_progress_interval() -> None:
     with pytest.raises(ValueError, match="log_every must be non-negative"):
         HumanEvalDspyEvalConfig(log_every=-1)
+
+
+def test_config_rejects_full_encdec_and_component_programs() -> None:
+    with pytest.raises(ValueError, match="encdec_program_path cannot be combined"):
+        HumanEvalDspyEvalConfig(
+            encdec_program_path=Path("encdec.json"),
+            encoder_program_path=Path("encoder.json"),
+        )
+
+
+def test_load_direct_generator_loads_configured_program(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(eval_mod, "DirectCodeGenerator", FakeLoadableProgram)
+    program_path = tmp_path / "direct.json"
+
+    generator = eval_mod.load_direct_generator(program_path)
+
+    assert isinstance(generator, FakeLoadableProgram)
+    assert generator.loaded_path == program_path
+
+
+def test_load_encoder_decoder_generator_composes_component_programs(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(eval_mod, "CodeSpecEncoder", FakeLoadableProgram)
+    monkeypatch.setattr(eval_mod, "CodeSpecDecoder", FakeLoadableProgram)
+    monkeypatch.setattr(eval_mod, "EncoderDecoderCodeGenerator", FakeEncDecProgram)
+    encoder_path = tmp_path / "encoder.json"
+    decoder_path = tmp_path / "decoder.json"
+
+    generator = eval_mod.load_encoder_decoder_generator(
+        encoder_program_path=encoder_path,
+        decoder_program_path=decoder_path,
+    )
+
+    assert isinstance(generator, FakeEncDecProgram)
+    assert generator.encoder.loaded_path == encoder_path
+    assert generator.decoder.loaded_path == decoder_path
+
+
+def test_load_encoder_decoder_generator_loads_full_program(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(eval_mod, "EncoderDecoderCodeGenerator", FakeEncDecProgram)
+    program_path = tmp_path / "encdec.json"
+
+    generator = eval_mod.load_encoder_decoder_generator(
+        encdec_program_path=program_path,
+        encoder_program_path=None,
+        decoder_program_path=None,
+    )
+
+    assert isinstance(generator, FakeEncDecProgram)
+    assert generator.loaded_path == program_path
+    assert generator.encoder is None
+    assert generator.decoder is None
 
 
 def test_run_direct_eval_expands_repeats(

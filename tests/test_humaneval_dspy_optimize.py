@@ -10,7 +10,12 @@ import pytest
 from pydantic import BaseModel
 
 from nl_code.code_execution.models import TestCaseResult
+from nl_code.optim import dspy_generators as gen_mod
 from nl_code.optim import humaneval_dspy_optimize as opt_mod
+from nl_code.optim.dspy_generators import (
+    resolve_openrouter_llm_config,
+    supported_openrouter_llm_config_ids,
+)
 from nl_code.optim.humaneval_dspy_optimize import (
     SplitTaskIds,
     api_key_from_env,
@@ -66,6 +71,85 @@ def test_score_value_accepts_score_with_feedback_like_object() -> None:
     assert score_value(Score()) == 0.75
     assert score_value({"score": 0.5, "feedback": "ok"}) == 0.5
     assert score_value(1.0) == 1.0
+
+
+def test_supported_openrouter_llm_config_ids_are_low_off_or_na() -> None:
+    assert supported_openrouter_llm_config_ids() == (
+        "openrouter/openai/gpt-oss-20b/low/v1",
+        "openrouter/deepseek/deepseek-chat-v3.1/off/v1",
+        "openrouter/xiaomi/mimo-v2-flash/off/v1",
+        "openrouter/nvidia/llama-3.3-nemotron-super-49b-v1.5/off/v1",
+        "openrouter/baidu/ernie-4.5-21b-a3b/na/v1",
+        "openrouter/bytedance-seed/seed-2.0-mini/off/v1",
+        "openrouter/mistralai/devstral-small/na/v1",
+        "openrouter/meta-llama/llama-4-scout/na/v1",
+        "openrouter/qwen/qwen3-coder-30b-a3b-instruct/na/v1",
+    )
+
+
+def test_openrouter_llm_config_reasoning_variants() -> None:
+    low = resolve_openrouter_llm_config("openrouter/openai/gpt-oss-20b/low/v1")
+    off = resolve_openrouter_llm_config("openrouter/deepseek/deepseek-chat-v3.1/off/v1")
+    no_control = resolve_openrouter_llm_config(
+        "openrouter/mistralai/devstral-small/na/v1"
+    )
+
+    assert low.model == "openrouter/openai/gpt-oss-20b"
+    assert low.reasoning == {"effort": "low"}
+    assert off.model == "openrouter/deepseek/deepseek-chat-v3.1"
+    assert off.reasoning == {"enabled": False}
+    assert no_control.model == "openrouter/mistralai/devstral-small"
+    assert no_control.reasoning is None
+
+
+def test_configure_dspy_lm_prefers_explicit_reasoning(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, Any] = {}
+
+    class FakeLm:
+        def __init__(self, model: str, **kwargs: Any) -> None:
+            captured["model"] = model
+            captured["kwargs"] = kwargs
+
+    monkeypatch.setattr(gen_mod.dspy, "LM", FakeLm)
+    monkeypatch.setattr(gen_mod.dspy, "configure", lambda **kwargs: None)
+    monkeypatch.setattr(gen_mod.dspy, "configure_cache", lambda **kwargs: None)
+
+    gen_mod.configure_dspy_lm(
+        model="openrouter/deepseek/deepseek-chat-v3.1",
+        api_key="test-key",
+        reasoning_effort="minimal",
+        reasoning={"enabled": False},
+    )
+
+    assert captured["model"] == "openrouter/deepseek/deepseek-chat-v3.1"
+    assert captured["kwargs"]["reasoning"] == {"enabled": False}
+
+
+def test_configure_dspy_lm_can_omit_catalog_reasoning(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, Any] = {}
+
+    class FakeLm:
+        def __init__(self, model: str, **kwargs: Any) -> None:
+            captured["model"] = model
+            captured["kwargs"] = kwargs
+
+    monkeypatch.setattr(gen_mod.dspy, "LM", FakeLm)
+    monkeypatch.setattr(gen_mod.dspy, "configure", lambda **kwargs: None)
+    monkeypatch.setattr(gen_mod.dspy, "configure_cache", lambda **kwargs: None)
+
+    gen_mod.configure_dspy_lm(
+        model="openrouter/mistralai/devstral-small",
+        api_key="test-key",
+        reasoning_effort=None,
+        reasoning=None,
+    )
+
+    assert captured["model"] == "openrouter/mistralai/devstral-small"
+    assert captured["kwargs"]["reasoning"] is None
 
 
 def test_optimization_artifact_paths_use_shared_namespace(tmp_path: Path) -> None:
