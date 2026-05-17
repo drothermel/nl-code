@@ -86,13 +86,6 @@ class TestClassEvalTestDetail:
 
 @pytest.mark.docker
 class TestRawClassEvalTask:
-    def test_non_code_fields(self) -> None:
-        assert "source__class_name" in RawClassEvalTask.non_code_fields
-        assert "source__methods_info" in RawClassEvalTask.non_code_fields
-        assert "methods_info" in RawClassEvalTask.non_code_fields
-        assert "postprocess_solution" in RawClassEvalTask.non_code_fields
-        assert "version" in RawClassEvalTask.non_code_fields
-
     def test_construction(self) -> None:
         row = make_classeval_row()
         task = RawClassEvalTask.model_validate(row)

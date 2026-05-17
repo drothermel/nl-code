@@ -1,4 +1,4 @@
-from typing import ClassVar, Literal
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -28,15 +28,6 @@ from nl_code.datasets.pro_task_helpers import (
 
 class RawHumanEvalProTask(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
-    non_code_fields: ClassVar[tuple[str, ...]] = (
-        "new_description",
-        "new_problem_comment",
-        "new_docstrings_and_comments",
-        "original_docstrings_and_comments",
-        "task_id",
-        "validated",
-        "version",
-    )
 
     task_id: str
     source__raw_problem: str = Field(alias="raw_problem")

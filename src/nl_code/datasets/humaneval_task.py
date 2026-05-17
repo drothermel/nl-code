@@ -1,6 +1,6 @@
 from collections.abc import Iterator
 from functools import cached_property
-from typing import Any, ClassVar, Literal, Self
+from typing import Any, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -233,18 +233,12 @@ class HumanEvalSource(BaseModel):
 
 class RawHumanEvalTask(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
-    non_code_fields: ClassVar[tuple[str, ...]] = (
-        "entry_point",
-        "task_id",
-        "validated",
-        "version",
-    )
-
     task_id: str
     entry_point: str
-    source: HumanEvalSource
     version: Literal["v1", "v2"] = "v2"
     validated: bool = False
+
+    source: HumanEvalSource
 
     gt_solution_with_comments: str = Field(
         default_factory=lambda data: build_function_source(
