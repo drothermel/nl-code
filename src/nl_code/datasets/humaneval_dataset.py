@@ -18,7 +18,17 @@ class HumanEvalDataset(Dataset):
     dataset_id: CodeDataset = CodeDataset.HUMANEVAL_PLUS
 
     def _parse_row(self, row: dict[str, Any]) -> RawHumanEvalTask:
-        return RawHumanEvalTask.model_validate(row)
+        return RawHumanEvalTask.model_validate(
+            {
+                "task_id": row["task_id"],
+                "entry_point": row["entry_point"],
+                "source": {
+                    "prompt": row["prompt"],
+                    "canonical_solution": row["canonical_solution"],
+                    "test": row["test"],
+                },
+            }
+        )
 
     def _extract_task_id(self, row: dict[str, Any]) -> str:
         return str(row["task_id"])

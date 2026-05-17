@@ -142,7 +142,7 @@ def test_get_comparison_summarizes_counts_metrics_and_ratios(
         len(human_task.description)
     )
     assert human_metric_stats["prompt_length_chars"].median == float(
-        len(human_raw.official_prompt)
+        len(human_raw.source.prompt)
     )
 
     mbpp_row = response.datasets[1]
@@ -224,7 +224,8 @@ def test_humaneval_raw_detail_uses_test_suite_design(
     assert fields["test_suite.results"].value == [3, 0, 0]
     assert "inputs = [[1, 2]]" in fields["test_suite.first_case_source"].value
     assert "check(add)" in fields["test_suite.first_case_assertion_code"].value
-    assert "test_suite" in detail.raw_json
+    assert detail.raw_json["source"]["test"]
+    assert "test_suite" not in detail.raw_json
 
 
 def test_refresh_endpoint_reloads_cached_dataset(
