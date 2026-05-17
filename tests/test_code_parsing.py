@@ -17,6 +17,7 @@ from nl_code.code_parsing import (
     get_first_function_docstring,
     line_col_to_index,
     literal_eval_assignment_value,
+    literal_list_assignment_in_body,
     merge_code_components,
     node_references_name,
     node_span,
@@ -25,6 +26,7 @@ from nl_code.code_parsing import (
     remove_docstrings_and_comments,
     remove_full_line_comments,
     replace_source_spans,
+    single_item_list_source,
 )
 
 
@@ -194,6 +196,20 @@ class TestFindNamedAssignment:
         value = literal_eval_assignment_value(assign)
         assert value == [[1, 2], [3, 4]]
 
+    def test_literal_list_assignment_in_body(self) -> None:
+        source = "def check():\n    inputs = [[1, 2], [3, 4]]\n"
+        func = find_named_function(source, "check")
+        assign, value, item_nodes = literal_list_assignment_in_body(func.body, "inputs")
+        assert assign is not None
+        assert value == [[1, 2], [3, 4]]
+        assert len(item_nodes) == 2
+
+    def test_literal_list_assignment_rejects_non_list(self) -> None:
+        source = "def check():\n    inputs = (1, 2)\n"
+        func = find_named_function(source, "check")
+        with pytest.raises(TypeError, match="list literal"):
+            literal_list_assignment_in_body(func.body, "inputs")
+
 
 class TestGetDocstring:
     def test_function_docstring(self) -> None:
@@ -236,6 +252,13 @@ class TestSourceSpans:
         span = node_span(source, assign.value)
         assert source[slice(*span)] == "[1, 2, 3]"
         assert replace_source_spans(source, [(span, "[2]")]) == "x = [2]\n"
+
+    def test_single_item_list_source(self) -> None:
+        source = "inputs = [[1, 2], [3, 4]]\n"
+        assign = ast.parse(source).body[0]
+        assert isinstance(assign, ast.Assign)
+        assert isinstance(assign.value, ast.List)
+        assert single_item_list_source(source, assign.value.elts[1]) == "[[3, 4]]"
 
     def test_node_references_name(self) -> None:
         node = find_named_function("def check():\n    ref_func(1)\n", "check")

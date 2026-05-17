@@ -1,6 +1,7 @@
 import ast
 import io
 import tokenize
+from typing import Any
 
 
 def _parse_source(source: str, *, allow_stub_body: bool = False) -> ast.Module:
@@ -157,6 +158,11 @@ def replace_source_spans(
     return updated
 
 
+def single_item_list_source(source: str, item_node: ast.AST) -> str:
+    start, end = node_span(source, item_node)
+    return f"[{source[start:end]}]"
+
+
 def node_references_name(node: ast.AST, name: str) -> bool:
     return any(
         isinstance(child, ast.Name) and child.id == name for child in ast.walk(node)
@@ -212,6 +218,21 @@ def find_named_assignment_in_body(body: list[ast.stmt], name: str) -> ast.Assign
 
 def literal_eval_assignment_value(assign: ast.Assign) -> object:
     return ast.literal_eval(assign.value)
+
+
+def literal_list_assignment_in_body(
+    body: list[ast.stmt],
+    name: str,
+) -> tuple[ast.Assign, list[Any], list[ast.expr]]:
+    assign = find_named_assignment_in_body(body, name)
+    if assign is None:
+        raise ValueError(f"no `{name} = ...` assignment found")
+    if not isinstance(assign.value, ast.List):
+        raise TypeError(f"`{name}` assignment must be a list literal")
+    value = literal_eval_assignment_value(assign)
+    if not isinstance(value, list):
+        raise TypeError(f"`{name}` assignment must evaluate to a list")
+    return assign, value, assign.value.elts
 
 
 def get_docstring(

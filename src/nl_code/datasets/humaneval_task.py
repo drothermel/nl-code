@@ -1,4 +1,3 @@
-import ast
 from collections.abc import Iterator
 from functools import cached_property
 from typing import Any, ClassVar, Literal, Self
@@ -9,13 +8,16 @@ from nl_code.code_parsing import (
     find_named_assignment_in_body,
     find_named_function,
     literal_eval_assignment_value,
+    literal_list_assignment_in_body,
     merge_code_components,
     node_references_name,
     node_span,
     remove_docstrings_and_comments,
     replace_source_spans,
+    single_item_list_source,
 )
 from nl_code.code_execution.runner import run_assertion_test
+from nl_code.datasets.collections import normalize_sequence_index
 from nl_code.datasets.text import strip_surrounding_empty_lines
 from nl_code.datasets.validation import require_string
 
@@ -59,35 +61,6 @@ class HumanEvalTestCase(BaseModel):
     has_expected_output: bool = False
 
 
-def _literal_check_assignment(
-    check_fn: ast.FunctionDef | ast.AsyncFunctionDef,
-    name: str,
-) -> tuple[ast.Assign, list[Any], list[ast.expr]]:
-    assign = find_named_assignment_in_body(check_fn.body, name)
-    if assign is None:
-        raise ValueError(f"no `{name} = ...` assignment found inside check()")
-    if not isinstance(assign.value, ast.List):
-        raise TypeError(f"`{name}` assignment must be a list literal")
-    value = literal_eval_assignment_value(assign)
-    if not isinstance(value, list):
-        raise TypeError(f"`{name}` assignment must evaluate to a list")
-    return assign, value, assign.value.elts
-
-
-def _single_item_list_source(source: str, item_node: ast.AST) -> str:
-    start, end = node_span(source, item_node)
-    return f"[{source[start:end]}]"
-
-
-def _normalize_sequence_index(index: int, size: int, *, collection_name: str) -> int:
-    normalized_index = index + size if index < 0 else index
-    if normalized_index < 0 or normalized_index >= size:
-        raise IndexError(
-            f"{collection_name} index {index} out of range for {size} items"
-        )
-    return normalized_index
-
-
 class HumanEvalTest(BaseModel):
     """A parsed HumanEval test suite preserving the original source shape."""
 
@@ -114,7 +87,7 @@ class HumanEvalTest(BaseModel):
         return len(self.inputs)
 
     def case_at_index(self, index: int) -> HumanEvalTestCase:
-        normalized_index = _normalize_sequence_index(
+        normalized_index = normalize_sequence_index(
             index,
             len(self.inputs),
             collection_name="test case",
@@ -139,8 +112,8 @@ class HumanEvalTest(BaseModel):
         case = self.case_at_index(index)
         test_source_str = self.source
         check_fn = find_named_function(test_source_str, "check")
-        inputs_assign, inputs, input_nodes = _literal_check_assignment(
-            check_fn,
+        inputs_assign, inputs, input_nodes = literal_list_assignment_in_body(
+            check_fn.body,
             "inputs",
         )
         if len(inputs) != len(self.inputs) or len(input_nodes) != len(self.inputs):
@@ -150,12 +123,12 @@ class HumanEvalTest(BaseModel):
         replacements = [
             (
                 inputs_span,
-                _single_item_list_source(test_source_str, input_nodes[case.index]),
+                single_item_list_source(test_source_str, input_nodes[case.index]),
             )
         ]
         if self.shape == "inputs_results":
-            results_assign, results, result_nodes = _literal_check_assignment(
-                check_fn,
+            results_assign, results, result_nodes = literal_list_assignment_in_body(
+                check_fn.body,
                 "results",
             )
             if (
@@ -167,7 +140,7 @@ class HumanEvalTest(BaseModel):
             replacements.append(
                 (
                     node_span(test_source_str, results_assign.value),
-                    _single_item_list_source(test_source_str, result_nodes[case.index]),
+                    single_item_list_source(test_source_str, result_nodes[case.index]),
                 )
             )
         return replace_source_spans(test_source_str, replacements)
@@ -190,9 +163,11 @@ def parse_inputs_results_test(
     test_source_str = require_string(test_source, name="test_source")
     entry_point_str = require_string(entry_point, name="entry_point")
     check_fn = find_named_function(test_source_str, "check")
-    _inputs_assign, inputs, _input_nodes = _literal_check_assignment(check_fn, "inputs")
-    _results_assign, results, _result_nodes = _literal_check_assignment(
-        check_fn, "results"
+    _inputs_assign, inputs, _input_nodes = literal_list_assignment_in_body(
+        check_fn.body, "inputs"
+    )
+    _results_assign, results, _result_nodes = literal_list_assignment_in_body(
+        check_fn.body, "results"
     )
     if len(inputs) != len(results):
         raise ValueError("test inputs and results must have the same length")
@@ -212,7 +187,9 @@ def parse_inputs_ref_func_test(
     test_source_str = require_string(test_source, name="test_source")
     entry_point_str = require_string(entry_point, name="entry_point")
     check_fn = find_named_function(test_source_str, "check")
-    _inputs_assign, inputs, _input_nodes = _literal_check_assignment(check_fn, "inputs")
+    _inputs_assign, inputs, _input_nodes = literal_list_assignment_in_body(
+        check_fn.body, "inputs"
+    )
     if find_named_assignment_in_body(check_fn.body, "results") is not None:
         raise ValueError("inputs/ref_func test shape must not define `results`")
     if not node_references_name(check_fn, "ref_func"):
