@@ -11,24 +11,19 @@ import { COMPARE_UNIT_TITLES, metricUnit } from "@/lib/metrics";
 import type { CrossDatasetSeries, DatasetCompareRow, SummaryStats } from "@/types/datasetExplorer";
 
 const METRIC_COLUMNS = [
-  { key: "description_length_chars", label: "Description" },
   { key: "derived_code_length_chars", label: "Derived code" },
   { key: "prompt_length_chars", label: "Prompt/problem" },
   { key: "raw_source_length_chars", label: "Raw source" },
   { key: "test_length_chars", label: "Test" },
-  { key: "description_length_tokens", label: "Description tokens" },
   { key: "derived_code_length_tokens", label: "Derived code tokens" },
 ] as const;
 
 const RATIO_COLUMNS = [
-  { key: "description_to_prompt_ratio", label: "Desc / Prompt" },
   { key: "derived_code_to_raw_source_ratio", label: "Code / Raw" },
   { key: "test_to_derived_code_ratio", label: "Test / Code" },
 ] as const;
 
 const BOX_PLOT_METRIC_KEYS = new Set([
-  "description_length_chars",
-  "description_length_tokens",
   "derived_code_length_chars",
   "derived_code_length_tokens",
   "derived_code_length_lines",

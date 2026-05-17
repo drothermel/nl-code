@@ -37,7 +37,6 @@ class _DummyDataset(Dataset):
             dataset=self.dataset_id,
             task_id=task_id,
             entry_point_name="main",
-            description="dummy",
             gt_solution=raw.value,
             version=raw.version,
         )

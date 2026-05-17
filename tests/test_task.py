@@ -24,12 +24,10 @@ def test_task_construction() -> None:
         dataset=CodeDataset.HUMANEVAL_PLUS,
         task_id="HumanEval/0",
         entry_point_name="add",
-        description="Add two integers and return the result.",
         gt_solution="def add(a, b):\n    return a + b\n",
     )
     assert task.task_id == "HumanEval/0"
     assert task.entry_point_name == "add"
-    assert task.description == "Add two integers and return the result."
     assert task.dataset == CodeDataset.HUMANEVAL_PLUS
     assert task.version == "v2"
 
@@ -39,7 +37,6 @@ def test_task_validate_raw_task_version_match() -> None:
         dataset=CodeDataset.HUMANEVAL_PLUS,
         task_id="HumanEval/0",
         entry_point_name="add",
-        description="Add two integers and return the result.",
         gt_solution="def add(a, b):\n    return a + b\n",
     )
 
@@ -54,7 +51,6 @@ def test_task_validate_raw_task_version_mismatch() -> None:
         dataset=CodeDataset.HUMANEVAL_PLUS,
         task_id="HumanEval/0",
         entry_point_name="add",
-        description="Add two integers and return the result.",
         gt_solution="def add(a, b):\n    return a + b\n",
     )
 

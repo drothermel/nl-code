@@ -125,12 +125,6 @@ class RawMbppProTask(BaseModel):
     new_function_stub_with_comments: str = Field(
         default_factory=lambda data: data.get("source__new_problem")
     )
-    new_code_stub: str = Field(
-        default_factory=lambda data: data.get("new_function_stub")
-    )
-    new_code_stub_with_comments: str = Field(
-        default_factory=lambda data: data.get("new_function_stub_with_comments")
-    )
     new_two_part_function_stub: str = Field(
         default_factory=lambda data: build_new_two_part_function_stub(
             data.get("original_function_stub"),

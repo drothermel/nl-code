@@ -96,7 +96,6 @@ class HumanEvalDataset(Dataset):
             dataset=self.dataset_id,
             task_id=task_id,
             entry_point_name=raw.entry_point,
-            description=raw.docstrings,
             gt_solution=raw.gt_solution,
             version=raw.version,
         )

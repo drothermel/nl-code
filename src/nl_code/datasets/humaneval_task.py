@@ -8,116 +8,36 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from nl_code.code_parsing import (
     find_named_assignment_in_body,
     find_named_function,
-    get_comments,
-    get_docstring,
     literal_eval_assignment_value,
     merge_code_components,
+    node_references_name,
+    node_span,
     remove_docstrings_and_comments,
+    replace_source_spans,
 )
 from nl_code.code_execution.runner import run_assertion_test
-
-
-def _require_string(value: Any, *, name: str) -> str:
-    if not isinstance(value, str):
-        raise TypeError(f"{name} must be a string")
-    return value
-
-
-def _first_docstring_expr(
-    node: ast.Module | ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef,
-) -> ast.Expr | None:
-    if not node.body:
-        return None
-
-    first_stmt = node.body[0]
-    if not isinstance(first_stmt, ast.Expr):
-        return None
-    if not isinstance(first_stmt.value, ast.Constant):
-        return None
-    if not isinstance(first_stmt.value.value, str):
-        return None
-    return first_stmt
-
-
-def _remove_docstrings(source: str) -> str:
-    try:
-        tree = ast.parse(source)
-    except SyntaxError:
-        return source.rstrip() + "\n" if source.strip() else ""
-    line_numbers_to_remove: set[int] = set()
-
-    for node in ast.walk(tree):
-        if isinstance(
-            node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
-        ):
-            docstring_expr = _first_docstring_expr(node)
-            if docstring_expr is None:
-                continue
-            assert docstring_expr.lineno is not None
-            assert docstring_expr.end_lineno is not None
-            line_numbers_to_remove.update(
-                range(docstring_expr.lineno, docstring_expr.end_lineno + 1)
-            )
-
-    remaining_lines = [
-        line
-        for line_number, line in enumerate(source.splitlines(keepends=True), start=1)
-        if line_number not in line_numbers_to_remove
-    ]
-    if not remaining_lines:
-        return ""
-
-    return "".join(remaining_lines).rstrip() + "\n"
-
-
-def strip_surrounding_empty_lines(value: str) -> str:
-    lines = value.splitlines()
-    while lines and not lines[0].strip():
-        lines.pop(0)
-    while lines and not lines[-1].strip():
-        lines.pop()
-    return "\n".join(lines)
+from nl_code.datasets.text import strip_surrounding_empty_lines
+from nl_code.datasets.validation import require_string
 
 
 def build_function_source(prompt: Any, solution: Any) -> str:
-    prompt_str = _require_string(prompt, name="prompt")
-    solution_str = _require_string(solution, name="solution")
+    prompt_str = require_string(prompt, name="prompt")
+    solution_str = require_string(solution, name="solution")
     return merge_code_components(prompt_str, solution_str)
 
 
-def build_function_without_comments(prompt: Any, solution: Any) -> str:
-    function_with_comments = build_function_source(prompt, solution)
-    return remove_docstrings_and_comments(function_with_comments)
-
-
-def extract_docstrings(prompt: Any, entry_point: Any) -> str:
-    prompt_str = _require_string(prompt, name="prompt")
-    entry_point_str = _require_string(entry_point, name="entry_point")
-    return get_docstring(find_named_function(prompt_str, entry_point_str))
-
-
-def extract_prompt_comment(prompt: Any) -> str:
-    prompt_str = _require_string(prompt, name="prompt")
-    return get_comments(prompt_str, strip_hash=True) or ""
-
-
-def build_function_stub(prompt: Any) -> str:
-    prompt_str = _require_string(prompt, name="prompt")
-    return _remove_docstrings(prompt_str)
-
-
 def build_assertion_test_code(test_source: Any, entry_point: Any) -> str:
-    test_source_str = _require_string(test_source, name="test_source")
-    entry_point_str = _require_string(entry_point, name="entry_point")
+    test_source_str = require_string(test_source, name="test_source")
+    entry_point_str = require_string(entry_point, name="entry_point")
     return f"{test_source_str}\n\ncheck({entry_point_str})\n"
 
 
 def build_official_prompt(prompt: Any) -> str:
-    return _require_string(prompt, name="prompt")
+    return require_string(prompt, name="prompt")
 
 
 def get_check_assignment(test_source: Any, name: str, default: object = ...) -> object:
-    test_source_str = _require_string(test_source, name="test_source")
+    test_source_str = require_string(test_source, name="test_source")
     check_fn = find_named_function(test_source_str, "check")
     assign = find_named_assignment_in_body(check_fn.body, name)
     if assign is not None:
@@ -139,41 +59,6 @@ class HumanEvalTestCase(BaseModel):
     has_expected_output: bool = False
 
 
-def _line_col_to_index(source: str, line_number: int, col_offset: int) -> int:
-    lines = source.splitlines(keepends=True)
-    line = lines[line_number - 1]
-    col_text = line.encode("utf-8")[:col_offset].decode("utf-8")
-    return sum(len(line) for line in lines[: line_number - 1]) + len(col_text)
-
-
-def _node_span(source: str, node: ast.AST) -> tuple[int, int]:
-    lineno = getattr(node, "lineno", None)
-    col_offset = getattr(node, "col_offset", None)
-    end_lineno = getattr(node, "end_lineno", None)
-    end_col_offset = getattr(node, "end_col_offset", None)
-    if (
-        not isinstance(lineno, int)
-        or not isinstance(col_offset, int)
-        or not isinstance(end_lineno, int)
-        or not isinstance(end_col_offset, int)
-    ):
-        raise ValueError(f"{type(node).__name__} node does not have source positions")
-    return (
-        _line_col_to_index(source, lineno, col_offset),
-        _line_col_to_index(source, end_lineno, end_col_offset),
-    )
-
-
-def _replace_source_spans(
-    source: str,
-    replacements: list[tuple[tuple[int, int], str]],
-) -> str:
-    updated = source
-    for (start, end), replacement in sorted(replacements, reverse=True):
-        updated = updated[:start] + replacement + updated[end:]
-    return updated
-
-
 def _literal_check_assignment(
     check_fn: ast.FunctionDef | ast.AsyncFunctionDef,
     name: str,
@@ -190,17 +75,8 @@ def _literal_check_assignment(
 
 
 def _single_item_list_source(source: str, item_node: ast.AST) -> str:
-    start, end = _node_span(source, item_node)
+    start, end = node_span(source, item_node)
     return f"[{source[start:end]}]"
-
-
-def _check_references_name(
-    check_fn: ast.FunctionDef | ast.AsyncFunctionDef,
-    name: str,
-) -> bool:
-    return any(
-        isinstance(node, ast.Name) and node.id == name for node in ast.walk(check_fn)
-    )
 
 
 def _normalize_sequence_index(index: int, size: int, *, collection_name: str) -> int:
@@ -270,7 +146,7 @@ class HumanEvalTest(BaseModel):
         if len(inputs) != len(self.inputs) or len(input_nodes) != len(self.inputs):
             raise ValueError("parsed inputs do not match serialized test suite")
 
-        inputs_span = _node_span(test_source_str, inputs_assign.value)
+        inputs_span = node_span(test_source_str, inputs_assign.value)
         replacements = [
             (
                 inputs_span,
@@ -290,11 +166,11 @@ class HumanEvalTest(BaseModel):
                 raise ValueError("parsed results do not match serialized test suite")
             replacements.append(
                 (
-                    _node_span(test_source_str, results_assign.value),
+                    node_span(test_source_str, results_assign.value),
                     _single_item_list_source(test_source_str, result_nodes[case.index]),
                 )
             )
-        return _replace_source_spans(test_source_str, replacements)
+        return replace_source_spans(test_source_str, replacements)
 
     def assertion_test_code(self) -> str:
         return build_assertion_test_code(self.source, self.entry_point)
@@ -311,8 +187,8 @@ def parse_inputs_results_test(
     test_source: Any,
     entry_point: Any,
 ) -> HumanEvalTest:
-    test_source_str = _require_string(test_source, name="test_source")
-    entry_point_str = _require_string(entry_point, name="entry_point")
+    test_source_str = require_string(test_source, name="test_source")
+    entry_point_str = require_string(entry_point, name="entry_point")
     check_fn = find_named_function(test_source_str, "check")
     _inputs_assign, inputs, _input_nodes = _literal_check_assignment(check_fn, "inputs")
     _results_assign, results, _result_nodes = _literal_check_assignment(
@@ -333,13 +209,13 @@ def parse_inputs_ref_func_test(
     test_source: Any,
     entry_point: Any,
 ) -> HumanEvalTest:
-    test_source_str = _require_string(test_source, name="test_source")
-    entry_point_str = _require_string(entry_point, name="entry_point")
+    test_source_str = require_string(test_source, name="test_source")
+    entry_point_str = require_string(entry_point, name="entry_point")
     check_fn = find_named_function(test_source_str, "check")
     _inputs_assign, inputs, _input_nodes = _literal_check_assignment(check_fn, "inputs")
     if find_named_assignment_in_body(check_fn.body, "results") is not None:
         raise ValueError("inputs/ref_func test shape must not define `results`")
-    if not _check_references_name(check_fn, "ref_func"):
+    if not node_references_name(check_fn, "ref_func"):
         raise ValueError("inputs/ref_func test shape must reference `ref_func`")
     return HumanEvalTest(
         source=test_source_str,
@@ -351,7 +227,7 @@ def parse_inputs_ref_func_test(
 
 
 def parse_humaneval_test(test_source: Any, entry_point: Any) -> HumanEvalTest:
-    test_source_str = _require_string(test_source, name="test_source")
+    test_source_str = require_string(test_source, name="test_source")
     check_fn = find_named_function(test_source_str, "check")
     if find_named_assignment_in_body(check_fn.body, "results") is not None:
         return parse_inputs_results_test(test_source_str, entry_point)
@@ -381,9 +257,7 @@ class HumanEvalSource(BaseModel):
 class RawHumanEvalTask(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
     non_code_fields: ClassVar[tuple[str, ...]] = (
-        "docstrings",
         "entry_point",
-        "prompt_comment",
         "task_id",
         "validated",
         "version",
@@ -395,45 +269,22 @@ class RawHumanEvalTask(BaseModel):
     version: Literal["v1", "v2"] = "v2"
     validated: bool = False
 
-    docstrings: str = Field(
-        default_factory=lambda data: extract_docstrings(
-            data["source"].prompt,
-            data.get("entry_point"),
-        )
-    )
-    prompt_comment: str = Field(
-        default_factory=lambda data: extract_prompt_comment(data["source"].prompt)
-    )
-    function_stub: str = Field(
-        default_factory=lambda data: build_function_stub(data["source"].prompt)
-    )
-    function_stub_with_comments: str = Field(
-        default_factory=lambda data: data["source"].prompt
-    )
-    new_code_stub: str = Field(default_factory=lambda data: data.get("function_stub"))
-    new_code_stub_with_comments: str = Field(
-        default_factory=lambda data: data.get("function_stub_with_comments")
-    )
-    function_with_comments: str = Field(
+    gt_solution_with_comments: str = Field(
         default_factory=lambda data: build_function_source(
             data["source"].prompt,
             data["source"].canonical_solution,
         )
-    )
-    function: str = Field(
-        default_factory=lambda data: build_function_without_comments(
-            data["source"].prompt,
-            data["source"].canonical_solution,
-        )
-    )
-    gt_solution_with_comments: str = Field(
-        default_factory=lambda data: data.get("function_with_comments")
     )
     gt_solution: str = Field(
         default_factory=lambda data: remove_docstrings_and_comments(
             data.get("gt_solution_with_comments")
         )
     )
+
+    @model_validator(mode="after")
+    def validate_eval_task(self) -> Self:
+        parse_humaneval_test(self.source.test, self.entry_point)
+        return self
 
     @cached_property
     def test_suite(self) -> HumanEvalTest:

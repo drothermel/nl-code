@@ -164,8 +164,6 @@ class TestRawClassEvalTask:
         assert task.class_stub_with_comments == row["skeleton"]
         assert '"""' not in task.class_stub
         assert "class Calculator" in task.class_stub
-        assert task.new_code_stub == task.class_stub
-        assert task.new_code_stub_with_comments == task.class_stub_with_comments
         assert task.fields == ["self.result"]
         assert len(task.methods_info) == 2
         assert task.new_official_prompt == (

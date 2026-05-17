@@ -124,9 +124,6 @@ class TaskRow(BaseModel):
     status: Literal["valid", "flawed"]
     has_derived_task: bool
     entry_point_name: str | None = None
-    description_preview: str | None = None
-    description_length_chars: int | None = None
-    description_length_tokens: int | None = None
     derived_code_length_chars: int | None = None
     derived_code_length_tokens: int | None = None
     derived_code_length_lines: int | None = None
@@ -160,7 +157,6 @@ class TaskDetailResponse(BaseModel):
     dataset: DatasetOption
     task_id: str
     entry_point_name: str
-    description: str
     gt_solution: str
     metrics: list[NumericMetric]
     derived_fields: list[DerivedFieldSummary]

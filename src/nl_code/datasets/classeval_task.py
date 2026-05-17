@@ -1,11 +1,14 @@
-import ast
 from typing import Any, ClassVar, Literal, Self, cast
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from nl_code.code_execution.models import UnittestResult
 from nl_code.code_execution.runner import run_unittest_test
-from nl_code.code_parsing import _DocstringStripper, remove_docstrings_and_comments
+from nl_code.code_parsing import (
+    remove_docstrings_preserving_comments,
+    remove_docstrings_and_comments,
+)
+from nl_code.datasets.validation import require_string
 
 
 class MethodDependencies(BaseModel):
@@ -55,51 +58,10 @@ class ClassEvalTestResult(BaseModel):
     error: str | None = None
 
 
-def _require_string(value: Any, *, name: str) -> str:
-    if not isinstance(value, str):
-        raise ValueError(f"{name} must be a string")
-    return value
-
-
 def _require_string_list(value: Any, *, name: str) -> list[str]:
     if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
         raise ValueError(f"{name} must be a list[str]")
     return cast(list[str], list(value))
-
-
-def _remove_docstrings(source: str) -> str:
-    # Remove docstring source lines directly so comments and surrounding formatting
-    # are preserved. remove_docstrings_and_comments intentionally unparses the AST,
-    # which is appropriate for stripped runnable code but discards comments.
-    try:
-        tree = ast.parse(source)
-    except SyntaxError:
-        return source.rstrip() + "\n" if source.strip() else ""
-    line_numbers_to_remove: set[int] = set()
-
-    for node in ast.walk(tree):
-        if isinstance(
-            node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
-        ):
-            stripped_body = _DocstringStripper._strip_docstring(node.body)
-            if len(stripped_body) == len(node.body):
-                continue
-            docstring_expr = node.body[0]
-            if docstring_expr.lineno is None or docstring_expr.end_lineno is None:
-                raise RuntimeError("docstring node is missing line numbers")
-            line_numbers_to_remove.update(
-                range(docstring_expr.lineno, docstring_expr.end_lineno + 1)
-            )
-
-    remaining_lines = [
-        line
-        for line_number, line in enumerate(source.splitlines(keepends=True), start=1)
-        if line_number not in line_numbers_to_remove
-    ]
-    if not remaining_lines:
-        return ""
-
-    return "".join(remaining_lines).rstrip() + "\n"
 
 
 def _build_import_block(import_statement: Any) -> str:
@@ -110,7 +72,7 @@ def _build_import_block(import_statement: Any) -> str:
 
 
 def _build_gt_code(import_statement: Any, solution_code: Any) -> str:
-    solution_code_str = _require_string(solution_code, name="solution_code")
+    solution_code_str = require_string(solution_code, name="solution_code")
     imports = _build_import_block(import_statement).rstrip()
     if imports:
         return imports + "\n\n" + solution_code_str
@@ -285,8 +247,6 @@ class RawClassEvalTask(BaseModel):
     official_skeleton: str = ""
     class_stub_with_comments: str = ""
     class_stub: str = ""
-    new_code_stub_with_comments: str = ""
-    new_code_stub: str = ""
     import_block: str = ""
     solution_code: str = ""
     test: str = ""
@@ -317,9 +277,7 @@ class RawClassEvalTask(BaseModel):
         self.import_statement = list(self.source__import_statement)
         self.official_skeleton = self.source__skeleton
         self.class_stub_with_comments = self.official_skeleton
-        self.class_stub = _remove_docstrings(self.official_skeleton)
-        self.new_code_stub_with_comments = self.class_stub_with_comments
-        self.new_code_stub = self.class_stub
+        self.class_stub = remove_docstrings_preserving_comments(self.official_skeleton)
         self.new_official_prompt = _build_new_official_prompt(
             self.class_name, self.official_skeleton
         )

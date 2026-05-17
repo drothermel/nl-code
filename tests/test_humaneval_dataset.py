@@ -48,15 +48,6 @@ class TestHumanEvalDataset:
         task = ds.tasks["HumanEval/0"]
         assert '"""' not in task.gt_solution
 
-    def test_derived_tasks_have_description(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        ds = prime_dataset_cache(
-            HumanEvalDataset(), [make_humaneval_row()], monkeypatch
-        )
-        task = ds.tasks["HumanEval/0"]
-        assert task.description == "Add two integers and return the result."
-
     def test_get_test_cases_at_index(self, monkeypatch: pytest.MonkeyPatch) -> None:
         ds = cast(
             HumanEvalDataset,

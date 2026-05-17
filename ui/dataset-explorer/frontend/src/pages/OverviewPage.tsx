@@ -11,20 +11,16 @@ import { metricUnit, UNIT_TITLES } from "@/lib/metrics";
 import type { MetricDistribution, MetricScatter, ScatterPoint } from "@/types/datasetExplorer";
 
 const DISTRIBUTION_ORDER: Record<string, number> = {
-  description_length_chars: 0,
-  derived_code_length_chars: 1,
-  prompt_length_chars: 2,
-  raw_source_length_chars: 3,
-  test_length_chars: 4,
-  description_length_tokens: 5,
-  derived_code_length_tokens: 6,
-  derived_code_length_lines: 7,
+  derived_code_length_chars: 0,
+  prompt_length_chars: 1,
+  raw_source_length_chars: 2,
+  test_length_chars: 3,
+  derived_code_length_tokens: 4,
+  derived_code_length_lines: 5,
 };
 
 const SCATTER_ORDER: Record<string, number> = {
-  "description-vs-code": 0,
-  "prompt-vs-code": 1,
-  "description-tokens-vs-code-tokens": 2,
+  "prompt-vs-code": 0,
 };
 
 const HISTOGRAM_BIN_COUNT = 16;
