@@ -7,7 +7,7 @@ from nl_code.code_execution.runner import batch_run_unittest_tests
 from nl_code.datasets.classeval_task import RawClassEvalTask
 from nl_code.datasets.dataset import Dataset
 from nl_code.datasets.gt_verification import run_batched_with_infra_isolation
-from nl_code.datasets.task import CodeDataset, Task
+from nl_code.datasets.task import CodeDataset, Task, TaskSource
 
 
 class ClassEvalDataset(Dataset):
@@ -17,7 +17,23 @@ class ClassEvalDataset(Dataset):
     dataset_id: CodeDataset = CodeDataset.CLASS_EVAL
 
     def _parse_row(self, row: dict[str, Any]) -> RawClassEvalTask:
-        return RawClassEvalTask.model_validate(row)
+        return RawClassEvalTask.model_validate(
+            {
+                "task_id": row["task_id"],
+                "source": {
+                    "class_name": row["class_name"],
+                    "class_description": row["class_description"],
+                    "class_constructor": row["class_constructor"],
+                    "fields": row["fields"],
+                    "import_statement": row["import_statement"],
+                    "skeleton": row["skeleton"],
+                    "solution_code": row["solution_code"],
+                    "test": row["test"],
+                    "test_classes": row["test_classes"],
+                    "methods_info": row["methods_info"],
+                },
+            }
+        )
 
     def _extract_task_id(self, row: dict[str, Any]) -> str:
         return str(row["task_id"])
@@ -31,14 +47,15 @@ class ClassEvalDataset(Dataset):
             (
                 task_id,
                 UnittestBatchItem(
-                    code=raw.gt_code_with_comments,
-                    test_code=raw.test,
-                    test_class_names=raw.test_classes,
+                    code=raw.gt_solution.code_with_comments,
+                    test_code=raw.test_suite.source,
+                    test_class_names=raw.test_suite.test_classes,
                 ),
             )
             for task_id, raw_base in raw_samples.items()
             for raw in [raw_base]
-            if isinstance(raw, RawClassEvalTask) and raw.auto_fail_reason is None
+            if isinstance(raw, RawClassEvalTask)
+            and raw.fixed_source.auto_fail_reason is None
         ]
 
         def run_batch(chunk: list[UnittestBatchItem]) -> list[Any]:
@@ -54,9 +71,11 @@ class ClassEvalDataset(Dataset):
         for task_id, raw_base in raw_samples.items():
             assert isinstance(raw_base, RawClassEvalTask)
             raw_input = raw_inputs[task_id]
-            if raw_base.auto_fail_reason is not None:
+            if raw_base.fixed_source.auto_fail_reason is not None:
                 flawed_samples[task_id] = self._dataset_failure(
-                    detail=f"known dataset issue: {raw_base.auto_fail_reason}",
+                    detail=(
+                        f"known dataset issue: {raw_base.fixed_source.auto_fail_reason}"
+                    ),
                     raw_input=raw_input,
                 )
                 continue
@@ -91,7 +110,7 @@ class ClassEvalDataset(Dataset):
         return Task(
             dataset=self.dataset_id,
             task_id=task_id,
-            entry_point_name=raw.class_name,
-            gt_solution=raw.gt_code,
+            target=raw.target,
+            source=TaskSource(code=raw.gt_solution.code),
             version=raw.version,
         )

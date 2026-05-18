@@ -4,7 +4,7 @@ import pytest
 from pydantic import BaseModel
 
 from nl_code.datasets.dataset import Dataset, FlawedSample
-from nl_code.datasets.task import CodeDataset, Task
+from nl_code.datasets.task import CodeDataset, Task, TaskSource, TaskTarget
 
 from conftest import fail_on_hf, mock_hf_dataset, prime_dataset_cache
 
@@ -12,7 +12,7 @@ from conftest import fail_on_hf, mock_hf_dataset, prime_dataset_cache
 class _DummyRaw(BaseModel):
     task_id: str
     value: str
-    version: Literal["v1", "v2"] = "v2"
+    version: Literal["v3"] = "v3"
 
 
 class _DummyDataset(Dataset):
@@ -25,7 +25,7 @@ class _DummyDataset(Dataset):
         return _DummyRaw(
             task_id=row["task_id"],
             value=row["value"],
-            version=row.get("version", "v2"),
+            version=row.get("version", "v3"),
         )
 
     def _extract_task_id(self, row: dict) -> str:
@@ -36,8 +36,8 @@ class _DummyDataset(Dataset):
         return Task(
             dataset=self.dataset_id,
             task_id=task_id,
-            entry_point_name="main",
-            gt_solution=raw.value,
+            target=TaskTarget(name="main"),
+            source=TaskSource(code=raw.value),
             version=raw.version,
         )
 
@@ -56,7 +56,7 @@ class TestDatasetBase:
         assert len(ds.raw_samples) == 2
         assert len(ds.tasks) == 2
         assert len(ds.flawed_raw_samples) == 0
-        assert all(task.version == "v2" for task in ds.tasks.values())
+        assert all(task.version == "v3" for task in ds.tasks.values())
 
     def test_flawed_rows_tracked(self, monkeypatch: pytest.MonkeyPatch) -> None:
         rows = [
@@ -203,9 +203,9 @@ class TestDatasetBase:
         class _MismatchDataset(_DummyDataset):
             def _to_task(self, task_id: str, raw: BaseModel) -> Task:
                 task = super()._to_task(task_id, raw)
-                return task.model_copy(update={"version": "v1"})
+                return task.model_copy(update={"version": "v2"})
 
-        rows = [{"task_id": "t/0", "value": "x = 1", "version": "v2"}]
+        rows = [{"task_id": "t/0", "value": "x = 1", "version": "v3"}]
         ds = prime_dataset_cache(_MismatchDataset(), rows, monkeypatch)
 
         assert len(ds.tasks) == 0

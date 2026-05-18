@@ -26,8 +26,8 @@ class TestBigCodeBenchLiteProDataset:
         ds = prime_dataset_cache(BigCodeBenchLiteProDataset(), rows, monkeypatch)
 
         task = ds.tasks["BigCodeBenchLitePro/23"]
-        assert task.entry_point_name == "multiply_pairs"
-        assert '"""' not in task.gt_solution
+        assert task.target.name == "multiply_pairs"
+        assert '"""' not in task.source.code
 
     def test_flawed_rows_tracked(self, monkeypatch: pytest.MonkeyPatch) -> None:
         bad_row = make_bigcodebench_lite_pro_row(

@@ -142,7 +142,7 @@ export default function TaskBrowserPage() {
                       </Badge>
                     </td>
                     <td className="px-3 py-3 font-mono text-xs text-muted-foreground">
-                      {row.entry_point_name ?? "—"}
+                      {row.target_name ?? "—"}
                     </td>
                     <td className="max-w-xs truncate px-3 py-3 text-xs text-muted-foreground">
                       {row.error_summary ?? "—"}

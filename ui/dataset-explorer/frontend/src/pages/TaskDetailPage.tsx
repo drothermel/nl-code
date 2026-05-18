@@ -80,7 +80,7 @@ export default function TaskDetailPage() {
           <CardTitle className="text-base">Derived Code</CardTitle>
         </CardHeader>
         <CardContent>
-          <PythonCodeBlock code={data.gt_solution} />
+          <PythonCodeBlock code={data.source_code} />
         </CardContent>
       </Card>
     </div>

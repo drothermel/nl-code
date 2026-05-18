@@ -7,7 +7,7 @@ from nl_code.code_execution.runner import batch_run_assertion_tests
 from nl_code.datasets.dataset import Dataset
 from nl_code.datasets.gt_verification import run_batched_with_infra_isolation
 from nl_code.datasets.mbpp_pro_task import RawMbppProTask
-from nl_code.datasets.task import CodeDataset, Task
+from nl_code.datasets.task import CodeDataset, Task, TaskSource
 
 
 class MbppProDataset(Dataset):
@@ -18,8 +18,18 @@ class MbppProDataset(Dataset):
     split: str = "train"
 
     def _parse_row(self, row: dict[str, Any]) -> RawMbppProTask:
-        row["task_id"] = f"MbppPro/{row['id']}"
-        return RawMbppProTask.model_validate(row)
+        return RawMbppProTask.model_validate(
+            {
+                "task_id": f"MbppPro/{row['id']}",
+                "source": {
+                    "raw_problem": row["raw_problem"],
+                    "raw_solution": row["raw_solution"],
+                    "new_problem": row["new_problem"],
+                    "new_solution": row["new_solution"],
+                    "test_code": row["test_code"],
+                },
+            }
+        )
 
     def _extract_task_id(self, row: dict[str, Any]) -> str:
         return f"MbppPro/{row['id']}"
@@ -33,8 +43,8 @@ class MbppProDataset(Dataset):
             (
                 task_id,
                 AssertionBatchItem(
-                    code=raw.gt_solution_with_comments,
-                    test_code=raw.source__test_code,
+                    code=raw.gt_solution.code_with_comments,
+                    test_code=raw.source.test_code,
                 ),
             )
             for task_id, raw_base in raw_samples.items()
@@ -81,7 +91,7 @@ class MbppProDataset(Dataset):
         return Task(
             dataset=self.dataset_id,
             task_id=task_id,
-            entry_point_name=raw.new_entry_point,
-            gt_solution=raw.gt_solution,
+            target=raw.target,
+            source=TaskSource(code=raw.gt_solution.code),
             version=raw.version,
         )

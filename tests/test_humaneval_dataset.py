@@ -46,7 +46,7 @@ class TestHumanEvalDataset:
             HumanEvalDataset(), [make_humaneval_row()], monkeypatch
         )
         task = ds.tasks["HumanEval/0"]
-        assert '"""' not in task.gt_solution
+        assert '"""' not in task.source.code
 
     def test_get_test_cases_at_index(self, monkeypatch: pytest.MonkeyPatch) -> None:
         ds = cast(

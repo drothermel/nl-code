@@ -8,7 +8,7 @@ from nl_code.code_execution.runner import batch_run_assertion_tests
 from nl_code.datasets.dataset import Dataset
 from nl_code.datasets.gt_verification import run_batched_with_infra_isolation
 from nl_code.datasets.humaneval_task import HumanEvalTestCase, RawHumanEvalTask
-from nl_code.datasets.task import CodeDataset, Task
+from nl_code.datasets.task import CodeDataset, Task, TaskSource, TaskTarget
 
 
 class HumanEvalDataset(Dataset):
@@ -95,7 +95,7 @@ class HumanEvalDataset(Dataset):
         return Task(
             dataset=self.dataset_id,
             task_id=task_id,
-            entry_point_name=raw.entry_point,
-            gt_solution=raw.gt_solution.code,
+            target=TaskTarget(name=raw.entry_point, kind="function"),
+            source=TaskSource(code=raw.gt_solution.code),
             version=raw.version,
         )

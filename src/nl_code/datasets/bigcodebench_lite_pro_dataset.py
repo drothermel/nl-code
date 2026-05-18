@@ -7,7 +7,7 @@ from nl_code.code_execution.runner import batch_run_assertion_tests
 from nl_code.datasets.bigcodebench_lite_pro_task import RawBigCodeBenchLiteProTask
 from nl_code.datasets.dataset import Dataset
 from nl_code.datasets.gt_verification import run_batched_with_infra_isolation
-from nl_code.datasets.task import CodeDataset, Task
+from nl_code.datasets.task import CodeDataset, Task, TaskSource
 
 
 def _parse_task_number(raw_id: str) -> str:
@@ -25,8 +25,18 @@ class BigCodeBenchLiteProDataset(Dataset):
 
     def _parse_row(self, row: dict[str, Any]) -> RawBigCodeBenchLiteProTask:
         task_num = _parse_task_number(row["id"])
-        row["task_id"] = f"BigCodeBenchLitePro/{task_num}"
-        return RawBigCodeBenchLiteProTask.model_validate(row)
+        return RawBigCodeBenchLiteProTask.model_validate(
+            {
+                "task_id": f"BigCodeBenchLitePro/{task_num}",
+                "source": {
+                    "raw_problem": row["raw_problem"],
+                    "raw_solution": row["raw_solution"],
+                    "new_problem": row["new_problem"],
+                    "new_solution": row["new_solution"],
+                    "test_code": row["test_code"],
+                },
+            }
+        )
 
     def _extract_task_id(self, row: dict[str, Any]) -> str:
         task_num = _parse_task_number(row["id"])
@@ -41,8 +51,8 @@ class BigCodeBenchLiteProDataset(Dataset):
             (
                 task_id,
                 AssertionBatchItem(
-                    code=raw.gt_solution_with_comments,
-                    test_code=raw.source__test_code,
+                    code=raw.gt_solution.code_with_comments,
+                    test_code=raw.source.test_code,
                 ),
             )
             for task_id, raw_base in raw_samples.items()
@@ -93,7 +103,7 @@ class BigCodeBenchLiteProDataset(Dataset):
         return Task(
             dataset=self.dataset_id,
             task_id=task_id,
-            entry_point_name=raw.new_entry_point,
-            gt_solution=raw.gt_solution,
+            target=raw.target,
+            source=TaskSource(code=raw.gt_solution.code),
             version=raw.version,
         )
