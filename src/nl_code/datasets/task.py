@@ -1,7 +1,7 @@
 from enum import StrEnum
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class CodeDataset(StrEnum):
@@ -12,13 +12,25 @@ class CodeDataset(StrEnum):
     CLASS_EVAL = "FudanSELab/ClassEval"
 
 
+class TaskTarget(BaseModel):
+    name: str
+    kind: Literal["function", "class"] = "function"
+
+
+class TaskSource(BaseModel):
+    kind: Literal["gt_solution"] = "gt_solution"
+    code: str
+    language: Literal["python"] = "python"
+
+
 class Task(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     dataset: CodeDataset
     task_id: str
-    entry_point_name: str
-    description: str
-    gt_solution: str
-    version: Literal["v1", "v2"] = "v2"
+    target: TaskTarget
+    source: TaskSource
+    version: Literal["v3"] = "v3"
 
     def validate_raw_task_version(self, raw_task: object) -> None:
         raw_version = getattr(raw_task, "version", None)

@@ -12,6 +12,25 @@ from nl_code.datasets.classeval_task import (
 from conftest import make_classeval_row
 
 
+def _task_input(row: dict[str, object]) -> dict[str, object]:
+    return {
+        "task_id": row["task_id"],
+        "validated": row.get("validated", False),
+        "source": {
+            "class_name": row["class_name"],
+            "class_description": row["class_description"],
+            "class_constructor": row["class_constructor"],
+            "fields": row["fields"],
+            "import_statement": row["import_statement"],
+            "skeleton": row["skeleton"],
+            "solution_code": row["solution_code"],
+            "test": row["test"],
+            "test_classes": row["test_classes"],
+            "methods_info": row["methods_info"],
+        },
+    }
+
+
 class TestMethodDependencies:
     def test_construction_with_alias(self) -> None:
         deps = MethodDependencies.model_validate(
@@ -86,39 +105,32 @@ class TestClassEvalTestDetail:
 
 @pytest.mark.docker
 class TestRawClassEvalTask:
-    def test_non_code_fields(self) -> None:
-        assert "source__class_name" in RawClassEvalTask.non_code_fields
-        assert "source__methods_info" in RawClassEvalTask.non_code_fields
-        assert "methods_info" in RawClassEvalTask.non_code_fields
-        assert "postprocess_solution" in RawClassEvalTask.non_code_fields
-        assert "version" in RawClassEvalTask.non_code_fields
-
     def test_construction(self) -> None:
         row = make_classeval_row()
-        task = RawClassEvalTask.model_validate(row)
+        task = RawClassEvalTask.model_validate(_task_input(row))
         assert task.task_id == "ClassEval_0"
-        assert task.source__class_name == "Calculator"
-        assert task.source__class_description == "A simple calculator."
-        assert task.source__solution_code == row["solution_code"]
-        assert task.source__test == row["test"]
-        assert task.source__test_classes == row["test_classes"]
-        assert task.class_name == "Calculator"
-        assert task.class_description == "A simple calculator."
+        assert task.source.class_name == "Calculator"
+        assert task.source.class_description == "A simple calculator."
+        assert task.source.solution_code == row["solution_code"]
+        assert task.source.test == row["test"]
+        assert task.source.test_classes == row["test_classes"]
+        assert task.source.class_name == "Calculator"
+        assert task.source.class_description == "A simple calculator."
         assert task.validated is False
-        assert task.version == "v2"
+        assert task.version == "v3"
 
     def test_computed_gt_code_with_comments(self) -> None:
         row = make_classeval_row()
-        task = RawClassEvalTask.model_validate(row)
-        assert "class Calculator" in task.gt_code_with_comments
-        assert '"""A simple calculator."""' in task.gt_code_with_comments
-        assert task.gt_code_with_comments == task.solution_code
+        task = RawClassEvalTask.model_validate(_task_input(row))
+        assert "class Calculator" in task.gt_solution.code_with_comments
+        assert '"""A simple calculator."""' in task.gt_solution.code_with_comments
+        assert task.gt_solution.code_with_comments == task.fixed_source.solution_code
 
     def test_computed_gt_code(self) -> None:
         row = make_classeval_row()
-        task = RawClassEvalTask.model_validate(row)
-        assert "class Calculator" in task.gt_code
-        assert '"""' not in task.gt_code
+        task = RawClassEvalTask.model_validate(_task_input(row))
+        assert "class Calculator" in task.gt_solution.code
+        assert '"""' not in task.gt_solution.code
 
     def test_gt_code_includes_imports(self) -> None:
         row = make_classeval_row()
@@ -152,23 +164,21 @@ class TestRawClassEvalTask:
                     calc = Calculator()
                     self.assertEqual(calc.subtract(3, 1), 2)
         """)
-        task = RawClassEvalTask.model_validate(row)
+        task = RawClassEvalTask.model_validate(_task_input(row))
         assert task.import_block == "import math\n"
-        assert task.gt_code_with_comments.startswith("import math\n\n")
-        assert "class Calculator" in task.gt_code
+        assert task.gt_solution.code_with_comments.startswith("import math\n\n")
+        assert "class Calculator" in task.gt_solution.code
 
     def test_additional_derived_fields(self) -> None:
         row = make_classeval_row()
-        task = RawClassEvalTask.model_validate(row)
-        assert task.official_skeleton == row["skeleton"]
+        task = RawClassEvalTask.model_validate(_task_input(row))
+        assert task.source.skeleton == row["skeleton"]
         assert task.class_stub_with_comments == row["skeleton"]
         assert '"""' not in task.class_stub
         assert "class Calculator" in task.class_stub
-        assert task.new_code_stub == task.class_stub
-        assert task.new_code_stub_with_comments == task.class_stub_with_comments
-        assert task.fields == ["self.result"]
-        assert len(task.methods_info) == 2
-        assert task.new_official_prompt == (
+        assert task.source.fields == ["self.result"]
+        assert len(task.source.methods_info) == 2
+        assert task.prompt.new_official == (
             "Provided below is an instruction detailing a task. Compose a response "
             "that aptly fulfills the request.\n\n"
             "Please complete the class Calculator in the subsequent code.\n"
@@ -179,11 +189,11 @@ class TestRawClassEvalTask:
 
     def test_methods_info_parsed(self) -> None:
         row = make_classeval_row()
-        task = RawClassEvalTask.model_validate(row)
-        assert len(task.source__methods_info) == 2
-        assert task.methods_info[0].method_name == "add"
-        assert task.methods_info[1].method_name == "subtract"
-        assert task.methods_info[0].dependencies.standalone is True
+        task = RawClassEvalTask.model_validate(_task_input(row))
+        assert len(task.source.methods_info) == 2
+        assert task.source.methods_info[0].method_name == "add"
+        assert task.source.methods_info[1].method_name == "subtract"
+        assert task.source.methods_info[0].dependencies.standalone is True
 
     def test_task_fixes_preserve_source_fields(self) -> None:
         row = make_classeval_row(
@@ -200,14 +210,14 @@ class TestRawClassEvalTask:
             """),
             test_classes=["TestCalculatorAdd"],
         )
-        task = RawClassEvalTask.model_validate(row)
-        assert "datetime(2024," in task.source__test
-        assert "datetime(2099," in task.test
-        assert task.postprocess_test is True
+        task = RawClassEvalTask.model_validate(_task_input(row))
+        assert "datetime(2024," in task.source.test
+        assert "datetime(2099," in task.test_suite.source
+        assert task.fixed_source.postprocess_test is True
 
     def test_run_test_passes_gt(self) -> None:
         row = make_classeval_row()
-        task = RawClassEvalTask.model_validate(row)
+        task = RawClassEvalTask.model_validate(_task_input(row))
         result = task.run_test_on_gt_solution()
         assert result.all_passed is True
         assert result.total_tests_run == 3
@@ -216,7 +226,7 @@ class TestRawClassEvalTask:
 
     def test_run_test_fails_bad_code(self) -> None:
         row = make_classeval_row()
-        task = RawClassEvalTask.model_validate(row)
+        task = RawClassEvalTask.model_validate(_task_input(row))
         bad_code = textwrap.dedent("""\
             class Calculator:
                 def __init__(self):
@@ -233,7 +243,7 @@ class TestRawClassEvalTask:
 
     def test_run_test_exec_error(self) -> None:
         row = make_classeval_row()
-        task = RawClassEvalTask.model_validate(row)
+        task = RawClassEvalTask.model_validate(_task_input(row))
         result = task.run_test("this is not valid python!!!")
         assert result.all_passed is False
         assert result.error is not None
@@ -241,7 +251,7 @@ class TestRawClassEvalTask:
 
     def test_run_test_per_test_class_detail(self) -> None:
         row = make_classeval_row()
-        task = RawClassEvalTask.model_validate(row)
+        task = RawClassEvalTask.model_validate(_task_input(row))
         result = task.run_test_on_gt_solution()
         by_name = {r.test_class_name: r for r in result.per_test_class}
         assert len(by_name) == 2
@@ -254,8 +264,8 @@ class TestRawClassEvalTask:
         row = make_classeval_row()
         row["test_classes"] = ["TestCalculatorAdd", "TestNonExistent"]
         row["validated"] = True
-        task = RawClassEvalTask.model_validate(row)
-        result = task.run_test(task.gt_code)
+        task = RawClassEvalTask.model_validate(_task_input(row))
+        result = task.run_test(task.gt_solution.code)
         assert result.all_passed is False
         by_name = {r.test_class_name: r for r in result.per_test_class}
         assert by_name["TestNonExistent"].passed is False
@@ -289,15 +299,15 @@ class TestRawClassEvalTask:
                     self.assertEqual(calc.sqrt(9), 3)
         """)
         row["test_classes"] = ["TestCalculatorSqrt"]
-        task = RawClassEvalTask.model_validate(row)
+        task = RawClassEvalTask.model_validate(_task_input(row))
 
-        bare_result = task.run_test(task.solution_code)
+        bare_result = task.run_test(task.fixed_source.solution_code)
         assert bare_result.all_passed is False
         assert bare_result.total_tests_errored == 1
         assert bare_result.per_test_class[0].errors
         assert "NameError" in bare_result.per_test_class[0].errors[0]
 
-        full_result = task.run_test(task.gt_code)
+        full_result = task.run_test(task.gt_solution.code)
         assert full_result.all_passed is True
 
     def test_construction_allows_failing_solution(self) -> None:
@@ -312,7 +322,7 @@ class TestRawClassEvalTask:
                         return 0
             """),
         )
-        task = RawClassEvalTask.model_validate(row)
+        task = RawClassEvalTask.model_validate(_task_input(row))
         assert task.validated is False
         assert task.run_test_on_gt_solution().all_passed is False
 
@@ -329,11 +339,11 @@ class TestRawClassEvalTask:
             """),
         )
         row["validated"] = True
-        task = RawClassEvalTask.model_validate(row)
+        task = RawClassEvalTask.model_validate(_task_input(row))
         assert task.validated is True
 
     def test_known_dataset_issue_is_recorded_not_raised(self) -> None:
         row = make_classeval_row(task_id="ClassEval_58")
-        task = RawClassEvalTask.model_validate(row)
-        assert task.auto_fail_reason is not None
-        assert "nondeterministic test failures" in task.auto_fail_reason
+        task = RawClassEvalTask.model_validate(_task_input(row))
+        assert task.fixed_source.auto_fail_reason is not None
+        assert "nondeterministic test failures" in task.fixed_source.auto_fail_reason

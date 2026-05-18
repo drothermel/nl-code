@@ -86,14 +86,15 @@ class TestDatasetSlice:
         with pytest.raises(ValueError, match="seed requires shuffle=True"):
             DatasetSlice(dataset=loaded_dataset, seed=7)
 
-    def test_get_source_code_with_field(self, loaded_dataset: HumanEvalDataset) -> None:
+    def test_get_source_code_rejects_object_field(
+        self, loaded_dataset: HumanEvalDataset
+    ) -> None:
         sl = DatasetSlice(
             dataset=loaded_dataset,
-            raw_source_field="gt_solution",
+            raw_source_field="source",
         )
-        code = sl.get_source_code("HumanEval/0")
-        assert "add" in code
-        assert '"""' not in code
+        with pytest.raises(TypeError, match="expected str"):
+            sl.get_source_code("HumanEval/0")
 
     def test_get_source_code_none_field(self, loaded_dataset: HumanEvalDataset) -> None:
         sl = DatasetSlice(dataset=loaded_dataset, raw_source_field=None)
@@ -105,17 +106,3 @@ class TestDatasetSlice:
         prompt = sl.get_official_prompt("HumanEval/0")
         assert prompt.startswith("def add")
         assert '"""' in prompt
-
-    def test_get_code_stub(self, loaded_dataset: HumanEvalDataset) -> None:
-        sl = DatasetSlice(dataset=loaded_dataset)
-        code_stub = sl.get_code_stub("HumanEval/0")
-        assert "def add" in code_stub
-        assert '"""' not in code_stub
-
-    def test_get_code_stub_with_comments(
-        self, loaded_dataset: HumanEvalDataset
-    ) -> None:
-        sl = DatasetSlice(dataset=loaded_dataset)
-        code_stub = sl.get_code_stub_with_comments("HumanEval/0")
-        assert "def add" in code_stub
-        assert '"""' in code_stub

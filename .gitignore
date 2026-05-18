@@ -1,3 +1,7 @@
+logs/
+los/
+__marimo__/
+nbs/exp/
 .env
 # Python
 __pycache__/

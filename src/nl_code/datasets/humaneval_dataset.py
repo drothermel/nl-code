@@ -1,3 +1,4 @@
+from collections.abc import Iterator
 from typing import Any, ClassVar
 
 from pydantic import BaseModel
@@ -6,8 +7,8 @@ from nl_code.code_execution.models import AssertionBatchItem
 from nl_code.code_execution.runner import batch_run_assertion_tests
 from nl_code.datasets.dataset import Dataset
 from nl_code.datasets.gt_verification import run_batched_with_infra_isolation
-from nl_code.datasets.humaneval_task import RawHumanEvalTask
-from nl_code.datasets.task import CodeDataset, Task
+from nl_code.datasets.humaneval_task import HumanEvalTestCase, RawHumanEvalTask
+from nl_code.datasets.task import CodeDataset, Task, TaskSource, TaskTarget
 
 
 class HumanEvalDataset(Dataset):
@@ -17,10 +18,25 @@ class HumanEvalDataset(Dataset):
     dataset_id: CodeDataset = CodeDataset.HUMANEVAL_PLUS
 
     def _parse_row(self, row: dict[str, Any]) -> RawHumanEvalTask:
-        return RawHumanEvalTask.model_validate(row)
+        return RawHumanEvalTask.model_validate(
+            {
+                "task_id": row["task_id"],
+                "entry_point": row["entry_point"],
+                "source": {
+                    "prompt": row["prompt"],
+                    "canonical_solution": row["canonical_solution"],
+                    "test": row["test"],
+                },
+            }
+        )
 
     def _extract_task_id(self, row: dict[str, Any]) -> str:
         return str(row["task_id"])
+
+    def get_test_cases_at_index(self, index: int) -> Iterator[HumanEvalTestCase]:
+        raw = self.get_raw_sample_at_index(index)
+        assert isinstance(raw, RawHumanEvalTask)
+        return raw.test_suite.iter_cases()
 
     def _verify_ground_truth_samples(
         self,
@@ -31,8 +47,8 @@ class HumanEvalDataset(Dataset):
             (
                 task_id,
                 AssertionBatchItem(
-                    code=raw.gt_solution_with_comments,
-                    test_code=raw.assertion_test_code,
+                    code=raw.gt_solution.code_with_comments,
+                    test_code=raw.test_suite.assertion_test_code(),
                 ),
             )
             for task_id, raw_base in raw_samples.items()
@@ -79,8 +95,7 @@ class HumanEvalDataset(Dataset):
         return Task(
             dataset=self.dataset_id,
             task_id=task_id,
-            entry_point_name=raw.entry_point,
-            description=raw.docstrings,
-            gt_solution=raw.gt_solution,
+            target=TaskTarget(name=raw.entry_point, kind="function"),
+            source=TaskSource(code=raw.gt_solution.code),
             version=raw.version,
         )

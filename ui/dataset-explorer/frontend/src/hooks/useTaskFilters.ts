@@ -3,7 +3,6 @@ import { useSearchParams } from "react-router-dom";
 
 export type TaskSortKey =
   | "task_id"
-  | "description_length_chars"
   | "derived_code_length_chars"
   | "prompt_length_chars"
   | "raw_source_length_chars"
@@ -29,7 +28,6 @@ const DEFAULTS: TaskFilters = {
 
 const SORT_KEYS = new Set<string>([
   "task_id",
-  "description_length_chars",
   "derived_code_length_chars",
   "prompt_length_chars",
   "raw_source_length_chars",

@@ -32,8 +32,7 @@ with app.setup:
     from nl_code.datasets.humaneval_dataset import HumanEvalDataset
     from nl_code.datasets.humaneval_pro_dataset import HumanEvalProDataset
     from nl_code.datasets.mbpp_pro_dataset import MbppProDataset
-    from nl_code.evaluation.length import compression_ratio, measure_length
-    from nl_code.evaluation.overlap import lexical_overlap
+    from nl_code.evaluation.length import measure_length
     from nl_code.evaluation.tokenizer import tokenize
 
     def normalize_analysis_output(value):
@@ -51,18 +50,18 @@ with app.setup:
     def analyze_code_sample(task, code_sample: str):
         extracted_code, had_fences = extract_from_code_fences(code_sample)
         syntax_valid, syntax_error = check_python_syntax(extracted_code)
-        function_exists = check_function_exists(extracted_code, task.entry_point_name)
+        function_exists = check_function_exists(extracted_code, task.target.name)
 
         try:
-            aggregate_analysis = analyze_function(extracted_code, task.entry_point_name)
+            aggregate_analysis = analyze_function(extracted_code, task.target.name)
         except Exception as exc:
             aggregate_analysis = {
                 "error": str(exc),
-                "function_name": task.entry_point_name,
+                "function_name": task.target.name,
             }
 
         results = {
-            "entry_point_name": task.entry_point_name,
+            "target_name": task.target.name,
             "code_fence_extraction": {
                 "extracted_code": extracted_code,
                 "had_fences": had_fences,
@@ -73,39 +72,33 @@ with app.setup:
             },
             "expected_top_level_function_exists": function_exists,
             "function_structure_checks": {
-                "has_return": check_has_return(extracted_code, task.entry_point_name),
-                "has_print": check_has_print(extracted_code, task.entry_point_name),
-                "has_raise": check_has_raise(extracted_code, task.entry_point_name),
-                "has_assert": check_has_assert(extracted_code, task.entry_point_name),
+                "has_return": check_has_return(extracted_code, task.target.name),
+                "has_print": check_has_print(extracted_code, task.target.name),
+                "has_raise": check_has_raise(extracted_code, task.target.name),
+                "has_assert": check_has_assert(extracted_code, task.target.name),
                 "return_type_annotation": get_return_type_annotation(
-                    extracted_code, task.entry_point_name
+                    extracted_code, task.target.name
                 ),
                 "parameter_names": get_parameter_names(
-                    extracted_code, task.entry_point_name
+                    extracted_code, task.target.name
                 ),
             },
             "comments_and_strings": {
                 "inline_comments": extract_inline_comments(
-                    extracted_code, task.entry_point_name
+                    extracted_code, task.target.name
                 ),
                 "string_literals": extract_string_literals(
-                    extracted_code, task.entry_point_name
+                    extracted_code, task.target.name
                 ),
             },
             "control_flow_counts": count_control_structures(
-                extracted_code, task.entry_point_name
+                extracted_code, task.target.name
             ),
-            "style_metrics": analyze_code_style(extracted_code, task.entry_point_name),
+            "style_metrics": analyze_code_style(extracted_code, task.target.name),
             "aggregate_analysis": aggregate_analysis,
             "text_code_metrics": {
                 "code_tokens": tokenize(extracted_code),
-                "description_tokens": tokenize(task.description),
                 "code_length": measure_length(extracted_code),
-                "description_length": measure_length(task.description),
-                "compression_ratio": compression_ratio(
-                    task.description, extracted_code
-                ),
-                "lexical_overlap": lexical_overlap(task.description, extracted_code),
             },
         }
         return normalize_analysis_output(results)
@@ -132,7 +125,7 @@ def render_example(dataset_name: str, requested_i: int, dataset):
 
     actual_i = max(0, min(requested_i, len(tasks) - 1))
     task = tasks[actual_i]
-    analysis_results = analyze_code_sample(task, task.gt_solution)
+    analysis_results = analyze_code_sample(task, task.source.code)
     header = f"**{dataset_name}** (Sample `{actual_i}`)"
     if actual_i != requested_i:
         header = f"**{dataset_name}** (Requested `{requested_i}`, showing `{actual_i}`)"
@@ -140,7 +133,7 @@ def render_example(dataset_name: str, requested_i: int, dataset):
     return mo.vstack(
         [
             mo.md(header),
-            mo.md(f"```python\n{task.gt_solution}\n```"),
+            mo.md(f"```python\n{task.source.code}\n```"),
             mo.accordion(
                 {
                     "Analysis": mo.md(

@@ -42,6 +42,32 @@ def make_humaneval_row(
     }
 
 
+def make_raw_humaneval_task_input(
+    *,
+    task_id: str = "HumanEval/0",
+    entry_point: str = "add",
+    prompt: str | None = None,
+    canonical_solution: str | None = None,
+    test: str | None = None,
+) -> dict[str, Any]:
+    row = make_humaneval_row(
+        task_id=task_id,
+        entry_point=entry_point,
+        prompt=prompt,
+        canonical_solution=canonical_solution,
+        test=test,
+    )
+    return {
+        "task_id": row["task_id"],
+        "entry_point": row["entry_point"],
+        "source": {
+            "prompt": row["prompt"],
+            "canonical_solution": row["canonical_solution"],
+            "test": row["test"],
+        },
+    }
+
+
 def make_humaneval_pro_row(
     *,
     id: int = 0,
@@ -294,7 +320,15 @@ def valid_row() -> dict[str, Any]:
 
 @pytest.fixture
 def valid_raw_task(valid_row: dict[str, Any]) -> RawHumanEvalTask:
-    return RawHumanEvalTask.model_validate(valid_row)
+    return RawHumanEvalTask.model_validate(
+        make_raw_humaneval_task_input(
+            task_id=valid_row["task_id"],
+            entry_point=valid_row["entry_point"],
+            prompt=valid_row["prompt"],
+            canonical_solution=valid_row["canonical_solution"],
+            test=valid_row["test"],
+        )
+    )
 
 
 @pytest.fixture

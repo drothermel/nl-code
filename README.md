@@ -58,16 +58,13 @@ Loaders for HumanEval, HumanEval-Pro, MBPP-Pro, BigCodeBench Lite Pro, and Class
 
 The corresponding raw task models preserve the original dataset inputs as `source__...` fields and expose richer derived artifacts such as:
 - official prompt fields
-- stripped and comment-preserving code stubs
 - stripped and comment-preserving ground-truth code
 
-Across task families, `new_official_prompt`, `new_code_stub`, and `new_code_stub_with_comments` provide a consistent interface for prompt/stub access even when the underlying dataset-specific field names differ.
+Across task families, `new_official_prompt` provides a consistent interface for prompt access even when the underlying dataset-specific field names differ.
 
 `DatasetSlice` supports filtering, seeded shuffling, limits, and parallel accessors for common raw-task artifacts:
 - `get_source_code(task_id)`
 - `get_official_prompt(task_id)`
-- `get_code_stub(task_id)`
-- `get_code_stub_with_comments(task_id)`
 
 ## Dataset Explorer
 

@@ -81,7 +81,6 @@ export default function TaskBrowserPage() {
               onChange={(event) => setFilters({ sort: event.target.value as TaskSortKey })}
             >
               <option value="task_id">Task ID</option>
-              <option value="description_length_chars">Description length</option>
               <option value="derived_code_length_chars">Derived code length</option>
               <option value="prompt_length_chars">Prompt length</option>
               <option value="raw_source_length_chars">Raw source length</option>
@@ -115,7 +114,7 @@ export default function TaskBrowserPage() {
                 <th className="px-3 py-2">Task</th>
                 <th className="px-3 py-2">Status</th>
                 <th className="px-3 py-2">Entry Point</th>
-                <th className="px-3 py-2">Description</th>
+                <th className="px-3 py-2">Issue</th>
                 <th className="px-3 py-2">Derived Code</th>
                 <th className="px-3 py-2">Prompt</th>
                 <th className="px-3 py-2">Raw Source</th>
@@ -143,10 +142,10 @@ export default function TaskBrowserPage() {
                       </Badge>
                     </td>
                     <td className="px-3 py-3 font-mono text-xs text-muted-foreground">
-                      {row.entry_point_name ?? "—"}
+                      {row.target_name ?? "—"}
                     </td>
                     <td className="max-w-xs truncate px-3 py-3 text-xs text-muted-foreground">
-                      {row.description_preview ?? row.error_summary ?? "—"}
+                      {row.error_summary ?? "—"}
                     </td>
                     <td className="px-3 py-3 tabular-nums">
                       {row.derived_code_length_chars ?? "—"}

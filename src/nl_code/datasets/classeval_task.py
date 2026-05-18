@@ -1,11 +1,16 @@
-import ast
-from typing import Any, ClassVar, Literal, Self, cast
+from functools import cached_property
+from typing import Any, Literal, cast
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field
 
 from nl_code.code_execution.models import UnittestResult
 from nl_code.code_execution.runner import run_unittest_test
-from nl_code.code_parsing import _DocstringStripper, remove_docstrings_and_comments
+from nl_code.code_parsing import (
+    remove_docstrings_preserving_comments,
+    remove_docstrings_and_comments,
+)
+from nl_code.datasets.task import TaskTarget
+from nl_code.datasets.validation import require_string
 
 
 class MethodDependencies(BaseModel):
@@ -55,51 +60,10 @@ class ClassEvalTestResult(BaseModel):
     error: str | None = None
 
 
-def _require_string(value: Any, *, name: str) -> str:
-    if not isinstance(value, str):
-        raise ValueError(f"{name} must be a string")
-    return value
-
-
 def _require_string_list(value: Any, *, name: str) -> list[str]:
     if not isinstance(value, list) or any(not isinstance(item, str) for item in value):
         raise ValueError(f"{name} must be a list[str]")
     return cast(list[str], list(value))
-
-
-def _remove_docstrings(source: str) -> str:
-    # Remove docstring source lines directly so comments and surrounding formatting
-    # are preserved. remove_docstrings_and_comments intentionally unparses the AST,
-    # which is appropriate for stripped runnable code but discards comments.
-    try:
-        tree = ast.parse(source)
-    except SyntaxError:
-        return source.rstrip() + "\n" if source.strip() else ""
-    line_numbers_to_remove: set[int] = set()
-
-    for node in ast.walk(tree):
-        if isinstance(
-            node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
-        ):
-            stripped_body = _DocstringStripper._strip_docstring(node.body)
-            if len(stripped_body) == len(node.body):
-                continue
-            docstring_expr = node.body[0]
-            if docstring_expr.lineno is None or docstring_expr.end_lineno is None:
-                raise RuntimeError("docstring node is missing line numbers")
-            line_numbers_to_remove.update(
-                range(docstring_expr.lineno, docstring_expr.end_lineno + 1)
-            )
-
-    remaining_lines = [
-        line
-        for line_number, line in enumerate(source.splitlines(keepends=True), start=1)
-        if line_number not in line_numbers_to_remove
-    ]
-    if not remaining_lines:
-        return ""
-
-    return "".join(remaining_lines).rstrip() + "\n"
 
 
 def _build_import_block(import_statement: Any) -> str:
@@ -110,7 +74,7 @@ def _build_import_block(import_statement: Any) -> str:
 
 
 def _build_gt_code(import_statement: Any, solution_code: Any) -> str:
-    solution_code_str = _require_string(solution_code, name="solution_code")
+    solution_code_str = require_string(solution_code, name="solution_code")
     imports = _build_import_block(import_statement).rstrip()
     if imports:
         return imports + "\n\n" + solution_code_str
@@ -225,133 +189,135 @@ def _apply_fixes(
     return solution_code, test, test_classes, pp_solution, pp_test, None
 
 
-class RawClassEvalTask(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-    raw_source_fields: ClassVar[tuple[str, ...]] = (
-        "class_name",
-        "class_description",
-        "class_constructor",
-        "fields",
-        "import_statement",
-        "skeleton",
-        "solution_code",
-        "test",
-        "test_classes",
-        "methods_info",
-    )
-    non_code_fields: ClassVar[tuple[str, ...]] = (
-        "task_id",
-        "validated",
-        "version",
-        "postprocess_solution",
-        "postprocess_test",
-        "auto_fail_reason",
-        "source__class_name",
-        "source__class_description",
-        "source__fields",
-        "source__import_statement",
-        "source__test_classes",
-        "source__methods_info",
-        "class_name",
-        "class_description",
-        "fields",
-        "import_statement",
-        "test_classes",
-        "methods_info",
-    )
+class ClassEvalSource(BaseModel):
+    class_name: str
+    class_description: str
+    class_constructor: str
+    fields: list[str]
+    import_statement: list[str]
+    skeleton: str
+    solution_code: str
+    test: str
+    test_classes: list[str]
+    methods_info: list[MethodInfo]
 
-    task_id: str
-    source__class_name: str
-    source__class_description: str
-    source__class_constructor: str
-    source__fields: list[str]
-    source__import_statement: list[str]
-    source__skeleton: str
-    source__solution_code: str
-    source__test: str
-    source__test_classes: list[str]
-    source__methods_info: list[MethodInfo]
-    version: Literal["v1", "v2"] = "v2"
-    validated: bool = False
+
+class ClassEvalFixedSource(BaseModel):
+    solution_code: str
+    test: str
+    test_classes: list[str]
     postprocess_solution: bool = False
     postprocess_test: bool = False
     auto_fail_reason: str | None = None
 
-    class_name: str = ""
-    class_description: str = ""
-    class_constructor: str = ""
-    fields: list[str] = Field(default_factory=list)
-    import_statement: list[str] = Field(default_factory=list)
-    official_skeleton: str = ""
-    class_stub_with_comments: str = ""
-    class_stub: str = ""
-    new_code_stub_with_comments: str = ""
-    new_code_stub: str = ""
-    import_block: str = ""
-    solution_code: str = ""
-    test: str = ""
-    test_classes: list[str] = Field(default_factory=list)
-    methods_info: list[MethodInfo] = Field(default_factory=list)
-    new_official_prompt: str = ""
-    gt_code_with_comments: str = ""
-    gt_code: str = ""
 
-    @model_validator(mode="before")
-    @classmethod
-    def populate_source_fields(cls, data: Any) -> Any:
-        if not isinstance(data, dict):
-            return data
-        normalized = dict(data)
-        for field_name in cls.raw_source_fields:
-            source_field_name = f"source__{field_name}"
-            if source_field_name not in normalized and field_name in normalized:
-                normalized[source_field_name] = normalized[field_name]
-        return normalized
+class ClassEvalGTSolution(BaseModel):
+    source: ClassEvalSource
+    fixed: ClassEvalFixedSource
 
-    @model_validator(mode="after")
-    def validate_eval_task(self) -> Self:
-        self.class_name = self.source__class_name
-        self.class_description = self.source__class_description
-        self.class_constructor = self.source__class_constructor
-        self.fields = list(self.source__fields)
-        self.import_statement = list(self.source__import_statement)
-        self.official_skeleton = self.source__skeleton
-        self.class_stub_with_comments = self.official_skeleton
-        self.class_stub = _remove_docstrings(self.official_skeleton)
-        self.new_code_stub_with_comments = self.class_stub_with_comments
-        self.new_code_stub = self.class_stub
-        self.new_official_prompt = _build_new_official_prompt(
-            self.class_name, self.official_skeleton
-        )
-        self.import_block = _build_import_block(self.import_statement)
-        self.methods_info = list(self.source__methods_info)
-
-        (
-            self.solution_code,
-            self.test,
-            self.test_classes,
-            self.postprocess_solution,
-            self.postprocess_test,
-            self.auto_fail_reason,
-        ) = _apply_fixes(
-            self.task_id,
-            self.source__solution_code,
-            self.source__test,
-            list(self.source__test_classes),
+    @cached_property
+    def code_with_comments(self) -> str:
+        return _build_gt_code(
+            self.source.import_statement,
+            self.fixed.solution_code,
         )
 
-        self.gt_code_with_comments = _build_gt_code(
-            self.import_statement, self.solution_code
+    @cached_property
+    def code(self) -> str:
+        return remove_docstrings_and_comments(self.code_with_comments)
+
+    def run_test(self, test_suite: "ClassEvalTestSuite") -> ClassEvalTestResult:
+        return test_suite.run_test(self.code)
+
+
+class ClassEvalPrompt(BaseModel):
+    source: ClassEvalSource
+
+    @cached_property
+    def new_official(self) -> str:
+        return _build_new_official_prompt(
+            self.source.class_name,
+            self.source.skeleton,
         )
-        self.gt_code = remove_docstrings_and_comments(self.gt_code_with_comments)
-        return self
+
+
+class ClassEvalTestSuite(BaseModel):
+    source: str
+    test_classes: list[str]
 
     def run_test(self, code: str) -> ClassEvalTestResult:
-        result = run_unittest_test(code, self.test, self.test_classes)
+        result = run_unittest_test(code, self.source, self.test_classes)
         return _class_eval_result_from_unittest_result(result)
 
+
+class RawClassEvalTask(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    task_id: str
+    source: ClassEvalSource
+    version: Literal["v3"] = "v3"
+    validated: bool = False
+
+    @cached_property
+    def fixed_source(self) -> ClassEvalFixedSource:
+        (
+            solution_code,
+            test,
+            test_classes,
+            postprocess_solution,
+            postprocess_test,
+            auto_fail_reason,
+        ) = _apply_fixes(
+            self.task_id,
+            self.source.solution_code,
+            self.source.test,
+            list(self.source.test_classes),
+        )
+        return ClassEvalFixedSource(
+            solution_code=solution_code,
+            test=test,
+            test_classes=test_classes,
+            postprocess_solution=postprocess_solution,
+            postprocess_test=postprocess_test,
+            auto_fail_reason=auto_fail_reason,
+        )
+
+    @cached_property
+    def target(self) -> TaskTarget:
+        return TaskTarget(name=self.source.class_name, kind="class")
+
+    @cached_property
+    def prompt(self) -> ClassEvalPrompt:
+        return ClassEvalPrompt(source=self.source)
+
+    @cached_property
+    def class_stub_with_comments(self) -> str:
+        return self.source.skeleton
+
+    @cached_property
+    def class_stub(self) -> str:
+        return remove_docstrings_preserving_comments(self.source.skeleton)
+
+    @cached_property
+    def import_block(self) -> str:
+        return _build_import_block(self.source.import_statement)
+
+    @cached_property
+    def gt_solution(self) -> ClassEvalGTSolution:
+        return ClassEvalGTSolution(source=self.source, fixed=self.fixed_source)
+
+    @cached_property
+    def test_suite(self) -> ClassEvalTestSuite:
+        return ClassEvalTestSuite(
+            source=self.fixed_source.test,
+            test_classes=self.fixed_source.test_classes,
+        )
+
+    def run_test(self, code: str) -> ClassEvalTestResult:
+        return self.test_suite.run_test(code)
+
     def run_test_on_gt_solution(self) -> ClassEvalTestResult:
-        return self.run_test(self.gt_code)
+        return self.gt_solution.run_test(self.test_suite)
 
 
 def _class_eval_result_from_unittest_result(
