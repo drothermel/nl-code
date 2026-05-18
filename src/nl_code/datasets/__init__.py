@@ -18,7 +18,7 @@ from nl_code.datasets.humaneval_task import (
 )
 from nl_code.datasets.mbpp_pro_dataset import MbppProDataset
 from nl_code.datasets.mbpp_pro_task import RawMbppProTask
-from nl_code.datasets.task import Task
+from nl_code.datasets.task import Task, TaskSource, TaskTarget
 
 __all__ = [
     "BigCodeBenchLiteProDataset",
@@ -38,4 +38,6 @@ __all__ = [
     "RawHumanEvalTask",
     "RawMbppProTask",
     "Task",
+    "TaskSource",
+    "TaskTarget",
 ]

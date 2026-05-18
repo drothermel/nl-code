@@ -91,7 +91,7 @@ class TestDatasetSlice:
     ) -> None:
         sl = DatasetSlice(
             dataset=loaded_dataset,
-            raw_source_field="gt_solution",
+            raw_source_field="source",
         )
         with pytest.raises(TypeError, match="expected str"):
             sl.get_source_code("HumanEval/0")

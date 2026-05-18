@@ -334,7 +334,7 @@ def list_tasks(
             row
             for row in rows
             if needle in row.task_id.lower()
-            or needle in (row.entry_point_name or "").lower()
+            or needle in (row.target_name or "").lower()
             or needle in (row.error_summary or "").lower()
         ]
 
@@ -368,8 +368,10 @@ def get_task_detail(dataset_key: str, task_id: str) -> TaskDetailResponse:
     return TaskDetailResponse(
         dataset=_dataset_option(entry),
         task_id=task_id,
-        entry_point_name=task.entry_point_name,
-        gt_solution=task.gt_solution,
+        target_name=task.target.name,
+        target_kind=task.target.kind,
+        source_code=task.source.code,
+        source_kind=task.source.kind,
         metrics=[
             NumericMetric(key=key, label=METRIC_LABELS[key], value=float(value))
             for key, value in metrics.items()
@@ -488,7 +490,8 @@ def _build_task_rows(dataset: Dataset, entry: DatasetRegistryEntry) -> list[Task
                 task_id=task_id,
                 status="valid",
                 has_derived_task=True,
-                entry_point_name=task.entry_point_name,
+                target_name=task.target.name,
+                target_kind=task.target.kind,
                 derived_code_length_chars=_safe_int(
                     metrics["derived_code_length_chars"]
                 ),
@@ -569,11 +572,12 @@ def _build_error_groups(dataset: Dataset) -> list[FlawedErrorGroup]:
 
 
 def _extract_metrics(family: str, raw: Any, task: Task) -> dict[str, int | None]:
-    derived_code_metrics = measure_length(task.gt_solution)
+    derived_code = task.source.code
+    derived_code_metrics = measure_length(derived_code)
     metrics: dict[str, int | None] = {
         "derived_code_length_chars": derived_code_metrics.char_count,
         "derived_code_length_tokens": derived_code_metrics.token_count,
-        "derived_code_length_lines": _line_count(task.gt_solution),
+        "derived_code_length_lines": _line_count(derived_code),
         "prompt_length_chars": None,
         "raw_source_length_chars": None,
         "test_length_chars": None,
@@ -588,15 +592,15 @@ def _extract_metrics(family: str, raw: Any, task: Task) -> dict[str, int | None]
         assert isinstance(
             raw, RawHumanEvalProTask | RawMbppProTask | RawBigCodeBenchLiteProTask
         )
-        metrics["prompt_length_chars"] = len(raw.new_official_prompt)
-        metrics["raw_source_length_chars"] = len(raw.gt_solution_with_comments)
-        metrics["test_length_chars"] = len(raw.source__test_code)
+        metrics["prompt_length_chars"] = len(raw.prompts.new_official)
+        metrics["raw_source_length_chars"] = len(raw.gt_solution.code_with_comments)
+        metrics["test_length_chars"] = len(raw.source.test_code)
         return metrics
 
     assert isinstance(raw, RawClassEvalTask)
-    metrics["prompt_length_chars"] = len(raw.class_description)
-    metrics["raw_source_length_chars"] = len(raw.gt_code_with_comments)
-    metrics["test_length_chars"] = len(raw.source__test)
+    metrics["prompt_length_chars"] = len(raw.source.class_description)
+    metrics["raw_source_length_chars"] = len(raw.gt_solution.code_with_comments)
+    metrics["test_length_chars"] = len(raw.source.test)
     return metrics
 
 
@@ -607,13 +611,13 @@ def _build_derived_fields(
         assert isinstance(raw, RawHumanEvalTask)
         return [
             DerivedFieldSummary(
-                name="Task.entry_point_name",
-                value=task.entry_point_name,
+                name="Task.target.name",
+                value=task.target.name,
                 source="raw.entry_point",
             ),
             DerivedFieldSummary(
-                name="Task.gt_solution",
-                value=task.gt_solution,
+                name="Task.source.code",
+                value=task.source.code,
                 source="raw.gt_solution.code",
             ),
         ]
@@ -623,25 +627,27 @@ def _build_derived_fields(
         )
         return [
             DerivedFieldSummary(
-                name="Task.entry_point_name",
-                value=task.entry_point_name,
-                source="raw.new_entry_point",
+                name="Task.target.name",
+                value=task.target.name,
+                source="raw.target.name",
             ),
             DerivedFieldSummary(
-                name="Task.gt_solution",
-                value=task.gt_solution,
-                source="raw.gt_solution",
+                name="Task.source.code",
+                value=task.source.code,
+                source="raw.gt_solution.code",
             ),
         ]
     assert isinstance(raw, RawClassEvalTask)
     return [
         DerivedFieldSummary(
-            name="Task.entry_point_name",
-            value=task.entry_point_name,
-            source="raw.class_name",
+            name="Task.target.name",
+            value=task.target.name,
+            source="raw.target.name",
         ),
         DerivedFieldSummary(
-            name="Task.gt_solution", value=task.gt_solution, source="raw.gt_code"
+            name="Task.source.code",
+            value=task.source.code,
+            source="raw.gt_solution.code",
         ),
     ]
 
@@ -775,16 +781,16 @@ def _pro_sections(
                     value=str(raw.validated),
                 ),
                 InspectorField(
-                    key="new_entry_point",
+                    key="target.name",
                     label="Derived Entry Point",
                     kind="text",
-                    value=raw.new_entry_point,
+                    value=raw.target.name,
                 ),
                 InspectorField(
-                    key="new_description",
+                    key="description",
                     label="Derived Description",
                     kind="text",
-                    value=raw.new_description,
+                    value=raw.description,
                 ),
             ],
         ),
@@ -792,16 +798,16 @@ def _pro_sections(
             title="Problems",
             fields=[
                 InspectorField(
-                    key="source__raw_problem",
+                    key="source.raw_problem",
                     label="Raw Problem",
                     kind="code",
-                    value=raw.source__raw_problem,
+                    value=raw.source.raw_problem,
                 ),
                 InspectorField(
-                    key="source__new_problem",
+                    key="source.new_problem",
                     label="New Problem",
                     kind="code",
-                    value=raw.source__new_problem,
+                    value=raw.source.new_problem,
                 ),
             ],
         ),
@@ -809,34 +815,34 @@ def _pro_sections(
             title="Solutions and Tests",
             fields=[
                 InspectorField(
-                    key="source__raw_solution",
+                    key="source.raw_solution",
                     label="Raw Solution",
                     kind="code",
-                    value=raw.source__raw_solution,
+                    value=raw.source.raw_solution,
                 ),
                 InspectorField(
-                    key="source__new_solution",
+                    key="source.new_solution",
                     label="New Solution",
                     kind="code",
-                    value=raw.source__new_solution,
+                    value=raw.source.new_solution,
                 ),
                 InspectorField(
-                    key="gt_solution_with_comments",
+                    key="gt_solution.code_with_comments",
                     label="GT Solution With Comments",
                     kind="code",
-                    value=raw.gt_solution_with_comments,
+                    value=raw.gt_solution.code_with_comments,
                 ),
                 InspectorField(
-                    key="gt_solution",
+                    key="gt_solution.code",
                     label="GT Solution",
                     kind="code",
-                    value=raw.gt_solution,
+                    value=raw.gt_solution.code,
                 ),
                 InspectorField(
-                    key="source__test_code",
+                    key="source.test_code",
                     label="Test Code",
                     kind="code",
-                    value=raw.source__test_code,
+                    value=raw.source.test_code,
                 ),
             ],
         ),
@@ -857,7 +863,7 @@ def _classeval_sections(raw: RawClassEvalTask) -> list[InspectorSection]:
                     key="class_name",
                     label="Class Name",
                     kind="text",
-                    value=raw.class_name,
+                    value=raw.source.class_name,
                 ),
                 InspectorField(
                     key="validated",
@@ -869,13 +875,13 @@ def _classeval_sections(raw: RawClassEvalTask) -> list[InspectorSection]:
                     key="postprocess_solution",
                     label="Postprocessed Solution",
                     kind="text",
-                    value=str(raw.postprocess_solution),
+                    value=str(raw.fixed_source.postprocess_solution),
                 ),
                 InspectorField(
                     key="postprocess_test",
                     label="Postprocessed Test",
                     kind="text",
-                    value=str(raw.postprocess_test),
+                    value=str(raw.fixed_source.postprocess_test),
                 ),
             ],
         ),
@@ -886,22 +892,25 @@ def _classeval_sections(raw: RawClassEvalTask) -> list[InspectorSection]:
                     key="class_description",
                     label="Class Description",
                     kind="text",
-                    value=raw.class_description,
+                    value=raw.source.class_description,
                 ),
                 InspectorField(
                     key="class_constructor",
                     label="Class Constructor",
                     kind="code",
-                    value=raw.class_constructor,
+                    value=raw.source.class_constructor,
                 ),
                 InspectorField(
-                    key="fields", label="Fields", kind="json", value=raw.fields
+                    key="source.fields",
+                    label="Fields",
+                    kind="json",
+                    value=raw.source.fields,
                 ),
                 InspectorField(
-                    key="import_statement",
+                    key="source.import_statement",
                     label="Import Statements",
                     kind="json",
-                    value=raw.import_statement,
+                    value=raw.source.import_statement,
                 ),
             ],
         ),
@@ -909,31 +918,43 @@ def _classeval_sections(raw: RawClassEvalTask) -> list[InspectorSection]:
             title="Code and Tests",
             fields=[
                 InspectorField(
-                    key="skeleton", label="Skeleton", kind="code", value=raw.skeleton
+                    key="source.skeleton",
+                    label="Skeleton",
+                    kind="code",
+                    value=raw.source.skeleton,
                 ),
                 InspectorField(
-                    key="solution_code",
+                    key="fixed_source.solution_code",
                     label="Solution Code",
                     kind="code",
-                    value=raw.solution_code,
+                    value=raw.fixed_source.solution_code,
                 ),
                 InspectorField(
-                    key="gt_code", label="GT Code", kind="code", value=raw.gt_code
+                    key="gt_solution.code",
+                    label="GT Code",
+                    kind="code",
+                    value=raw.gt_solution.code,
                 ),
                 InspectorField(
-                    key="test", label="Test Code", kind="code", value=raw.test
+                    key="test_suite.source",
+                    label="Test Code",
+                    kind="code",
+                    value=raw.test_suite.source,
                 ),
                 InspectorField(
-                    key="test_classes",
+                    key="test_suite.test_classes",
                     label="Test Classes",
                     kind="json",
-                    value=raw.test_classes,
+                    value=raw.test_suite.test_classes,
                 ),
                 InspectorField(
-                    key="methods_info",
+                    key="source.methods_info",
                     label="Methods Info",
                     kind="json",
-                    value=raw.methods_info,
+                    value=[
+                        method.model_dump(mode="json")
+                        for method in raw.source.methods_info
+                    ],
                 ),
                 InspectorField(
                     key="test_result",

@@ -28,9 +28,9 @@ class TestClassEvalDataset:
 
         task = ds.tasks["ClassEval_0"]
         raw_task = cast(RawClassEvalTask, ds.raw_samples["ClassEval_0"])
-        assert task.entry_point_name == "Calculator"
-        assert "class Calculator" in task.gt_solution
-        assert task.gt_solution == raw_task.gt_code
+        assert task.target.name == "Calculator"
+        assert "class Calculator" in task.source.code
+        assert task.source.code == raw_task.gt_solution.code
 
     def test_flawed_rows_tracked(self, monkeypatch: pytest.MonkeyPatch) -> None:
         bad_row = make_classeval_row(

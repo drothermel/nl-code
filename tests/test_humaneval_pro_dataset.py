@@ -25,8 +25,8 @@ class TestHumanEvalProDataset:
         ds = prime_dataset_cache(HumanEvalProDataset(), rows, monkeypatch)
 
         task = ds.tasks["HumanEvalPro/0"]
-        assert task.entry_point_name == "add_pairs"
-        assert '"""' not in task.gt_solution
+        assert task.target.name == "add_pairs"
+        assert '"""' not in task.source.code
 
     def test_flawed_rows_tracked(self, monkeypatch: pytest.MonkeyPatch) -> None:
         bad_row = make_humaneval_pro_row(id=99, new_solution="    return []\n")

@@ -147,7 +147,7 @@ def test_get_comparison_summarizes_counts_metrics_and_ratios(
     mbpp_dataset = explorer_service.DATASET_CACHE["mbpp-pro"]
 
     derived_lengths = sorted(
-        float(len(task.gt_solution)) for task in mbpp_dataset.tasks.values()
+        float(len(task.source.code)) for task in mbpp_dataset.tasks.values()
     )
     expected_derived_p90 = derived_lengths[0] + 0.9 * (
         derived_lengths[1] - derived_lengths[0]
@@ -156,7 +156,7 @@ def test_get_comparison_summarizes_counts_metrics_and_ratios(
     assert mbpp_metric_stats["derived_code_length_chars"].p90 == expected_derived_p90
 
     ratios = sorted(
-        float(len(raw.source__test_code)) / float(len(task.gt_solution))
+        float(len(raw.source.test_code)) / float(len(task.source.code))
         for task_id, task in mbpp_dataset.tasks.items()
         for raw in [cast(RawMbppProTask, mbpp_dataset.raw_samples[task_id])]
     )

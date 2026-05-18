@@ -250,10 +250,10 @@ class GTSolution(BaseModel):
 
 
 class RawHumanEvalTask(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
+    model_config = ConfigDict(extra="forbid")
     task_id: str
     entry_point: str
-    version: Literal["v1", "v2"] = "v2"
+    version: Literal["v3"] = "v3"
     validated: bool = False
 
     source: HumanEvalSource

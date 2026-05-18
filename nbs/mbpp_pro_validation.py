@@ -65,7 +65,7 @@ def _(sample):
     mo.vstack(
         [
             mo.md("## Source Fields"),
-            render_sample_fields(sample, prefix="source__"),
+            render_sample_fields(sample.source),
         ]
     )
     return
@@ -76,7 +76,7 @@ def _(sample):
     mo.vstack(
         [
             mo.md("## Derived Fields"),
-            render_sample_fields(sample, suppress_prefix="source__"),
+            render_sample_fields(sample),
         ]
     )
     return

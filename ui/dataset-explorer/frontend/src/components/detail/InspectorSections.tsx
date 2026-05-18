@@ -4,7 +4,7 @@ import { CodeBlock } from "@/components/ui/code-block";
 import type { DerivedFieldSummary, InspectorSection } from "@/types/datasetExplorer";
 
 // Add new derived fields here when they should render with code syntax highlighting.
-export const CODE_DERIVED_FIELD_NAMES = new Set(["Task.gt_solution"]);
+export const CODE_DERIVED_FIELD_NAMES = new Set(["Task.source.code"]);
 
 export function isCodeDerivedField(name: string) {
   return CODE_DERIVED_FIELD_NAMES.has(name);
