@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import hashlib
-import json as stdlib_json
+import json
 import os
 import re
 import shutil
@@ -9,7 +9,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-import srsly
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -777,7 +776,9 @@ def record_count_for_path(path: Path) -> int | None:
 
 
 def count_jsonl_records(path: Path) -> int:
-    return sum(1 for _ in srsly.read_jsonl(path))
+    return sum(
+        1 for line in path.read_text(encoding="utf-8").splitlines() if line.strip()
+    )
 
 
 def sha256_file(path: Path) -> str:
@@ -789,13 +790,7 @@ def sha256_file(path: Path) -> str:
 
 
 def read_json_file(path: Path) -> dict[str, Any]:
-    try:
-        value = srsly.read_json(path)
-    except ValueError as exc:
-        if "Value is too big" not in str(exc):
-            raise
-        # srsly uses ujson here, which cannot load the 305 MB eval run JSON.
-        value = stdlib_json.loads(path.read_text(encoding="utf-8"))
+    value = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(value, dict):
         raise TypeError(f"Expected JSON object in {path}, got {type(value).__name__}")
     return value
@@ -807,7 +802,10 @@ def write_metadata(path: Path, metadata: SessionMetadata) -> None:
 
 def write_json_file(path: Path, value: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    srsly.write_json(path, value, indent=2)
+    path.write_text(
+        json.dumps(value, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
 
 
 if __name__ == "__main__":
