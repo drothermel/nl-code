@@ -80,10 +80,19 @@ generation against an encoder-decoder setup on HumanEval.
 
 - `scripts/humaneval_dspy_eval.py` runs the evaluation from the command line.
   It writes a run JSON plus generation-history JSONL records under `logs/`.
+- `scripts/optimize_humaneval_dspy_direct.py` and
+  `scripts/optimize_humaneval_dspy_encdec.py` run MIPRO optimization for the
+  direct and encoder-decoder HumanEval programs.
+- `scripts/optimize_humaneval_dspy_direct_gepa.py` and
+  `scripts/optimize_humaneval_dspy_encdec_gepa.py` run GEPA optimization for
+  the same program families.
 - `src/nl_code/optim/humaneval_dspy_eval.py` contains the reusable evaluation
   loop, generation config, per-attempt results, and summary models.
 - `src/nl_code/optim/dspy_generators.py` defines the direct generator and the
   encoder-decoder generator used by the eval.
+- `src/nl_code/optim/humaneval_dspy_optimize.py` and
+  `src/nl_code/optim/humaneval_dspy_gepa.py` contain reusable optimizer
+  orchestration, split handling, artifact writing, and summary models.
 - `src/nl_code/optim/humaneval_dspy_logs.py` parses eval logs into a nested
   Pydantic snapshot for notebook analysis. It preserves run stats, per-attempt
   results, and individual LM calls, including both encoder and decoder calls
@@ -103,6 +112,52 @@ OPENROUTER_API_KEY=... uv run python scripts/humaneval_dspy_eval.py --generation
 uv run python scripts/parse_humaneval_dspy_logs.py --logs-dir logs --output-path logs/human_eval_dspy_snapshot_latest.json
 uv run marimo edit nbs/exp/human_eval_dspy.py
 ```
+
+### DSPy Log And Report Inspection
+
+The branch also includes forensic tooling for the archived DSPy experiment
+corpus under `data/code-comp/dspy-exps/v0/`.
+
+- `scripts/sessionize_dspy_logs_v0.py` groups raw DSPy log artifacts into
+  session directories and writes session metadata.
+- `scripts/inspect_dspy_eval_session.py` parses one eval session, or walks a
+  corpus, into `*.eval_report.json` files with runs, samples, attempts,
+  generation calls, aggregates, and parse notes.
+- `scripts/inspect_dspy_gepa_session.py` parses one GEPA optimizer session, or
+  walks a corpus, into `*.gepa_report.json` files with optimizer runs, programs,
+  split/task scores, metric calls, generated outputs, optimizer iterations, and
+  safe `gepa_state.bin` metadata scans.
+- `scripts/build_dspy_gepa_agent_bundle.py` combines the per-session GEPA
+  reports into one cross-session `gepa_optimization_agent_bundle.json` for
+  downstream analysis agents or UI tooling.
+- `docs/dspy-log-sessions-v0.md` documents the sessionized log corpus.
+- `docs/dspy-eval-optimizer-extraction-progress.md` records extraction progress
+  and the known limits of eval versus optimizer logs.
+- `docs/session_000018_gepa_prompt_variants.md` is a concrete session-level
+  prompt-variant review for the most complete direct GEPA trace.
+
+The report extractors use Python's standard-library `json` module because these
+artifacts can contain very large integers that are not safe with `srsly`'s
+`ujson` backend.
+
+### DSPy Static Viewer
+
+`ui/dspy-eval-static-viewer/` contains a self-contained static viewer generated
+from the parsed eval and GEPA reports. Open
+`ui/dspy-eval-static-viewer/viewer.html` directly in a browser; it loads
+`data/viewer_data.js` locally and does not require a backend server.
+
+The viewer includes:
+
+- a GEPA prompt-flow tab with full prompt text, candidate lineage, scores, and
+  per-task heatmaps;
+- a HumanEval full-5x sample variation matrix with task drilldowns; and
+- CSV exports for prompt nodes and stable/unstable task summaries.
+
+The committed viewer is isolated from the existing `ui/dataset-explorer` app.
+It intentionally includes only the browser-loadable data bundle and CSV exports,
+not the duplicate JSON payload or one-off preprocessing script from the original
+Desktop bundle.
 
 ## Headless validation runs
 
