@@ -20,10 +20,27 @@ OVERWRITE_ENV_VAR = "SESSIONIZE_DSPY_LOGS_OVERWRITE"
 
 SCHEMA_VERSION = "v0"
 UNKNOWN_SESSION_ID = "unknown_session"
-LOG_DIR_PATTERN = re.compile(r"log_dir=(\S+)")
+LOG_DIR_PATTERN = re.compile(r"log_dir=([^\"'\s]+)")
 LEGACY_EVAL_FILE_PATTERN = re.compile(
     r"^human_eval_dspy_(direct|encdec)_eval_\d{8}T\d{6}Z\.json$"
 )
+ARCHIVE_SNAPSHOT_PATH = (
+    SOURCE_ROOT / "logs" / "archive" / "human_eval_dspy_snapshot_latest.json"
+)
+INFERRED_OPTIMIZER_LOG_DIRS_BY_SUMMARY = {
+    "human_eval_dspy_direct_optimized_20260515T070550Z_summary.json": [
+        SOURCE_ROOT / "logs" / "dspy_optimized" / "mipro_logs" / "20260515T070413Z"
+    ],
+    "human_eval_dspy_direct_optimized_20260515T071204Z_summary.json": [
+        SOURCE_ROOT / "logs" / "dspy_optimized" / "mipro_logs" / "20260515T070421Z"
+    ],
+    "human_eval_dspy_encdec_both_optimized_20260515T071016Z_summary.json": [
+        SOURCE_ROOT / "logs" / "dspy_optimized" / "mipro_logs" / "20260515T070712Z"
+    ],
+    "human_eval_dspy_encdec_both_optimized_20260515T071829Z_summary.json": [
+        SOURCE_ROOT / "logs" / "dspy_optimized" / "mipro_logs" / "20260515T071045Z"
+    ],
+}
 
 
 class FileMetadata(BaseModel):
@@ -250,6 +267,11 @@ def build_legacy_eval_session(path: Path) -> PlannedSession:
     payload = read_json_file(path)
     outputs = list(payload.get("outputs") or [])
     dataset_indices = list(payload.get("dataset_indices") or [])
+    archive_generation_refs = legacy_generation_refs_for_eval(path)
+    archive_generation_counts = {
+        relative_source_path(ref): count_jsonl_records(ref)
+        for ref in archive_generation_refs
+    }
     extracted = {
         "timestamp": payload.get("timestamp"),
         "eval_type": payload.get("eval_type"),
@@ -258,6 +280,7 @@ def build_legacy_eval_session(path: Path) -> PlannedSession:
         "val_num": payload.get("val_num"),
         "dataset_indices_count": len(dataset_indices),
         "outputs_count": len(outputs),
+        "generation_call_count": sum(archive_generation_counts.values()),
     }
     return PlannedSession(
         session_kind="legacy_eval",
@@ -266,13 +289,37 @@ def build_legacy_eval_session(path: Path) -> PlannedSession:
         sort_timestamp=payload.get("timestamp"),
         original_grouping_paths=[relative_source_path(path.parent)],
         extracted=extracted,
-        files=[PlannedFile(path=path, role="legacy_eval_result")],
+        files=dedupe_planned_files(
+            [
+                PlannedFile(path=path, role="legacy_eval_result"),
+                *[
+                    PlannedFile(
+                        path=ref,
+                        role="generation_history",
+                        record_count=archive_generation_counts[
+                            relative_source_path(ref)
+                        ],
+                    )
+                    for ref in archive_generation_refs
+                ],
+            ]
+        ),
         relation_evidence=[
             RelationEvidence(
                 evidence_type="self_contained_legacy_eval_file",
                 confidence="exact",
                 source_file=relative_source_path(path),
-            )
+            ),
+            *[
+                RelationEvidence(
+                    evidence_type="archive_snapshot_generation_file_reference",
+                    confidence="exact",
+                    source_file=relative_source_path(ARCHIVE_SNAPSHOT_PATH),
+                    target_file=relative_source_path(ref),
+                    details={"legacy_eval_file": relative_source_path(path)},
+                )
+                for ref in archive_generation_refs
+            ],
         ],
     )
 
@@ -298,31 +345,62 @@ def build_optimization_session(summary_path: Path) -> PlannedSession:
     ]
 
     validation_notes: list[str] = []
-    for run_log_path in run_log_paths_for_summary(summary):
-        if not run_log_path.exists():
+    seen_log_dirs: set[Path] = set()
+    for evidence_path, log_dir, evidence_type in optimizer_internal_log_dir_refs(
+        summary
+    ):
+        if log_dir in seen_log_dirs:
             continue
-        for log_dir in optimizer_internal_log_dirs(run_log_path):
-            if not log_dir.exists():
-                validation_notes.append(
-                    f"Referenced optimizer log dir does not exist: {relative_source_path(log_dir)}"
-                )
-                continue
-            internal_files = sorted(
-                path for path in log_dir.rglob("*") if path.is_file()
+        seen_log_dirs.add(log_dir)
+        if not log_dir.exists():
+            validation_notes.append(
+                f"Referenced optimizer log dir does not exist: {relative_source_path(log_dir)}"
             )
-            files.extend(
-                PlannedFile(path=path, role=role_for_optimizer_internal_file(path))
-                for path in internal_files
+            continue
+        internal_files = sorted(path for path in log_dir.rglob("*") if path.is_file())
+        files.extend(
+            PlannedFile(path=path, role=role_for_optimizer_internal_file(path))
+            for path in internal_files
+        )
+        relation_evidence.append(
+            RelationEvidence(
+                evidence_type=evidence_type,
+                confidence="exact",
+                source_file=relative_source_path(evidence_path),
+                target_file=relative_source_path(log_dir),
+                details={"file_count": len(internal_files)},
             )
-            relation_evidence.append(
-                RelationEvidence(
-                    evidence_type="optimizer_run_log_dir_reference",
-                    confidence="exact",
-                    source_file=relative_source_path(run_log_path),
-                    target_file=relative_source_path(log_dir),
-                    details={"file_count": len(internal_files)},
-                )
+        )
+
+    for log_dir in INFERRED_OPTIMIZER_LOG_DIRS_BY_SUMMARY.get(summary_path.name, []):
+        if log_dir in seen_log_dirs:
+            continue
+        seen_log_dirs.add(log_dir)
+        if not log_dir.exists():
+            validation_notes.append(
+                f"Inferred optimizer log dir does not exist: {relative_source_path(log_dir)}"
             )
+            continue
+        internal_files = sorted(path for path in log_dir.rglob("*") if path.is_file())
+        files.extend(
+            PlannedFile(path=path, role=role_for_optimizer_internal_file(path))
+            for path in internal_files
+        )
+        relation_evidence.append(
+            RelationEvidence(
+                evidence_type="inferred_optimizer_internal_dir_timestamp_and_program_shape",
+                confidence="high",
+                source_file=relative_source_path(summary_path),
+                target_file=relative_source_path(log_dir),
+                details={
+                    "file_count": len(internal_files),
+                    "reason": (
+                        "No explicit log_dir reference exists; linked by nearby "
+                        "timestamp, optimizer kind, target, and saved program shape."
+                    ),
+                },
+            )
+        )
 
     extracted = {
         "timestamp": summary.get("timestamp"),
@@ -377,11 +455,73 @@ def run_log_paths_for_summary(summary: dict[str, Any]) -> list[Path]:
     return [resolve_source_path(run_log_path)]
 
 
-def optimizer_internal_log_dirs(run_log_path: Path) -> list[Path]:
-    text = run_log_path.read_text(encoding="utf-8", errors="replace")
+def event_log_paths_for_summary(summary: dict[str, Any]) -> list[Path]:
+    event_log_path = summary.get("event_log_path")
+    if not event_log_path:
+        return []
+    return [resolve_source_path(event_log_path)]
+
+
+def optimizer_internal_log_dir_refs(
+    summary: dict[str, Any],
+) -> list[tuple[Path, Path, str]]:
+    refs: list[tuple[Path, Path, str]] = []
+    for path in run_log_paths_for_summary(summary):
+        refs.extend(
+            (path, log_dir, "optimizer_run_log_dir_reference")
+            for log_dir in optimizer_internal_log_dirs(path)
+        )
+    for path in event_log_paths_for_summary(summary):
+        refs.extend(
+            (path, log_dir, "optimizer_event_log_dir_reference")
+            for log_dir in optimizer_internal_log_dirs(path)
+        )
+    return refs
+
+
+def optimizer_internal_log_dirs(evidence_path: Path) -> list[Path]:
+    if not evidence_path.exists():
+        return []
+    text = evidence_path.read_text(encoding="utf-8", errors="replace")
     return sorted(
         {resolve_source_path(match) for match in LOG_DIR_PATTERN.findall(text)}
     )
+
+
+def legacy_generation_refs_for_eval(eval_path: Path) -> list[Path]:
+    if not ARCHIVE_SNAPSHOT_PATH.exists():
+        return []
+
+    snapshot = read_json_file(ARCHIVE_SNAPSHOT_PATH)
+    refs: list[Path] = []
+    for pipeline in snapshot.get("pipelines") or []:
+        for run in pipeline.get("runs") or []:
+            source_file = run.get("source_file")
+            if source_file is None or Path(str(source_file)).name != eval_path.name:
+                continue
+            for generation_log_file in run.get("generation_log_files") or []:
+                ref = resolve_archived_snapshot_path(generation_log_file)
+                if ref.exists():
+                    refs.append(ref)
+    return sorted(set(refs))
+
+
+def resolve_archived_snapshot_path(value: Any) -> Path:
+    candidate = resolve_source_path(value)
+    if candidate.exists():
+        return candidate
+
+    filename = candidate.name
+    matches = sorted(
+        path
+        for root in [SOURCE_ROOT / "logs", SOURCE_ROOT / "los"]
+        if root.exists()
+        for path in root.rglob(filename)
+        if path.is_file()
+    )
+    if matches:
+        return matches[0]
+    return candidate
 
 
 def assign_session_ids(sessions: list[PlannedSession]) -> list[PlannedSession]:
@@ -594,6 +734,12 @@ def role_for_optimizer_internal_file(path: Path) -> str:
 
 
 def role_for_unknown_file(path: Path) -> str:
+    relative = relative_source_path(path)
+    if (
+        "dspy_optimized/mipro_logs/" in relative
+        or "dspy_optimized/gepa_logs/" in relative
+    ):
+        return role_for_optimizer_internal_file(path)
     if path.suffix == ".jsonl":
         return "generation_history"
     if path.name == "human_eval_dspy_snapshot_latest.json":
