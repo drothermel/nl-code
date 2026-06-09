@@ -252,7 +252,9 @@ class TestSourceSpans:
             "é = 1\n"
         )
 
-    def test_line_col_to_index_maps_constant_byte_offset_to_character_index(self) -> None:
+    def test_line_col_to_index_maps_constant_byte_offset_to_character_index(
+        self,
+    ) -> None:
         source = "é = 1\n"
         stmt = ast.parse(source).body[0]
         assert isinstance(stmt, ast.Assign)

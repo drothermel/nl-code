@@ -1,0 +1,3008 @@
+{
+  "metadata": {
+    "model_name": "openrouter/openai/gpt-5-nano",
+    "selected_id_count": 100,
+    "selection_metric": "average perf",
+    "selection_order": "ascending",
+    "selection_setting": "all",
+    "selection_sizes": [
+      25,
+      50,
+      100
+    ],
+    "stats_settings": [
+      "all",
+      "direct",
+      "enc-dec",
+      "baseline",
+      "non-baseline"
+    ]
+  },
+  "sample_stats_by_id": {
+    "HumanEval/0": {
+      "all": {
+        "average_perf": 1.0,
+        "n_average": 80,
+        "perf_variance": 0.0
+      },
+      "baseline": {
+        "average_perf": 1.0,
+        "n_average": 34,
+        "perf_variance": 0.0
+      },
+      "direct": {
+        "average_perf": 1.0,
+        "n_average": 31,
+        "perf_variance": 0.0
+      },
+      "enc-dec": {
+        "average_perf": 1.0,
+        "n_average": 49,
+        "perf_variance": 0.0
+      },
+      "non-baseline": {
+        "average_perf": 1.0,
+        "n_average": 46,
+        "perf_variance": 0.0
+      }
+    },
+    "HumanEval/1": {
+      "all": {
+        "average_perf": 0.594594594595,
+        "n_average": 148,
+        "perf_variance": 0.229091626575
+      },
+      "baseline": {
+        "average_perf": 0.680189317106,
+        "n_average": 34,
+        "perf_variance": 0.21385582514
+      },
+      "direct": {
+        "average_perf": 1.0,
+        "n_average": 40,
+        "perf_variance": 0.0
+      },
+      "enc-dec": {
+        "average_perf": 0.444444444444,
+        "n_average": 108,
+        "perf_variance": 0.230523627075
+      },
+      "non-baseline": {
+        "average_perf": 0.569066344021,
+        "n_average": 114,
+        "perf_variance": 0.230798862428
+      }
+    },
+    "HumanEval/10": {
+      "all": {
+        "average_perf": 0.929245626822,
+        "n_average": 70,
+        "perf_variance": 0.0568715193738
+      },
+      "baseline": {
+        "average_perf": 0.895891977481,
+        "n_average": 29,
+        "perf_variance": 0.0739785162469
+      },
+      "direct": {
+        "average_perf": 0.876581632653,
+        "n_average": 25,
+        "perf_variance": 0.0882857767597
+      },
+      "enc-dec": {
+        "average_perf": 0.958503401361,
+        "n_average": 45,
+        "perf_variance": 0.0370223055208
+      },
+      "non-baseline": {
+        "average_perf": 0.952837232454,
+        "n_average": 41,
+        "perf_variance": 0.0434280184169
+      }
+    },
+    "HumanEval/102": {
+      "all": {
+        "average_perf": 0.976647930506,
+        "n_average": 103,
+        "perf_variance": 0.0106882553333
+      },
+      "baseline": {
+        "average_perf": 0.966823956443,
+        "n_average": 29,
+        "perf_variance": 0.0148587731924
+      },
+      "direct": {
+        "average_perf": 0.936703601108,
+        "n_average": 38,
+        "perf_variance": 0.0264424651438
+      },
+      "enc-dec": {
+        "average_perf": 1.0,
+        "n_average": 65,
+        "perf_variance": 0.0
+      },
+      "non-baseline": {
+        "average_perf": 0.980497866287,
+        "n_average": 74,
+        "perf_variance": 0.00900121952453
+      }
+    },
+    "HumanEval/103": {
+      "all": {
+        "average_perf": 0.893383458647,
+        "n_average": 70,
+        "perf_variance": 0.0446277211827
+      },
+      "baseline": {
+        "average_perf": 0.91945553539,
+        "n_average": 29,
+        "perf_variance": 0.036178020494
+      },
+      "direct": {
+        "average_perf": 0.966736842105,
+        "n_average": 25,
+        "perf_variance": 0.00908622714681
+      },
+      "enc-dec": {
+        "average_perf": 0.852631578947,
+        "n_average": 45,
+        "perf_variance": 0.0597229916898
+      },
+      "non-baseline": {
+        "average_perf": 0.874942233633,
+        "n_average": 41,
+        "perf_variance": 0.0497834589291
+      }
+    },
+    "HumanEval/104": {
+      "all": {
+        "average_perf": 0.974054028391,
+        "n_average": 42,
+        "perf_variance": 0.0165538842853
+      },
+      "baseline": {
+        "average_perf": 0.975822532403,
+        "n_average": 12,
+        "perf_variance": 0.00643004933355
+      },
+      "direct": {
+        "average_perf": 1.0,
+        "n_average": 16,
+        "perf_variance": 0.0
+      },
+      "enc-dec": {
+        "average_perf": 0.958087276632,
+        "n_average": 26,
+        "perf_variance": 0.0260716799497
+      },
+      "non-baseline": {
+        "average_perf": 0.973346626786,
+        "n_average": 30,
+        "perf_variance": 0.0206016668064
+      }
+    },
+    "HumanEval/105": {
+      "all": {
+        "average_perf": 0.913260219342,
+        "n_average": 42,
+        "perf_variance": 0.0717996037998
+      },
+      "baseline": {
+        "average_perf": 0.855018278498,
+        "n_average": 12,
+        "perf_variance": 0.105284422295
+      },
+      "direct": {
+        "average_perf": 1.0,
+        "n_average": 16,
+        "perf_variance": 0.0
+      },
+      "enc-dec": {
+        "average_perf": 0.859881892783,
+        "n_average": 26,
+        "perf_variance": 0.108504705285
+      },
+      "non-baseline": {
+        "average_perf": 0.93655699568,
+        "n_average": 30,
+        "perf_variance": 0.0565060871446
+      }
+    },
+    "HumanEval/106": {
+      "all": {
+        "average_perf": 0.769230769231,
+        "n_average": 42,
+        "perf_variance": 0.170417723302
+      },
+      "baseline": {
+        "average_perf": 0.758012820513,
+        "n_average": 12,
+        "perf_variance": 0.175678521532
+      },
+      "direct": {
+        "average_perf": 0.879807692308,
+        "n_average": 16,
+        "perf_variance": 0.101123335799
+      },
+      "enc-dec": {
+        "average_perf": 0.701183431953,
+        "n_average": 26,
+        "perf_variance": 0.200905518014
+      },
+      "non-baseline": {
+        "average_perf": 0.773717948718,
+        "n_average": 30,
+        "perf_variance": 0.168242932281
+      }
+    },
+    "HumanEval/107": {
+      "all": {
+        "average_perf": 0.980066445183,
+        "n_average": 42,
+        "perf_variance": 0.00238407964592
+      },
+      "baseline": {
+        "average_perf": 0.953488372093,
+        "n_average": 12,
+        "perf_variance": 0.00432666306111
+      },
+      "direct": {
+        "average_perf": 0.947674418605,
+        "n_average": 16,
+        "perf_variance": 0.00456327744727
+      },
+      "enc-dec": {
+        "average_perf": 1.0,
+        "n_average": 26,
+        "perf_variance": 0.0
+      },
+      "non-baseline": {
+        "average_perf": 0.990697674419,
+        "n_average": 30,
+        "perf_variance": 0.00121146565711
+      }
+    },
+    "HumanEval/108": {
+      "all": {
+        "average_perf": 0.654805352798,
+        "n_average": 137,
+        "perf_variance": 0.132531551386
+      },
+      "baseline": {
+        "average_perf": 0.710283251232,
+        "n_average": 29,
+        "perf_variance": 0.125832793234
+      },
+      "direct": {
+        "average_perf": 0.952621452621,
+        "n_average": 33,
+        "perf_variance": 0.0351111281885
+      },
+      "enc-dec": {
+        "average_perf": 0.560306013431,
+        "n_average": 104,
+        "perf_variance": 0.126370251228
+      },
+      "non-baseline": {
+        "average_perf": 0.6399085097,
+        "n_average": 108,
+        "perf_variance": 0.133281930519
+      }
+    },
+    "HumanEval/109": {
+      "all": {
+        "average_perf": 0.98354978355,
+        "n_average": 70,
+        "perf_variance": 0.0143430595379
+      },
+      "baseline": {
+        "average_perf": 1.0,
+        "n_average": 29,
+        "perf_variance": 0.0
+      },
+      "direct": {
+        "average_perf": 0.953939393939,
+        "n_average": 25,
+        "perf_variance": 0.0387966942149
+      },
+      "enc-dec": {
+        "average_perf": 1.0,
+        "n_average": 45,
+        "perf_variance": 0.0
+      },
+      "non-baseline": {
+        "average_perf": 0.971914264597,
+        "n_average": 41,
+        "perf_variance": 0.0241613583239
+      }
+    },
+    "HumanEval/110": {
+      "all": {
+        "average_perf": 0.978575894663,
+        "n_average": 108,
+        "perf_variance": 0.0131425127587
+      },
+      "baseline": {
+        "average_perf": 0.973495873712,
+        "n_average": 29,
+        "perf_variance": 0.0094833275892
+      },
+      "direct": {
+        "average_perf": 0.939110437464,
+        "n_average": 38,
+        "perf_variance": 0.0349493702585
+      },
+      "enc-dec": {
+        "average_perf": 1.0,
+        "n_average": 70,
+        "perf_variance": 0.0
+      },
+      "non-baseline": {
+        "average_perf": 0.980440712481,
+        "n_average": 79,
+        "perf_variance": 0.0144728070884
+      }
+    },
+    "HumanEval/111": {
+      "all": {
+        "average_perf": 0.999891774892,
+        "n_average": 42,
+        "perf_variance": 1.52264762654e-07
+      },
+      "baseline": {
+        "average_perf": 1.0,
+        "n_average": 12,
+        "perf_variance": 0.0
+      },
+      "direct": {
+        "average_perf": 0.999715909091,
+        "n_average": 16,
+        "perf_variance": 3.49733126722e-07
+      },
+      "enc-dec": {
+        "average_perf": 1.0,
+        "n_average": 26,
+        "perf_variance": 0.0
+      },
+      "non-baseline": {
+        "average_perf": 0.999848484848,
+        "n_average": 30,
+        "perf_variance": 2.06611570248e-07
+      }
+    },
+    "HumanEval/112": {
+      "all": {
+        "average_perf": 0.980156361052,
+        "n_average": 70,
+        "perf_variance": 0.0160542811377
+      },
+      "baseline": {
+        "average_perf": 0.965517241379,
+        "n_average": 29,
+        "perf_variance": 0.0332936979786
+      },
+      "direct": {
+        "average_perf": 0.96,
+        "n_average": 25,
+        "perf_variance": 0.0384
+      },
+      "enc-dec": {
+        "average_perf": 0.991354339414,
+        "n_average": 45,
+        "perf_variance": 0.00328888766657
+      },
+      "non-baseline": {
+        "average_perf": 0.990510860332,
+        "n_average": 41,
+        "perf_variance": 0.00360175086519
+      }
+    },
+    "HumanEval/113": {
+      "all": {
+        "average_perf": 0.432217714672,
+        "n_average": 72,
+        "perf_variance": 0.243833119385
+      },
+      "baseline": {
+        "average_perf": 0.516587057515,
+        "n_average": 31,
+        "perf_variance": 0.249267308795
+      },
+      "direct": {
+        "average_perf": 1.0,
+        "n_average": 26,
+        "perf_variance": 0.0
+      },
+      "enc-dec": {
+        "average_perf": 0.11129729253,
+        "n_average": 46,
+        "perf_variance": 0.0964489909971
+      },
+      "non-baseline": {
+        "average_perf": 0.368426260328,
+        "n_average": 41,
+        "perf_variance": 0.230272949296
+      }
+    },
+    "HumanEval/115": {
+      "all": {
+        "average_perf": 0.875062034739,
+        "n_average": 70,
+        "perf_variance": 0.0605809736969
+      },
+      "baseline": {
+        "average_perf": 0.792846752802,
+        "n_average": 29,
+        "perf_variance": 0.0887740086978
+      },
+      "direct": {
+        "average_perf": 0.65017369727,
+        "n_average": 25,
+        "perf_variance": 0.0909548707276
+      },
+      "enc-dec": {
+        "average_perf": 1.0,
+        "n_average": 45,
+        "perf_variance": 0.0
+      },
+      "non-baseline": {
+        "average_perf": 0.933214307329,
+        "n_average": 41,
+        "perf_variance": 0.0324768664027
+      }
+    },
+    "HumanEval/116": {
+      "all": {
+        "average_perf": 0.952282836211,
+        "n_average": 42,
+        "perf_variance": 0.045342254674
+      },
+      "baseline": {
+        "average_perf": 0.999885531136,
+        "n_average": 12,
+        "perf_variance": 1.44134330261e-07
+      },
+      "direct": {
+        "average_perf": 0.9375,
+        "n_average": 16,
+        "perf_variance": 0.05859375
+      },
+      "enc-dec": {
+        "average_perf": 0.961379966188,
+        "n_average": 26,
+        "perf_variance": 0.0369702491633
+      },
+      "non-baseline": {
+        "average_perf": 0.933241758242,
+        "n_average": 30,
+        "perf_variance": 0.062210129614
+      }
+    },
+    "HumanEval/118": {
+      "all": {
+        "average_perf": 0.902252855733,
+        "n_average": 112,
+        "perf_variance": 0.0441901936464
+      },
+      "baseline": {
+        "average_perf": 0.917826871362,
+        "n_average": 29,
+        "perf_variance": 0.0296926055954
+      },
+      "direct": {
+        "average_perf": 0.899308983218,
+        "n_average": 36,
+        "perf_variance": 0.0506934043028
+      },
+      "enc-dec": {
+        "average_perf": 0.903647321661,
+        "n_average": 76,
+        "perf_variance": 0.0411036757757
+      },
+      "non-baseline": {
+        "average_perf": 0.896811332199,
+        "n_average": 83,
+        "perf_variance": 0.0491412594266
+      }
+    },
+    "HumanEval/120": {
+      "all": {
+        "average_perf": 0.685766096745,
+        "n_average": 42,
+        "perf_variance": 0.111703459585
+      },
+      "baseline": {
+        "average_perf": 0.699472469502,
+        "n_average": 12,
+        "perf_variance": 0.134810985088
+      },
+      "direct": {
+        "average_perf": 1.0,
+        "n_average": 16,
+        "perf_variance": 0.0
+      },
+      "enc-dec": {
+        "average_perf": 0.49239138705,
+        "n_average": 26,
+        "perf_variance": 0.0822853819302
+      },
+      "non-baseline": {
+        "average_perf": 0.680283547643,
+        "n_average": 30,
+        "perf_variance": 0.102355245177
+      }
+    },
+    "HumanEval/122": {
+      "all": {
+        "average_perf": 0.961549395878,
+        "n_average": 70,
+        "perf_variance": 0.00901511025439
+      },
+      "baseline": {
+        "average_perf": 0.969154228856,
+        "n_average": 29,
+        "perf_variance": 0.00937784913142
+      },
+      "direct": {
+        "average_perf": 1.0,
+        "n_average": 25,
+        "perf_variance": 0.0
+      },
+      "enc-dec": {
+        "average_perf": 0.940187949143,
+        "n_average": 45,
+        "perf_variance": 0.0127458329017
+      },
+      "non-baseline": {
+        "average_perf": 0.956170367674,
+        "n_average": 41,
+        "perf_variance": 0.00868869829807
+      }
+    },
+    "HumanEval/123": {
+      "all": {
+        "average_perf": 0.953579993148,
+        "n_average": 42,
+        "perf_variance": 0.0431265323962
+      },
+      "baseline": {
+        "average_perf": 1.0,
+        "n_average": 12,
+        "perf_variance": 0.0
+      },
+      "direct": {
+        "average_perf": 1.0,
+        "n_average": 16,
+        "perf_variance": 0.0
+      },
+      "enc-dec": {
+        "average_perf": 0.925013835086,
+        "n_average": 26,
+        "perf_variance": 0.0675238703082
+      },
+      "non-baseline": {
+        "average_perf": 0.935011990408,
+        "n_average": 30,
+        "perf_variance": 0.0591704478144
+      }
+    },
+    "HumanEval/124": {
+      "all": {
+        "average_perf": 0.983857142857,
+        "n_average": 70,
+        "perf_variance": 0.0140351795918
+      },
+      "baseline": {
+        "average_perf": 0.997827586207,
+        "n_average": 29,
+        "perf_variance": 6.14268727705e-06
+      },
+      "direct": {
+        "average_perf": 0.95696,
+        "n_average": 25,
+        "perf_variance": 0.0381663584
+      },
+      "enc-dec": {
+        "average_perf": 0.9988,
+        "n_average": 45,
+        "perf_variance": 3.76e-06
+      },
+      "non-baseline": {
+        "average_perf": 0.973975609756,
+        "n_average": 41,
+        "perf_variance": 0.0237224628198
+      }
+    },
+    "HumanEval/125": {
+      "all": {
+        "average_perf": 0.978597850978,
+        "n_average": 42,
+        "perf_variance": 0.00584998527227
+      },
+      "baseline": {
+        "average_perf": 0.974825318537,
+        "n_average": 12,
+        "perf_variance": 0.00672611901129
+      },
+      "direct": {
+        "average_perf": 0.943819358816,
+        "n_average": 16,
+        "perf_variance": 0.0134023333507
+      },
+      "enc-dec": {
+        "average_perf": 1.0,
+        "n_average": 26,
+        "perf_variance": 0.0
+      },
+      "non-baseline": {
+        "average_perf": 0.980106863954,
+        "n_average": 30,
+        "perf_variance": 0.0054915618561
+      }
+    },
+    "HumanEval/126": {
+      "all": {
+        "average_perf": 0.998634072818,
+        "n_average": 105,
+        "perf_variance": 1.4468158483e-05
+      },
+      "baseline": {
+        "average_perf": 0.997953545482,
+        "n_average": 29,
+        "perf_variance": 2.01022852435e-05
+      },
+      "direct": {
+        "average_perf": 0.996501893802,
+        "n_average": 41,
+        "perf_variance": 2.95940123635e-05
+      },
+      "enc-dec": {
+        "average_perf": 1.0,
+        "n_average": 64,
+        "perf_variance": 0.0
+      },
+      "non-baseline": {
+        "average_perf": 0.998893747722,
+        "n_average": 76,
+        "perf_variance": 1.20741473976e-05
+      }
+    },
+    "HumanEval/127": {
+      "all": {
+        "average_perf": 0.927106778249,
+        "n_average": 137,
+        "perf_variance": 0.035021702905
+      },
+      "baseline": {
+        "average_perf": 0.824179051871,
+        "n_average": 29,
+        "perf_variance": 0.0767292151005
+      },
+      "direct": {
+        "average_perf": 0.763615714212,
+        "n_average": 33,
+        "perf_variance": 0.0505678776926
+      },
+      "enc-dec": {
+        "average_perf": 0.978983750491,
+        "n_average": 104,
+        "perf_variance": 0.018916140419
+      },
+      "non-baseline": {
+        "average_perf": 0.95474477885,
+        "n_average": 108,
+        "perf_variance": 0.0202138878784
+      }
+    },
+    "HumanEval/128": {
+      "all": {
+        "average_perf": 0.97619047619,
+        "n_average": 42,
+        "perf_variance": 0.0232426303855
+      },
+      "baseline": {
+        "average_perf": 1.0,
+        "n_average": 12,
+        "perf_variance": 0.0
+      },
+      "direct": {
+        "average_perf": 0.9375,
+        "n_average": 16,
+        "perf_variance": 0.05859375
+      },
+      "enc-dec": {
+        "average_perf": 1.0,
+        "n_average": 26,
+        "perf_variance": 0.0
+      },
+      "non-baseline": {
+        "average_perf": 0.966666666667,
+        "n_average": 30,
+        "perf_variance": 0.0322222222222
+      }
+    },
+    "HumanEval/129": {
+      "all": {
+        "average_perf": 0.803480783176,
+        "n_average": 70,
+        "perf_variance": 0.143773824818
+      },
+      "baseline": {
+        "average_perf": 0.709084544022,
+        "n_average": 29,
+        "perf_variance": 0.188738842924
+      },
+      "direct": {
+        "average_perf": 0.532385786802,
+        "n_average": 25,
+        "perf_variance": 0.215787719343
+      },
+      "enc-dec": {
+        "average_perf": 0.954089114495,
+        "n_average": 45,
+        "perf_variance": 0.0402540711411
+      },
+      "non-baseline": {
+        "average_perf": 0.870248854773,
+        "n_average": 41,
+        "perf_variance": 0.101208669576
+      }
+    },
+    "HumanEval/132": {
+      "all": {
+        "average_perf": 0.924123175029,
+        "n_average": 118,
+        "perf_variance": 0.0295024526551
+      },
+      "baseline": {
+        "average_perf": 0.960293615568,
+        "n_average": 29,
+        "perf_variance": 0.00423753890441
+      },
+      "direct": {
+        "average_perf": 0.916716555376,
+        "n_average": 43,
+        "perf_variance": 0.0410738212762
+      },
+      "enc-dec": {
+        "average_perf": 0.928369636964,
+        "n_average": 75,
+        "perf_variance": 0.022818716945
+      },
+      "non-baseline": {
+        "average_perf": 0.912337301146,
+        "n_average": 89,
+        "perf_variance": 0.037169633208
+      }
+    },
+    "HumanEval/134": {
+      "all": {
+        "average_perf": 0.995981695982,
+        "n_average": 70,
+        "perf_variance": 6.46003606107e-05
+      },
+      "baseline": {
+        "average_perf": 0.995443719582,
+        "n_average": 29,
+        "perf_variance": 8.24811699896e-05
+      },
+      "direct": {
+        "average_perf": 0.99007007007,
+        "n_average": 25,
+        "perf_variance": 0.000101155810465
+      },
+      "enc-dec": {
+        "average_perf": 0.999265932599,
+        "n_average": 45,
+        "perf_variance": 1.40903889097e-05
+      },
+      "non-baseline": {
+        "average_perf": 0.996362215874,
+        "n_average": 41,
+        "perf_variance": 5.1603452744e-05
+      }
+    },
+    "HumanEval/135": {
+      "all": {
+        "average_perf": 0.963272353929,
+        "n_average": 44,
+        "perf_variance": 0.0289176639882
+      },
+      "baseline": {
+        "average_perf": 1.0,
+        "n_average": 14,
+        "perf_variance": 0.0
+      },
+      "direct": {
+        "average_perf": 1.0,
+        "n_average": 17,
+        "perf_variance": 0.0
+      },
+      "enc-dec": {
+        "average_perf": 0.940147539737,
+        "n_average": 27,
+        "perf_variance": 0.0457410050323
+      },
+      "non-baseline": {
+        "average_perf": 0.946132785763,
+        "n_average": 30,
+        "perf_variance": 0.041489313059
+      }
+    },
+    "HumanEval/137": {
+      "all": {
+        "average_perf": 0.994627473256,
+        "n_average": 42,
+        "perf_variance": 0.000867231502766
+      },
+      "baseline": {
+        "average_perf": 1.0,
+        "n_average": 12,
+        "perf_variance": 0.0
+      },
+      "direct": {
+        "average_perf": 0.985897117296,
+        "n_average": 16,
+        "perf_variance": 0.0021533595087
+      },
+      "enc-dec": {
+        "average_perf": 1.0,
+        "n_average": 26,
+        "perf_variance": 0.0
+      },
+      "non-baseline": {
+        "average_perf": 0.992478462558,
+        "n_average": 30,
+        "perf_variance": 0.00119796023945
+      }
+    },
+    "HumanEval/140": {
+      "all": {
+        "average_perf": 0.906730221969,
+        "n_average": 42,
+        "perf_variance": 0.0278888629427
+      },
+      "baseline": {
+        "average_perf": 0.909528552457,
+        "n_average": 12,
+        "perf_variance": 0.0246435958248
+      },
+      "direct": {
+        "average_perf": 0.953125,
+        "n_average": 16,
+        "perf_variance": 0.0147975663023
+      },
+      "enc-dec": {
+        "average_perf": 0.878179589335,
+        "n_average": 26,
+        "perf_variance": 0.0338053066031
+      },
+      "non-baseline": {
+        "average_perf": 0.905610889774,
+        "n_average": 30,
+        "perf_variance": 0.0291825846239
+      }
+    },
+    "HumanEval/141": {
+      "all": {
+        "average_perf": 0.975694993239,
+        "n_average": 111,
+        "perf_variance": 0.0201181188589
+      },
+      "baseline": {
+        "average_perf": 0.979431336963,
+        "n_average": 29,
+        "perf_variance": 0.00985955824293
+      },
+      "direct": {
+        "average_perf": 0.971060128955,
+        "n_average": 39,
+        "perf_variance": 0.0248163705006
+      },
+      "enc-dec": {
+        "average_perf": 0.978205544726,
+        "n_average": 72,
+        "perf_variance": 0.0175552936188
+      },
+      "non-baseline": {
+        "average_perf": 0.974373603385,
+        "n_average": 82,
+        "perf_variance": 0.023739463156
+      }
+    },
+    "HumanEval/144": {
+      "all": {
+        "average_perf": 0.971735030646,
+        "n_average": 42,
+        "perf_variance": 0.0237687342689
+      },
+      "baseline": {
+        "average_perf": 1.0,
+        "n_average": 12,
+        "perf_variance": 0.0
+      },
+      "direct": {
+        "average_perf": 0.999443069307,
+        "n_average": 16,
+        "perf_variance": 4.65257695324e-06
+      },
+      "enc-dec": {
+        "average_perf": 0.954683929931,
+        "n_average": 26,
+        "perf_variance": 0.0376295919474
+      },
+      "non-baseline": {
+        "average_perf": 0.960429042904,
+        "n_average": 30,
+        "perf_variance": 0.0328288392206
+      }
+    },
+    "HumanEval/145": {
+      "all": {
+        "average_perf": 0.294666111856,
+        "n_average": 129,
+        "perf_variance": 0.171993266486
+      },
+      "baseline": {
+        "average_perf": 0.191026256256,
+        "n_average": 29,
+        "perf_variance": 0.108388816274
+      },
+      "direct": {
+        "average_perf": 0.0388688278492,
+        "n_average": 49,
+        "perf_variance": 2.69509206763e-05
+      },
+      "enc-dec": {
+        "average_perf": 0.45134194831,
+        "n_average": 80,
+        "perf_variance": 0.212698063606
+      },
+      "non-baseline": {
+        "average_perf": 0.32472166998,
+        "n_average": 100,
+        "perf_variance": 0.186420266769
+      }
+    },
+    "HumanEval/146": {
+      "all": {
+        "average_perf": 0.986111111111,
+        "n_average": 72,
+        "perf_variance": 0.0136959876543
+      },
+      "baseline": {
+        "average_perf": 0.967741935484,
+        "n_average": 31,
+        "perf_variance": 0.0312174817898
+      },
+      "direct": {
+        "average_perf": 1.0,
+        "n_average": 26,
+        "perf_variance": 0.0
+      },
+      "enc-dec": {
+        "average_perf": 0.978260869565,
+        "n_average": 46,
+        "perf_variance": 0.0212665406427
+      },
+      "non-baseline": {
+        "average_perf": 1.0,
+        "n_average": 41,
+        "perf_variance": 0.0
+      }
+    },
+    "HumanEval/147": {
+      "all": {
+        "average_perf": 0.768115942029,
+        "n_average": 42,
+        "perf_variance": 0.161730728838
+      },
+      "baseline": {
+        "average_perf": 0.755797101449,
+        "n_average": 12,
+        "perf_variance": 0.178921970174
+      },
+      "direct": {
+        "average_perf": 0.9375,
+        "n_average": 16,
+        "perf_variance": 0.05859375
+      },
+      "enc-dec": {
+        "average_perf": 0.663879598662,
+        "n_average": 26,
+        "perf_variance": 0.196678448787
+      },
+      "non-baseline": {
+        "average_perf": 0.773043478261,
+        "n_average": 30,
+        "perf_variance": 0.154769250158
+      }
+    },
+    "HumanEval/148": {
+      "all": {
+        "average_perf": 0.985025641026,
+        "n_average": 70,
+        "perf_variance": 0.0140654652015
+      },
+      "baseline": {
+        "average_perf": 0.999292661362,
+        "n_average": 29,
+        "perf_variance": 2.40157415681e-06
+      },
+      "direct": {
+        "average_perf": 0.96,
+        "n_average": 25,
+        "perf_variance": 0.0384
+      },
+      "enc-dec": {
+        "average_perf": 0.998928774929,
+        "n_average": 45,
+        "perf_variance": 5.04723175948e-06
+      },
+      "non-baseline": {
+        "average_perf": 0.974934333959,
+        "n_average": 41,
+        "perf_variance": 0.0237667028447
+      }
+    },
+    "HumanEval/149": {
+      "all": {
+        "average_perf": 0.921761808172,
+        "n_average": 70,
+        "perf_variance": 0.0367272879635
+      },
+      "baseline": {
+        "average_perf": 0.943344757641,
+        "n_average": 29,
+        "perf_variance": 0.0278184095514
+      },
+      "direct": {
+        "average_perf": 1.0,
+        "n_average": 25,
+        "perf_variance": 0.0
+      },
+      "enc-dec": {
+        "average_perf": 0.878296146045,
+        "n_average": 45,
+        "perf_variance": 0.0518413982366
+      },
+      "non-baseline": {
+        "average_perf": 0.906495819522,
+        "n_average": 41,
+        "perf_variance": 0.0424661542961
+      }
+    },
+    "HumanEval/150": {
+      "all": {
+        "average_perf": 0.996279761905,
+        "n_average": 44,
+        "perf_variance": 0.000595127373866
+      },
+      "baseline": {
+        "average_perf": 1.0,
+        "n_average": 14,
+        "perf_variance": 0.0
+      },
+      "direct": {
+        "average_perf": 1.0,
+        "n_average": 17,
+        "perf_variance": 0.0
+      },
+      "enc-dec": {
+        "average_perf": 0.993937389771,
+        "n_average": 27,
+        "perf_variance": 0.000955636312595
+      },
+      "non-baseline": {
+        "average_perf": 0.994543650794,
+        "n_average": 30,
+        "perf_variance": 0.000863380653187
+      }
+    },
+    "HumanEval/151": {
+      "all": {
+        "average_perf": 0.975764036958,
+        "n_average": 42,
+        "perf_variance": 0.0232229905402
+      },
+      "baseline": {
+        "average_perf": 0.999668325041,
+        "n_average": 12,
+        "perf_variance": 5.50041390615e-07
+      },
+      "direct": {
+        "average_perf": 0.999378109453,
+        "n_average": 16,
+        "perf_variance": 8.50845276107e-07
+      },
+      "enc-dec": {
+        "average_perf": 0.961232300038,
+        "n_average": 26,
+        "perf_variance": 0.0369592131778
+      },
+      "non-baseline": {
+        "average_perf": 0.966202321725,
+        "n_average": 30,
+        "perf_variance": 0.0321919743461
+      }
+    },
+    "HumanEval/154": {
+      "all": {
+        "average_perf": 0.997917258355,
+        "n_average": 42,
+        "perf_variance": 8.90618385592e-05
+      },
+      "baseline": {
+        "average_perf": 1.0,
+        "n_average": 12,
+        "perf_variance": 0.0
+      },
+      "direct": {
+        "average_perf": 1.0,
+        "n_average": 16,
+        "perf_variance": 0.0
+      },
+      "enc-dec": {
+        "average_perf": 0.996635571188,
+        "n_average": 26,
+        "perf_variance": 0.000139556978596
+      },
+      "non-baseline": {
+        "average_perf": 0.997084161696,
+        "n_average": 30,
+        "perf_variance": 0.000122257398836
+      }
+    },
+    "HumanEval/155": {
+      "all": {
+        "average_perf": 0.985154061625,
+        "n_average": 70,
+        "perf_variance": 0.00767831838618
+      },
+      "baseline": {
+        "average_perf": 1.0,
+        "n_average": 29,
+        "perf_variance": 0.0
+      },
+      "direct": {
+        "average_perf": 1.0,
+        "n_average": 25,
+        "perf_variance": 0.0
+      },
+      "enc-dec": {
+        "average_perf": 0.976906318083,
+        "n_average": 45,
+        "perf_variance": 0.0117535800571
+      },
+      "non-baseline": {
+        "average_perf": 0.974653275945,
+        "n_average": 41,
+        "perf_variance": 0.012843163557
+      }
+    },
+    "HumanEval/156": {
+      "all": {
+        "average_perf": 0.585804132974,
+        "n_average": 42,
+        "perf_variance": 0.219374839054
+      },
+      "baseline": {
+        "average_perf": 0.712264150943,
+        "n_average": 12,
+        "perf_variance": 0.183598848938
+      },
+      "direct": {
+        "average_perf": 1.0,
+        "n_average": 16,
+        "perf_variance": 0.0
+      },
+      "enc-dec": {
+        "average_perf": 0.33091436865,
+        "n_average": 26,
+        "perf_variance": 0.183831661123
+      },
+      "non-baseline": {
+        "average_perf": 0.535220125786,
+        "n_average": 30,
+        "perf_variance": 0.224729638859
+      }
+    },
+    "HumanEval/159": {
+      "all": {
+        "average_perf": 0.902069365365,
+        "n_average": 137,
+        "perf_variance": 0.0676970061179
+      },
+      "baseline": {
+        "average_perf": 0.782288082028,
+        "n_average": 29,
+        "perf_variance": 0.124421007971
+      },
+      "direct": {
+        "average_perf": 0.593439486515,
+        "n_average": 33,
+        "perf_variance": 0.155568424589
+      },
+      "enc-dec": {
+        "average_perf": 1.0,
+        "n_average": 104,
+        "perf_variance": 0.0
+      },
+      "non-baseline": {
+        "average_perf": 0.934232858113,
+        "n_average": 108,
+        "perf_variance": 0.0475784864723
+      }
+    },
+    "HumanEval/16": {
+      "all": {
+        "average_perf": 0.97619047619,
+        "n_average": 42,
+        "perf_variance": 0.0232426303855
+      },
+      "baseline": {
+        "average_perf": 0.916666666667,
+        "n_average": 12,
+        "perf_variance": 0.0763888888889
+      },
+      "direct": {
+        "average_perf": 1.0,
+        "n_average": 16,
+        "perf_variance": 0.0
+      },
+      "enc-dec": {
+        "average_perf": 0.961538461538,
+        "n_average": 26,
+        "perf_variance": 0.0369822485207
+      },
+      "non-baseline": {
+        "average_perf": 1.0,
+        "n_average": 30,
+        "perf_variance": 0.0
+      }
+    },
+    "HumanEval/160": {
+      "all": {
+        "average_perf": 0.579242297009,
+        "n_average": 137,
+        "perf_variance": 0.217971960132
+      },
+      "baseline": {
+        "average_perf": 0.536161122978,
+        "n_average": 29,
+        "perf_variance": 0.203560169923
+      },
+      "direct": {
+        "average_perf": 0.398431214803,
+        "n_average": 33,
+        "perf_variance": 0.138904817905
+      },
+      "enc-dec": {
+        "average_perf": 0.636615044248,
+        "n_average": 104,
+        "perf_variance": 0.229395311926
+      },
+      "non-baseline": {
+        "average_perf": 0.590810390036,
+        "n_average": 108,
+        "perf_variance": 0.221209604882
+      }
+    },
+    "HumanEval/161": {
+      "all": {
+        "average_perf": 0.954545454545,
+        "n_average": 44,
+        "perf_variance": 0.0433884297521
+      },
+      "baseline": {
+        "average_perf": 1.0,
+        "n_average": 14,
+        "perf_variance": 0.0
+      },
+      "direct": {
+        "average_perf": 0.941176470588,
+        "n_average": 17,
+        "perf_variance": 0.0553633217993
+      },
+      "enc-dec": {
+        "average_perf": 0.962962962963,
+        "n_average": 27,
+        "perf_variance": 0.0356652949246
+      },
+      "non-baseline": {
+        "average_perf": 0.933333333333,
+        "n_average": 30,
+        "perf_variance": 0.0622222222222
+      }
+    },
+    "HumanEval/163": {
+      "all": {
+        "average_perf": 0.606794183997,
+        "n_average": 107,
+        "perf_variance": 0.237093978068
+      },
+      "baseline": {
+        "average_perf": 0.515143037001,
+        "n_average": 29,
+        "perf_variance": 0.247800034294
+      },
+      "direct": {
+        "average_perf": 0.0,
+        "n_average": 40,
+        "perf_variance": 0.0
+      },
+      "enc-dec": {
+        "average_perf": 0.969059368472,
+        "n_average": 67,
+        "perf_variance": 0.0275861508036
+      },
+      "non-baseline": {
+        "average_perf": 0.640869610444,
+        "n_average": 78,
+        "perf_variance": 0.22882933466
+      }
+    },
+    "HumanEval/2": {
+      "all": {
+        "average_perf": 0.994866529774,
+        "n_average": 70,
+        "perf_variance": 0.000423808700607
+      },
+      "baseline": {
+        "average_perf": 0.995291368689,
+        "n_average": 29,
+        "perf_variance": 6.96809420039e-05
+      },
+      "direct": {
+        "average_perf": 0.985831622177,
+        "n_average": 25,
+        "perf_variance": 0.00105865437726
+      },
+      "enc-dec": {
+        "average_perf": 0.999885922884,
+        "n_average": 45,
+        "perf_variance": 5.72597890685e-07
+      },
+      "non-baseline": {
+        "average_perf": 0.994566033956,
+        "n_average": 41,
+        "perf_variance": 0.000674071350297
+      }
+    },
+    "HumanEval/21": {
+      "all": {
+        "average_perf": 0.671328969835,
+        "n_average": 70,
+        "perf_variance": 0.0909139903918
+      },
+      "baseline": {
+        "average_perf": 0.60846270092,
+        "n_average": 29,
+        "perf_variance": 0.0689856554567
+      },
+      "direct": {
+        "average_perf": 0.397689243028,
+        "n_average": 25,
+        "perf_variance": 0.01375275948
+      },
+      "enc-dec": {
+        "average_perf": 0.823351040283,
+        "n_average": 45,
+        "perf_variance": 0.0690713531688
+      },
+      "non-baseline": {
+        "average_perf": 0.715795355165,
+        "n_average": 41,
+        "perf_variance": 0.101651580915
+      }
+    },
+    "HumanEval/22": {
+      "all": {
+        "average_perf": 0.955349671249,
+        "n_average": 70,
+        "perf_variance": 0.00575943869959
+      },
+      "baseline": {
+        "average_perf": 0.916173712307,
+        "n_average": 29,
+        "perf_variance": 0.00752876411613
+      },
+      "direct": {
+        "average_perf": 0.902761506276,
+        "n_average": 25,
+        "perf_variance": 0.00742918366275
+      },
+      "enc-dec": {
+        "average_perf": 0.984565318457,
+        "n_average": 45,
+        "perf_variance": 0.00244185129207
+      },
+      "non-baseline": {
+        "average_perf": 0.983059495867,
+        "n_average": 41,
+        "perf_variance": 0.00265457129262
+      }
+    },
+    "HumanEval/25": {
+      "all": {
+        "average_perf": 0.979459191268,
+        "n_average": 139,
+        "perf_variance": 0.0166218480062
+      },
+      "baseline": {
+        "average_perf": 1.0,
+        "n_average": 31,
+        "perf_variance": 0.0
+      },
+      "direct": {
+        "average_perf": 0.970588235294,
+        "n_average": 34,
+        "perf_variance": 0.0285467128028
+      },
+      "enc-dec": {
+        "average_perf": 0.982331691297,
+        "n_average": 105,
+        "perf_variance": 0.0127267301372
+      },
+      "non-baseline": {
+        "average_perf": 0.973563218391,
+        "n_average": 108,
+        "perf_variance": 0.0212370634606
+      }
+    },
+    "HumanEval/27": {
+      "all": {
+        "average_perf": 0.97619047619,
+        "n_average": 42,
+        "perf_variance": 0.0232426303855
+      },
+      "baseline": {
+        "average_perf": 0.916666666667,
+        "n_average": 12,
+        "perf_variance": 0.0763888888889
+      },
+      "direct": {
+        "average_perf": 0.9375,
+        "n_average": 16,
+        "perf_variance": 0.05859375
+      },
+      "enc-dec": {
+        "average_perf": 1.0,
+        "n_average": 26,
+        "perf_variance": 0.0
+      },
+      "non-baseline": {
+        "average_perf": 1.0,
+        "n_average": 30,
+        "perf_variance": 0.0
+      }
+    },
+    "HumanEval/28": {
+      "all": {
+        "average_perf": 0.954545454545,
+        "n_average": 44,
+        "perf_variance": 0.0433884297521
+      },
+      "baseline": {
+        "average_perf": 1.0,
+        "n_average": 14,
+        "perf_variance": 0.0
+      },
+      "direct": {
+        "average_perf": 0.882352941176,
+        "n_average": 17,
+        "perf_variance": 0.103806228374
+      },
+      "enc-dec": {
+        "average_perf": 1.0,
+        "n_average": 27,
+        "perf_variance": 0.0
+      },
+      "non-baseline": {
+        "average_perf": 0.933333333333,
+        "n_average": 30,
+        "perf_variance": 0.0622222222222
+      }
+    },
+    "HumanEval/29": {
+      "all": {
+        "average_perf": 0.912410535356,
+        "n_average": 70,
+        "perf_variance": 0.0586261699711
+      },
+      "baseline": {
+        "average_perf": 1.0,
+        "n_average": 29,
+        "perf_variance": 0.0
+      },
+      "direct": {
+        "average_perf": 0.754749498998,
+        "n_average": 25,
+        "perf_variance": 0.125486827764
+      },
+      "enc-dec": {
+        "average_perf": 1.0,
+        "n_average": 45,
+        "perf_variance": 0.0
+      },
+      "non-baseline": {
+        "average_perf": 0.850457011584,
+        "n_average": 41,
+        "perf_variance": 0.0908287458385
+      }
+    },
+    "HumanEval/30": {
+      "all": {
+        "average_perf": 0.999916833001,
+        "n_average": 72,
+        "perf_variance": 4.91089234262e-07
+      },
+      "baseline": {
+        "average_perf": 1.0,
+        "n_average": 31,
+        "perf_variance": 0.0
+      },
+      "direct": {
+        "average_perf": 0.999769691386,
+        "n_average": 26,
+        "perf_variance": 1.32605143679e-06
+      },
+      "enc-dec": {
+        "average_perf": 1.0,
+        "n_average": 46,
+        "perf_variance": 0.0
+      },
+      "non-baseline": {
+        "average_perf": 0.999853950635,
+        "n_average": 41,
+        "perf_variance": 8.53216676999e-07
+      }
+    },
+    "HumanEval/31": {
+      "all": {
+        "average_perf": 0.997753818509,
+        "n_average": 42,
+        "perf_variance": 1.66159577236e-05
+      },
+      "baseline": {
+        "average_perf": 0.997903563941,
+        "n_average": 12,
+        "perf_variance": 1.53826545188e-05
+      },
+      "direct": {
+        "average_perf": 1.0,
+        "n_average": 16,
+        "perf_variance": 0.0
+      },
+      "enc-dec": {
+        "average_perf": 0.996371552975,
+        "n_average": 26,
+        "perf_variance": 2.18256852153e-05
+      },
+      "non-baseline": {
+        "average_perf": 0.997693920335,
+        "n_average": 30,
+        "perf_variance": 1.70967217366e-05
+      }
+    },
+    "HumanEval/34": {
+      "all": {
+        "average_perf": 0.999973662031,
+        "n_average": 42,
+        "perf_variance": 2.84412326551e-08
+      },
+      "baseline": {
+        "average_perf": 1.0,
+        "n_average": 12,
+        "perf_variance": 0.0
+      },
+      "direct": {
+        "average_perf": 0.999930862832,
+        "n_average": 16,
+        "perf_variance": 7.16992202796e-08
+      },
+      "enc-dec": {
+        "average_perf": 1.0,
+        "n_average": 26,
+        "perf_variance": 0.0
+      },
+      "non-baseline": {
+        "average_perf": 0.999963126844,
+        "n_average": 30,
+        "perf_variance": 3.94292601004e-08
+      }
+    },
+    "HumanEval/38": {
+      "all": {
+        "average_perf": 0.950190166338,
+        "n_average": 139,
+        "perf_variance": 0.0467859403864
+      },
+      "baseline": {
+        "average_perf": 0.935894801726,
+        "n_average": 31,
+        "perf_variance": 0.0595900258569
+      },
+      "direct": {
+        "average_perf": 0.854439865118,
+        "n_average": 34,
+        "perf_variance": 0.122892784943
+      },
+      "enc-dec": {
+        "average_perf": 0.981195025781,
+        "n_average": 105,
+        "perf_variance": 0.0182117933519
+      },
+      "non-baseline": {
+        "average_perf": 0.95429346544,
+        "n_average": 108,
+        "perf_variance": 0.0430351984107
+      }
+    },
+    "HumanEval/39": {
+      "all": {
+        "average_perf": 0.809523809524,
+        "n_average": 42,
+        "perf_variance": 0.154195011338
+      },
+      "baseline": {
+        "average_perf": 0.75,
+        "n_average": 12,
+        "perf_variance": 0.1875
+      },
+      "direct": {
+        "average_perf": 0.8125,
+        "n_average": 16,
+        "perf_variance": 0.15234375
+      },
+      "enc-dec": {
+        "average_perf": 0.807692307692,
+        "n_average": 26,
+        "perf_variance": 0.155325443787
+      },
+      "non-baseline": {
+        "average_perf": 0.833333333333,
+        "n_average": 30,
+        "perf_variance": 0.138888888889
+      }
+    },
+    "HumanEval/4": {
+      "all": {
+        "average_perf": 0.971428571429,
+        "n_average": 70,
+        "perf_variance": 0.0277551020408
+      },
+      "baseline": {
+        "average_perf": 1.0,
+        "n_average": 29,
+        "perf_variance": 0.0
+      },
+      "direct": {
+        "average_perf": 0.92,
+        "n_average": 25,
+        "perf_variance": 0.0736
+      },
+      "enc-dec": {
+        "average_perf": 1.0,
+        "n_average": 45,
+        "perf_variance": 0.0
+      },
+      "non-baseline": {
+        "average_perf": 0.951219512195,
+        "n_average": 41,
+        "perf_variance": 0.0464009518144
+      }
+    },
+    "HumanEval/40": {
+      "all": {
+        "average_perf": 0.983169462117,
+        "n_average": 70,
+        "perf_variance": 0.0141157795053
+      },
+      "baseline": {
+        "average_perf": 0.998464330588,
+        "n_average": 29,
+        "perf_variance": 6.60318552248e-05
+      },
+      "direct": {
+        "average_perf": 0.96,
+        "n_average": 25,
+        "perf_variance": 0.0384
+      },
+      "enc-dec": {
+        "average_perf": 0.996041385515,
+        "n_average": 45,
+        "perf_variance": 0.000160623943563
+      },
+      "non-baseline": {
+        "average_perf": 0.972351140515,
+        "n_average": 41,
+        "perf_variance": 0.0237709050036
+      }
+    },
+    "HumanEval/41": {
+      "all": {
+        "average_perf": 0.97619047619,
+        "n_average": 42,
+        "perf_variance": 0.0232426303855
+      },
+      "baseline": {
+        "average_perf": 1.0,
+        "n_average": 12,
+        "perf_variance": 0.0
+      },
+      "direct": {
+        "average_perf": 0.9375,
+        "n_average": 16,
+        "perf_variance": 0.05859375
+      },
+      "enc-dec": {
+        "average_perf": 1.0,
+        "n_average": 26,
+        "perf_variance": 0.0
+      },
+      "non-baseline": {
+        "average_perf": 0.966666666667,
+        "n_average": 30,
+        "perf_variance": 0.0322222222222
+      }
+    },
+    "HumanEval/43": {
+      "all": {
+        "average_perf": 0.998183403575,
+        "n_average": 42,
+        "perf_variance": 0.000128056715867
+      },
+      "baseline": {
+        "average_perf": 1.0,
+        "n_average": 12,
+        "perf_variance": 0.0
+      },
+      "direct": {
+        "average_perf": 0.99987283825,
+        "n_average": 16,
+        "perf_variance": 1.13190774189e-07
+      },
+      "enc-dec": {
+        "average_perf": 0.997143751467,
+        "n_average": 26,
+        "perf_variance": 0.000203953892021
+      },
+      "non-baseline": {
+        "average_perf": 0.997456765005,
+        "n_average": 30,
+        "perf_variance": 0.000177431389574
+      }
+    },
+    "HumanEval/46": {
+      "all": {
+        "average_perf": 0.83703826587,
+        "n_average": 137,
+        "perf_variance": 0.131431364733
+      },
+      "baseline": {
+        "average_perf": 0.864942528736,
+        "n_average": 29,
+        "perf_variance": 0.114032444213
+      },
+      "direct": {
+        "average_perf": 0.971074380165,
+        "n_average": 33,
+        "perf_variance": 0.0267741274503
+      },
+      "enc-dec": {
+        "average_perf": 0.794507575758,
+        "n_average": 104,
+        "perf_variance": 0.157130403135
+      },
+      "non-baseline": {
+        "average_perf": 0.829545454545,
+        "n_average": 108,
+        "perf_variance": 0.135838073496
+      }
+    },
+    "HumanEval/47": {
+      "all": {
+        "average_perf": 0.9399,
+        "n_average": 70,
+        "perf_variance": 0.0541429757143
+      },
+      "baseline": {
+        "average_perf": 0.958379310345,
+        "n_average": 29,
+        "perf_variance": 0.0342280285375
+      },
+      "direct": {
+        "average_perf": 0.88,
+        "n_average": 25,
+        "perf_variance": 0.1056
+      },
+      "enc-dec": {
+        "average_perf": 0.973177777778,
+        "n_average": 45,
+        "perf_variance": 0.0224549906173
+      },
+      "non-baseline": {
+        "average_perf": 0.926829268293,
+        "n_average": 41,
+        "perf_variance": 0.0678167757287
+      }
+    },
+    "HumanEval/48": {
+      "all": {
+        "average_perf": 0.541823402728,
+        "n_average": 70,
+        "perf_variance": 0.24724199729
+      },
+      "baseline": {
+        "average_perf": 0.412129613585,
+        "n_average": 29,
+        "perf_variance": 0.240655429707
+      },
+      "direct": {
+        "average_perf": 0.597105527638,
+        "n_average": 25,
+        "perf_variance": 0.237745860559
+      },
+      "enc-dec": {
+        "average_perf": 0.511111111111,
+        "n_average": 45,
+        "perf_variance": 0.24987654321
+      },
+      "non-baseline": {
+        "average_perf": 0.633558034073,
+        "n_average": 41,
+        "perf_variance": 0.231588134473
+      }
+    },
+    "HumanEval/49": {
+      "all": {
+        "average_perf": 0.976070104483,
+        "n_average": 42,
+        "perf_variance": 0.0232370056206
+      },
+      "baseline": {
+        "average_perf": 0.916582406471,
+        "n_average": 12,
+        "perf_variance": 0.0763749236206
+      },
+      "direct": {
+        "average_perf": 0.93731041456,
+        "n_average": 16,
+        "perf_variance": 0.0585702075715
+      },
+      "enc-dec": {
+        "average_perf": 0.999922221358,
+        "n_average": 26,
+        "perf_variance": 7.25942057882e-08
+      },
+      "non-baseline": {
+        "average_perf": 0.999865183687,
+        "n_average": 30,
+        "perf_variance": 1.18140348235e-07
+      }
+    },
+    "HumanEval/5": {
+      "all": {
+        "average_perf": 0.985714285714,
+        "n_average": 70,
+        "perf_variance": 0.0140816326531
+      },
+      "baseline": {
+        "average_perf": 0.965517241379,
+        "n_average": 29,
+        "perf_variance": 0.0332936979786
+      },
+      "direct": {
+        "average_perf": 1.0,
+        "n_average": 25,
+        "perf_variance": 0.0
+      },
+      "enc-dec": {
+        "average_perf": 0.977777777778,
+        "n_average": 45,
+        "perf_variance": 0.0217283950617
+      },
+      "non-baseline": {
+        "average_perf": 1.0,
+        "n_average": 41,
+        "perf_variance": 0.0
+      }
+    },
+    "HumanEval/50": {
+      "all": {
+        "average_perf": 0.900541125541,
+        "n_average": 42,
+        "perf_variance": 0.0603008681434
+      },
+      "baseline": {
+        "average_perf": 0.916666666667,
+        "n_average": 12,
+        "perf_variance": 0.0763888888889
+      },
+      "direct": {
+        "average_perf": 0.863920454545,
+        "n_average": 16,
+        "perf_variance": 0.0407388139205
+      },
+      "enc-dec": {
+        "average_perf": 0.923076923077,
+        "n_average": 26,
+        "perf_variance": 0.0710059171598
+      },
+      "non-baseline": {
+        "average_perf": 0.894090909091,
+        "n_average": 30,
+        "perf_variance": 0.0537200413223
+      }
+    },
+    "HumanEval/52": {
+      "all": {
+        "average_perf": 0.928571428571,
+        "n_average": 42,
+        "perf_variance": 0.0663265306122
+      },
+      "baseline": {
+        "average_perf": 1.0,
+        "n_average": 12,
+        "perf_variance": 0.0
+      },
+      "direct": {
+        "average_perf": 0.8125,
+        "n_average": 16,
+        "perf_variance": 0.15234375
+      },
+      "enc-dec": {
+        "average_perf": 1.0,
+        "n_average": 26,
+        "perf_variance": 0.0
+      },
+      "non-baseline": {
+        "average_perf": 0.9,
+        "n_average": 30,
+        "perf_variance": 0.09
+      }
+    },
+    "HumanEval/53": {
+      "all": {
+        "average_perf": 0.931818181818,
+        "n_average": 44,
+        "perf_variance": 0.0635330578512
+      },
+      "baseline": {
+        "average_perf": 0.928571428571,
+        "n_average": 14,
+        "perf_variance": 0.0663265306122
+      },
+      "direct": {
+        "average_perf": 0.882352941176,
+        "n_average": 17,
+        "perf_variance": 0.103806228374
+      },
+      "enc-dec": {
+        "average_perf": 0.962962962963,
+        "n_average": 27,
+        "perf_variance": 0.0356652949246
+      },
+      "non-baseline": {
+        "average_perf": 0.933333333333,
+        "n_average": 30,
+        "perf_variance": 0.0622222222222
+      }
+    },
+    "HumanEval/54": {
+      "all": {
+        "average_perf": 0.97698480649,
+        "n_average": 137,
+        "perf_variance": 0.00226140783415
+      },
+      "baseline": {
+        "average_perf": 0.949818331391,
+        "n_average": 29,
+        "perf_variance": 0.00356744980788
+      },
+      "direct": {
+        "average_perf": 0.904452075426,
+        "n_average": 33,
+        "perf_variance": 0.00245791697048
+      },
+      "enc-dec": {
+        "average_perf": 1.0,
+        "n_average": 104,
+        "perf_variance": 0.0
+      },
+      "non-baseline": {
+        "average_perf": 0.984279508136,
+        "n_average": 108,
+        "perf_variance": 0.00165932737549
+      }
+    },
+    "HumanEval/55": {
+      "all": {
+        "average_perf": 0.925385239254,
+        "n_average": 137,
+        "perf_variance": 0.0525384318376
+      },
+      "baseline": {
+        "average_perf": 0.888122605364,
+        "n_average": 29,
+        "perf_variance": 0.0701058410769
+      },
+      "direct": {
+        "average_perf": 0.959595959596,
+        "n_average": 33,
+        "perf_variance": 0.000163248648097
+      },
+      "enc-dec": {
+        "average_perf": 0.91452991453,
+        "n_average": 104,
+        "perf_variance": 0.0686682737965
+      },
+      "non-baseline": {
+        "average_perf": 0.935390946502,
+        "n_average": 108,
+        "perf_variance": 0.047348303951
+      }
+    },
+    "HumanEval/60": {
+      "all": {
+        "average_perf": 0.986111111111,
+        "n_average": 72,
+        "perf_variance": 0.0136959876543
+      },
+      "baseline": {
+        "average_perf": 0.967741935484,
+        "n_average": 31,
+        "perf_variance": 0.0312174817898
+      },
+      "direct": {
+        "average_perf": 1.0,
+        "n_average": 26,
+        "perf_variance": 0.0
+      },
+      "enc-dec": {
+        "average_perf": 0.978260869565,
+        "n_average": 46,
+        "perf_variance": 0.0212665406427
+      },
+      "non-baseline": {
+        "average_perf": 1.0,
+        "n_average": 41,
+        "perf_variance": 0.0
+      }
+    },
+    "HumanEval/62": {
+      "all": {
+        "average_perf": 0.958435350356,
+        "n_average": 72,
+        "perf_variance": 0.0396203943866
+      },
+      "baseline": {
+        "average_perf": 0.935483870968,
+        "n_average": 31,
+        "perf_variance": 0.060353798127
+      },
+      "direct": {
+        "average_perf": 0.99983856647,
+        "n_average": 26,
+        "perf_variance": 3.12729414308e-07
+      },
+      "enc-dec": {
+        "average_perf": 0.935033532552,
+        "n_average": 46,
+        "perf_variance": 0.0604977979876
+      },
+      "non-baseline": {
+        "average_perf": 0.975788907942,
+        "n_average": 41,
+        "perf_variance": 0.0232444826076
+      }
+    },
+    "HumanEval/63": {
+      "all": {
+        "average_perf": 0.871428571429,
+        "n_average": 42,
+        "perf_variance": 0.0992033973353
+      },
+      "baseline": {
+        "average_perf": 0.925641025641,
+        "n_average": 12,
+        "perf_variance": 0.0608218277449
+      },
+      "direct": {
+        "average_perf": 1.0,
+        "n_average": 16,
+        "perf_variance": 0.0
+      },
+      "enc-dec": {
+        "average_perf": 0.792307692308,
+        "n_average": 26,
+        "perf_variance": 0.143818843878
+      },
+      "non-baseline": {
+        "average_perf": 0.849743589744,
+        "n_average": 30,
+        "perf_variance": 0.112910190664
+      }
+    },
+    "HumanEval/64": {
+      "all": {
+        "average_perf": 0.952023452023,
+        "n_average": 70,
+        "perf_variance": 0.0423899753158
+      },
+      "baseline": {
+        "average_perf": 0.965517241379,
+        "n_average": 29,
+        "perf_variance": 0.0332936979786
+      },
+      "direct": {
+        "average_perf": 0.865665665666,
+        "n_average": 25,
+        "perf_variance": 0.107091115139
+      },
+      "enc-dec": {
+        "average_perf": 1.0,
+        "n_average": 45,
+        "perf_variance": 0.0
+      },
+      "non-baseline": {
+        "average_perf": 0.94247906443,
+        "n_average": 41,
+        "perf_variance": 0.0486040422884
+      }
+    },
+    "HumanEval/65": {
+      "all": {
+        "average_perf": 0.902265450861,
+        "n_average": 125,
+        "perf_variance": 0.0269822183872
+      },
+      "baseline": {
+        "average_perf": 0.928881916528,
+        "n_average": 31,
+        "perf_variance": 0.0256553762401
+      },
+      "direct": {
+        "average_perf": 0.943161094225,
+        "n_average": 40,
+        "perf_variance": 0.0271843899775
+      },
+      "enc-dec": {
+        "average_perf": 0.883020442219,
+        "n_average": 85,
+        "perf_variance": 0.0257296714477
+      },
+      "non-baseline": {
+        "average_perf": 0.893487680269,
+        "n_average": 94,
+        "perf_variance": 0.0271091115027
+      }
+    },
+    "HumanEval/67": {
+      "all": {
+        "average_perf": 0.942898312063,
+        "n_average": 70,
+        "perf_variance": 0.0538000346099
+      },
+      "baseline": {
+        "average_perf": 0.931034482759,
+        "n_average": 29,
+        "perf_variance": 0.064209274673
+      },
+      "direct": {
+        "average_perf": 1.0,
+        "n_average": 25,
+        "perf_variance": 0.0
+      },
+      "enc-dec": {
+        "average_perf": 0.911175152097,
+        "n_average": 45,
+        "perf_variance": 0.0808711378677
+      },
+      "non-baseline": {
+        "average_perf": 0.951289801082,
+        "n_average": 41,
+        "perf_variance": 0.0462674291133
+      }
+    },
+    "HumanEval/68": {
+      "all": {
+        "average_perf": 0.999881779922,
+        "n_average": 42,
+        "perf_variance": 1.03422303505e-07
+      },
+      "baseline": {
+        "average_perf": 1.0,
+        "n_average": 12,
+        "perf_variance": 0.0
+      },
+      "direct": {
+        "average_perf": 0.999751737835,
+        "n_average": 16,
+        "perf_variance": 1.84902307482e-07
+      },
+      "enc-dec": {
+        "average_perf": 0.999961805821,
+        "n_average": 26,
+        "perf_variance": 3.64698831326e-08
+      },
+      "non-baseline": {
+        "average_perf": 0.99983449189,
+        "n_average": 30,
+        "perf_variance": 1.36964672209e-07
+      }
+    },
+    "HumanEval/69": {
+      "all": {
+        "average_perf": 0.960445993031,
+        "n_average": 70,
+        "perf_variance": 0.0349409347691
+      },
+      "baseline": {
+        "average_perf": 1.0,
+        "n_average": 29,
+        "perf_variance": 0.0
+      },
+      "direct": {
+        "average_perf": 1.0,
+        "n_average": 25,
+        "perf_variance": 0.0
+      },
+      "enc-dec": {
+        "average_perf": 0.938471544715,
+        "n_average": 45,
+        "perf_variance": 0.0530005113358
+      },
+      "non-baseline": {
+        "average_perf": 0.93246876859,
+        "n_average": 41,
+        "perf_variance": 0.057765918066
+      }
+    },
+    "HumanEval/70": {
+      "all": {
+        "average_perf": 0.97619047619,
+        "n_average": 42,
+        "perf_variance": 0.0232426303855
+      },
+      "baseline": {
+        "average_perf": 1.0,
+        "n_average": 12,
+        "perf_variance": 0.0
+      },
+      "direct": {
+        "average_perf": 0.9375,
+        "n_average": 16,
+        "perf_variance": 0.05859375
+      },
+      "enc-dec": {
+        "average_perf": 1.0,
+        "n_average": 26,
+        "perf_variance": 0.0
+      },
+      "non-baseline": {
+        "average_perf": 0.966666666667,
+        "n_average": 30,
+        "perf_variance": 0.0322222222222
+      }
+    },
+    "HumanEval/73": {
+      "all": {
+        "average_perf": 0.986111111111,
+        "n_average": 72,
+        "perf_variance": 0.0136959876543
+      },
+      "baseline": {
+        "average_perf": 1.0,
+        "n_average": 31,
+        "perf_variance": 0.0
+      },
+      "direct": {
+        "average_perf": 0.961538461538,
+        "n_average": 26,
+        "perf_variance": 0.0369822485207
+      },
+      "enc-dec": {
+        "average_perf": 1.0,
+        "n_average": 46,
+        "perf_variance": 0.0
+      },
+      "non-baseline": {
+        "average_perf": 0.975609756098,
+        "n_average": 41,
+        "perf_variance": 0.0237953599048
+      }
+    },
+    "HumanEval/74": {
+      "all": {
+        "average_perf": 0.972298767223,
+        "n_average": 42,
+        "perf_variance": 0.0236782722571
+      },
+      "baseline": {
+        "average_perf": 1.0,
+        "n_average": 12,
+        "perf_variance": 0.0
+      },
+      "direct": {
+        "average_perf": 0.927284263959,
+        "n_average": 16,
+        "perf_variance": 0.0588822019377
+      },
+      "enc-dec": {
+        "average_perf": 1.0,
+        "n_average": 26,
+        "perf_variance": 0.0
+      },
+      "non-baseline": {
+        "average_perf": 0.961218274112,
+        "n_average": 30,
+        "perf_variance": 0.0327198605135
+      }
+    },
+    "HumanEval/76": {
+      "all": {
+        "average_perf": 0.933111556101,
+        "n_average": 137,
+        "perf_variance": 0.0612353011923
+      },
+      "baseline": {
+        "average_perf": 0.826441867562,
+        "n_average": 29,
+        "perf_variance": 0.142295418527
+      },
+      "direct": {
+        "average_perf": 0.754324215607,
+        "n_average": 33,
+        "perf_variance": 0.182111517984
+      },
+      "enc-dec": {
+        "average_perf": 0.989842154527,
+        "n_average": 104,
+        "perf_variance": 0.00951927417229
+      },
+      "non-baseline": {
+        "average_perf": 0.961754342838,
+        "n_average": 108,
+        "perf_variance": 0.0355934322025
+      }
+    },
+    "HumanEval/77": {
+      "all": {
+        "average_perf": 0.94512195122,
+        "n_average": 42,
+        "perf_variance": 0.0341863544942
+      },
+      "baseline": {
+        "average_perf": 0.880589430894,
+        "n_average": 12,
+        "perf_variance": 0.0846932526109
+      },
+      "direct": {
+        "average_perf": 0.856326219512,
+        "n_average": 16,
+        "perf_variance": 0.0770001522066
+      },
+      "enc-dec": {
+        "average_perf": 0.999765478424,
+        "n_average": 26,
+        "perf_variance": 1.37500924006e-06
+      },
+      "non-baseline": {
+        "average_perf": 0.97093495935,
+        "n_average": 30,
+        "perf_variance": 0.011651505387
+      }
+    },
+    "HumanEval/78": {
+      "all": {
+        "average_perf": 0.999810847874,
+        "n_average": 42,
+        "perf_variance": 3.3989600287e-07
+      },
+      "baseline": {
+        "average_perf": 1.0,
+        "n_average": 12,
+        "perf_variance": 0.0
+      },
+      "direct": {
+        "average_perf": 0.99950347567,
+        "n_average": 16,
+        "perf_variance": 7.39609229929e-07
+      },
+      "enc-dec": {
+        "average_perf": 1.0,
+        "n_average": 26,
+        "perf_variance": 0.0
+      },
+      "non-baseline": {
+        "average_perf": 0.999735187024,
+        "n_average": 30,
+        "perf_variance": 4.55818429112e-07
+      }
+    },
+    "HumanEval/79": {
+      "all": {
+        "average_perf": 0.991452991453,
+        "n_average": 117,
+        "perf_variance": 0.00847395719191
+      },
+      "baseline": {
+        "average_perf": 1.0,
+        "n_average": 29,
+        "perf_variance": 0.0
+      },
+      "direct": {
+        "average_perf": 0.974358974359,
+        "n_average": 39,
+        "perf_variance": 0.0249835634451
+      },
+      "enc-dec": {
+        "average_perf": 1.0,
+        "n_average": 78,
+        "perf_variance": 0.0
+      },
+      "non-baseline": {
+        "average_perf": 0.988636363636,
+        "n_average": 88,
+        "perf_variance": 0.0112345041322
+      }
+    },
+    "HumanEval/81": {
+      "all": {
+        "average_perf": 0.64393638171,
+        "n_average": 130,
+        "perf_variance": 0.192364263722
+      },
+      "baseline": {
+        "average_perf": 0.46932199904,
+        "n_average": 29,
+        "perf_variance": 0.192202084956
+      },
+      "direct": {
+        "average_perf": 0.65648111332,
+        "n_average": 50,
+        "perf_variance": 0.177541869657
+      },
+      "enc-dec": {
+        "average_perf": 0.636095924453,
+        "n_average": 80,
+        "perf_variance": 0.201468430811
+      },
+      "non-baseline": {
+        "average_perf": 0.694073184654,
+        "n_average": 101,
+        "perf_variance": 0.181142523997
+      }
+    },
+    "HumanEval/86": {
+      "all": {
+        "average_perf": 0.922323203635,
+        "n_average": 42,
+        "perf_variance": 0.0659555669593
+      },
+      "baseline": {
+        "average_perf": 0.984592445328,
+        "n_average": 12,
+        "perf_variance": 0.00122401772269
+      },
+      "direct": {
+        "average_perf": 0.932654075547,
+        "n_average": 16,
+        "perf_variance": 0.0583402542004
+      },
+      "enc-dec": {
+        "average_perf": 0.915965743998,
+        "n_average": 26,
+        "perf_variance": 0.0705358178783
+      },
+      "non-baseline": {
+        "average_perf": 0.897415506958,
+        "n_average": 30,
+        "perf_variance": 0.0896768099159
+      }
+    },
+    "HumanEval/87": {
+      "all": {
+        "average_perf": 0.99460916442,
+        "n_average": 42,
+        "perf_variance": 0.00119150543806
+      },
+      "baseline": {
+        "average_perf": 1.0,
+        "n_average": 12,
+        "perf_variance": 0.0
+      },
+      "direct": {
+        "average_perf": 1.0,
+        "n_average": 16,
+        "perf_variance": 0.0
+      },
+      "enc-dec": {
+        "average_perf": 0.991291727141,
+        "n_average": 26,
+        "perf_variance": 0.00189585040476
+      },
+      "non-baseline": {
+        "average_perf": 0.992452830189,
+        "n_average": 30,
+        "perf_variance": 0.00165183339267
+      }
+    },
+    "HumanEval/9": {
+      "all": {
+        "average_perf": 0.977576477576,
+        "n_average": 42,
+        "perf_variance": 0.020615388673
+      },
+      "baseline": {
+        "average_perf": 1.0,
+        "n_average": 12,
+        "perf_variance": 0.0
+      },
+      "direct": {
+        "average_perf": 1.0,
+        "n_average": 16,
+        "perf_variance": 0.0
+      },
+      "enc-dec": {
+        "average_perf": 0.963777386854,
+        "n_average": 26,
+        "perf_variance": 0.0328019425776
+      },
+      "non-baseline": {
+        "average_perf": 0.968607068607,
+        "n_average": 30,
+        "perf_variance": 0.0285799681018
+      }
+    },
+    "HumanEval/90": {
+      "all": {
+        "average_perf": 0.998479875626,
+        "n_average": 70,
+        "perf_variance": 0.000100790984958
+      },
+      "baseline": {
+        "average_perf": 0.999916607597,
+        "n_average": 29,
+        "perf_variance": 1.94720200363e-07
+      },
+      "direct": {
+        "average_perf": 0.995937122128,
+        "n_average": 25,
+        "perf_variance": 0.000271710075169
+      },
+      "enc-dec": {
+        "average_perf": 0.999892516458,
+        "n_average": 45,
+        "perf_variance": 2.4838330179e-07
+      },
+      "non-baseline": {
+        "average_perf": 0.997463650574,
+        "n_average": 41,
+        "perf_variance": 0.000169451684137
+      }
+    },
+    "HumanEval/91": {
+      "all": {
+        "average_perf": 0.99825333712,
+        "n_average": 70,
+        "perf_variance": 0.000135637064133
+      },
+      "baseline": {
+        "average_perf": 0.999554397751,
+        "n_average": 29,
+        "perf_variance": 2.44383217154e-07
+      },
+      "direct": {
+        "average_perf": 0.995109343936,
+        "n_average": 25,
+        "perf_variance": 0.000364407590244
+      },
+      "enc-dec": {
+        "average_perf": 1.0,
+        "n_average": 45,
+        "perf_variance": 0.0
+      },
+      "non-baseline": {
+        "average_perf": 0.997333074722,
+        "n_average": 41,
+        "perf_variance": 0.00022935841887
+      }
+    },
+    "HumanEval/93": {
+      "all": {
+        "average_perf": 0.883984837716,
+        "n_average": 42,
+        "perf_variance": 0.0996438824368
+      },
+      "baseline": {
+        "average_perf": 0.917993366501,
+        "n_average": 12,
+        "perf_variance": 0.0739759673165
+      },
+      "direct": {
+        "average_perf": 0.695460199005,
+        "n_average": 16,
+        "perf_variance": 0.204151935441
+      },
+      "enc-dec": {
+        "average_perf": 1.0,
+        "n_average": 26,
+        "perf_variance": 0.0
+      },
+      "non-baseline": {
+        "average_perf": 0.870381426202,
+        "n_average": 30,
+        "perf_variance": 0.109263363668
+      }
+    },
+    "HumanEval/94": {
+      "all": {
+        "average_perf": 0.95813393742,
+        "n_average": 70,
+        "perf_variance": 0.0391565935103
+      },
+      "baseline": {
+        "average_perf": 1.0,
+        "n_average": 29,
+        "perf_variance": 0.0
+      },
+      "direct": {
+        "average_perf": 1.0,
+        "n_average": 25,
+        "perf_variance": 0.0
+      },
+      "enc-dec": {
+        "average_perf": 0.934875013765,
+        "n_average": 45,
+        "perf_variance": 0.0593955194887
+      },
+      "non-baseline": {
+        "average_perf": 0.928521356571,
+        "n_average": 41,
+        "perf_variance": 0.0647360535198
+      }
+    },
+    "HumanEval/95": {
+      "all": {
+        "average_perf": 0.923217374592,
+        "n_average": 121,
+        "perf_variance": 0.0375871562991
+      },
+      "baseline": {
+        "average_perf": 0.953087409783,
+        "n_average": 29,
+        "perf_variance": 0.00235743544464
+      },
+      "direct": {
+        "average_perf": 0.872093023256,
+        "n_average": 43,
+        "perf_variance": 0.0782074743943
+      },
+      "enc-dec": {
+        "average_perf": 0.951401311866,
+        "n_average": 78,
+        "perf_variance": 0.0129586841843
+      },
+      "non-baseline": {
+        "average_perf": 0.91380182002,
+        "n_average": 92,
+        "perf_variance": 0.048322281389
+      }
+    },
+    "HumanEval/99": {
+      "all": {
+        "average_perf": 0.960808461316,
+        "n_average": 116,
+        "perf_variance": 0.033853432609
+      },
+      "baseline": {
+        "average_perf": 0.964164976335,
+        "n_average": 29,
+        "perf_variance": 0.0332121377613
+      },
+      "direct": {
+        "average_perf": 0.993027645841,
+        "n_average": 46,
+        "perf_variance": 0.00203683256171
+      },
+      "enc-dec": {
+        "average_perf": 0.939635854342,
+        "n_average": 70,
+        "perf_variance": 0.0536310406516
+      },
+      "non-baseline": {
+        "average_perf": 0.959689622976,
+        "n_average": 87,
+        "perf_variance": 0.0340621903613
+      }
+    }
+  },
+  "selection_rank_by_id": {
+    "HumanEval/0": 100,
+    "HumanEval/1": 6,
+    "HumanEval/10": 35,
+    "HumanEval/102": 66,
+    "HumanEval/103": 20,
+    "HumanEval/104": 57,
+    "HumanEval/105": 27,
+    "HumanEval/106": 13,
+    "HumanEval/107": 72,
+    "HumanEval/108": 9,
+    "HumanEval/109": 75,
+    "HumanEval/110": 69,
+    "HumanEval/111": 97,
+    "HumanEval/112": 73,
+    "HumanEval/113": 2,
+    "HumanEval/115": 18,
+    "HumanEval/116": 43,
+    "HumanEval/118": 23,
+    "HumanEval/120": 11,
+    "HumanEval/122": 52,
+    "HumanEval/123": 44,
+    "HumanEval/124": 76,
+    "HumanEval/125": 70,
+    "HumanEval/126": 94,
+    "HumanEval/127": 33,
+    "HumanEval/128": 65,
+    "HumanEval/129": 14,
+    "HumanEval/132": 31,
+    "HumanEval/134": 87,
+    "HumanEval/135": 53,
+    "HumanEval/137": 85,
+    "HumanEval/140": 25,
+    "HumanEval/141": 58,
+    "HumanEval/144": 55,
+    "HumanEval/145": 1,
+    "HumanEval/146": 82,
+    "HumanEval/147": 12,
+    "HumanEval/148": 77,
+    "HumanEval/149": 28,
+    "HumanEval/150": 88,
+    "HumanEval/151": 59,
+    "HumanEval/154": 90,
+    "HumanEval/155": 78,
+    "HumanEval/156": 5,
+    "HumanEval/159": 22,
+    "HumanEval/16": 61,
+    "HumanEval/160": 4,
+    "HumanEval/161": 46,
+    "HumanEval/163": 7,
+    "HumanEval/2": 86,
+    "HumanEval/21": 10,
+    "HumanEval/22": 47,
+    "HumanEval/25": 71,
+    "HumanEval/27": 62,
+    "HumanEval/28": 45,
+    "HumanEval/29": 26,
+    "HumanEval/30": 98,
+    "HumanEval/31": 89,
+    "HumanEval/34": 99,
+    "HumanEval/38": 41,
+    "HumanEval/39": 15,
+    "HumanEval/4": 54,
+    "HumanEval/40": 74,
+    "HumanEval/41": 63,
+    "HumanEval/43": 91,
+    "HumanEval/46": 16,
+    "HumanEval/47": 38,
+    "HumanEval/48": 3,
+    "HumanEval/49": 60,
+    "HumanEval/5": 79,
+    "HumanEval/50": 21,
+    "HumanEval/52": 34,
+    "HumanEval/53": 36,
+    "HumanEval/54": 67,
+    "HumanEval/55": 32,
+    "HumanEval/60": 80,
+    "HumanEval/62": 49,
+    "HumanEval/63": 17,
+    "HumanEval/64": 42,
+    "HumanEval/65": 24,
+    "HumanEval/67": 39,
+    "HumanEval/68": 96,
+    "HumanEval/69": 50,
+    "HumanEval/70": 64,
+    "HumanEval/73": 81,
+    "HumanEval/74": 56,
+    "HumanEval/76": 37,
+    "HumanEval/77": 40,
+    "HumanEval/78": 95,
+    "HumanEval/79": 83,
+    "HumanEval/81": 8,
+    "HumanEval/86": 29,
+    "HumanEval/87": 84,
+    "HumanEval/9": 68,
+    "HumanEval/90": 93,
+    "HumanEval/91": 92,
+    "HumanEval/93": 19,
+    "HumanEval/94": 48,
+    "HumanEval/95": 30,
+    "HumanEval/99": 51
+  },
+  "worst_sample_ids_by_n": {
+    "100": [
+      "HumanEval/145",
+      "HumanEval/113",
+      "HumanEval/48",
+      "HumanEval/160",
+      "HumanEval/156",
+      "HumanEval/1",
+      "HumanEval/163",
+      "HumanEval/81",
+      "HumanEval/108",
+      "HumanEval/21",
+      "HumanEval/120",
+      "HumanEval/147",
+      "HumanEval/106",
+      "HumanEval/129",
+      "HumanEval/39",
+      "HumanEval/46",
+      "HumanEval/63",
+      "HumanEval/115",
+      "HumanEval/93",
+      "HumanEval/103",
+      "HumanEval/50",
+      "HumanEval/159",
+      "HumanEval/118",
+      "HumanEval/65",
+      "HumanEval/140",
+      "HumanEval/29",
+      "HumanEval/105",
+      "HumanEval/149",
+      "HumanEval/86",
+      "HumanEval/95",
+      "HumanEval/132",
+      "HumanEval/55",
+      "HumanEval/127",
+      "HumanEval/52",
+      "HumanEval/10",
+      "HumanEval/53",
+      "HumanEval/76",
+      "HumanEval/47",
+      "HumanEval/67",
+      "HumanEval/77",
+      "HumanEval/38",
+      "HumanEval/64",
+      "HumanEval/116",
+      "HumanEval/123",
+      "HumanEval/28",
+      "HumanEval/161",
+      "HumanEval/22",
+      "HumanEval/94",
+      "HumanEval/62",
+      "HumanEval/69",
+      "HumanEval/99",
+      "HumanEval/122",
+      "HumanEval/135",
+      "HumanEval/4",
+      "HumanEval/144",
+      "HumanEval/74",
+      "HumanEval/104",
+      "HumanEval/141",
+      "HumanEval/151",
+      "HumanEval/49",
+      "HumanEval/16",
+      "HumanEval/27",
+      "HumanEval/41",
+      "HumanEval/70",
+      "HumanEval/128",
+      "HumanEval/102",
+      "HumanEval/54",
+      "HumanEval/9",
+      "HumanEval/110",
+      "HumanEval/125",
+      "HumanEval/25",
+      "HumanEval/107",
+      "HumanEval/112",
+      "HumanEval/40",
+      "HumanEval/109",
+      "HumanEval/124",
+      "HumanEval/148",
+      "HumanEval/155",
+      "HumanEval/5",
+      "HumanEval/60",
+      "HumanEval/73",
+      "HumanEval/146",
+      "HumanEval/79",
+      "HumanEval/87",
+      "HumanEval/137",
+      "HumanEval/2",
+      "HumanEval/134",
+      "HumanEval/150",
+      "HumanEval/31",
+      "HumanEval/154",
+      "HumanEval/43",
+      "HumanEval/91",
+      "HumanEval/90",
+      "HumanEval/126",
+      "HumanEval/78",
+      "HumanEval/68",
+      "HumanEval/111",
+      "HumanEval/30",
+      "HumanEval/34",
+      "HumanEval/0"
+    ],
+    "25": [
+      "HumanEval/145",
+      "HumanEval/113",
+      "HumanEval/48",
+      "HumanEval/160",
+      "HumanEval/156",
+      "HumanEval/1",
+      "HumanEval/163",
+      "HumanEval/81",
+      "HumanEval/108",
+      "HumanEval/21",
+      "HumanEval/120",
+      "HumanEval/147",
+      "HumanEval/106",
+      "HumanEval/129",
+      "HumanEval/39",
+      "HumanEval/46",
+      "HumanEval/63",
+      "HumanEval/115",
+      "HumanEval/93",
+      "HumanEval/103",
+      "HumanEval/50",
+      "HumanEval/159",
+      "HumanEval/118",
+      "HumanEval/65",
+      "HumanEval/140"
+    ],
+    "50": [
+      "HumanEval/145",
+      "HumanEval/113",
+      "HumanEval/48",
+      "HumanEval/160",
+      "HumanEval/156",
+      "HumanEval/1",
+      "HumanEval/163",
+      "HumanEval/81",
+      "HumanEval/108",
+      "HumanEval/21",
+      "HumanEval/120",
+      "HumanEval/147",
+      "HumanEval/106",
+      "HumanEval/129",
+      "HumanEval/39",
+      "HumanEval/46",
+      "HumanEval/63",
+      "HumanEval/115",
+      "HumanEval/93",
+      "HumanEval/103",
+      "HumanEval/50",
+      "HumanEval/159",
+      "HumanEval/118",
+      "HumanEval/65",
+      "HumanEval/140",
+      "HumanEval/29",
+      "HumanEval/105",
+      "HumanEval/149",
+      "HumanEval/86",
+      "HumanEval/95",
+      "HumanEval/132",
+      "HumanEval/55",
+      "HumanEval/127",
+      "HumanEval/52",
+      "HumanEval/10",
+      "HumanEval/53",
+      "HumanEval/76",
+      "HumanEval/47",
+      "HumanEval/67",
+      "HumanEval/77",
+      "HumanEval/38",
+      "HumanEval/64",
+      "HumanEval/116",
+      "HumanEval/123",
+      "HumanEval/28",
+      "HumanEval/161",
+      "HumanEval/22",
+      "HumanEval/94",
+      "HumanEval/62",
+      "HumanEval/69"
+    ]
+  }
+}

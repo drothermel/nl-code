@@ -316,7 +316,9 @@ def test_run_eval_uses_resolved_catalog_model_from_config(
 
     monkeypatch.setattr(eval_mod, "configure_dspy_lm", capture_configure_dspy_lm)
     monkeypatch.setattr(eval_mod, "run_test_cases", _fake_run_test_cases)
-    monkeypatch.setattr(eval_mod, "load_direct_generator", lambda _path: FakeDirectGenerator())
+    monkeypatch.setattr(
+        eval_mod, "load_direct_generator", lambda _path: FakeDirectGenerator()
+    )
 
     eval_mod.run_humaneval_dspy_eval(
         HumanEvalDspyEvalConfig(
