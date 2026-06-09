@@ -122,8 +122,41 @@ uv run marimo edit nbs/exp/human_eval_dspy.py
 
 ### DSPy Log And Report Inspection
 
-The branch also includes forensic tooling for the archived DSPy experiment
-corpus under `data/code-comp/dspy-exps/v0/`.
+Forensic tooling works in layers. Flat `logs/` output from eval and optimization
+is not a session root on its own.
+
+```text
+logs/  ──parse_humaneval_dspy_logs.py──►  one aggregate snapshot JSON
+logs/  ──sessionize_dspy_logs_v0.py────►  sessionized corpus (metadata.json + raw/)
+sessionized corpus  ──inspect_dspy_* --walk──►  parsed_*_reports/
+parsed_gepa_reports/  ──build_dspy_gepa_agent_bundle.py──►  agent bundle JSON
+```
+
+Use `parse_humaneval_dspy_logs.py` for quick notebook-style exploration across
+all files in `logs/`. Use `sessionize_dspy_logs_v0.py` before
+`inspect_dspy_eval_session.py` or `inspect_dspy_gepa_session.py`. Those inspect
+scripts require a session directory containing `metadata.json`; pointing them at
+raw subdirectories such as `logs/eval_full_5x/baseline_direct` will fail.
+
+The canonical sessionized corpus lives outside the repo at
+`~/drotherm/data/code-comp/dspy-exps/v0`. Regenerate it from the repo root:
+
+```bash
+SESSIONIZE_SOURCE_ROOT=$PWD \
+SESSIONIZE_OUTPUT_ROOT=~/drotherm/data/code-comp/dspy-exps/v0 \
+uv run python scripts/sessionize_dspy_logs_v0.py
+
+uv run python scripts/inspect_dspy_eval_session.py \
+  ~/drotherm/data/code-comp/dspy-exps/v0 --walk
+
+uv run python scripts/inspect_dspy_gepa_session.py \
+  ~/drotherm/data/code-comp/dspy-exps/v0 --walk
+
+uv run python scripts/build_dspy_gepa_agent_bundle.py \
+  ~/drotherm/data/code-comp/dspy-exps/v0/parsed_gepa_reports
+```
+
+Scripts:
 
 - `scripts/sessionize_dspy_logs_v0.py` groups raw DSPy log artifacts into
   session directories and writes session metadata.
@@ -138,7 +171,8 @@ corpus under `data/code-comp/dspy-exps/v0/`.
   reports into one cross-session `gepa_optimization_agent_bundle.json` for
   downstream analysis agents or UI tooling. The bundle omits raw LLM request
   payloads; treat parsed forensic reports as sensitive if shared externally.
-- `docs/dspy-log-sessions-v0.md` documents the sessionized log corpus.
+- `docs/dspy-log-sessions-v0.md` documents the sessionized log corpus and
+  sessionization rules.
 - `docs/dspy-eval-optimizer-extraction-progress.md` records extraction progress
   and the known limits of eval versus optimizer logs.
 - `docs/session_000018_gepa_prompt_variants.md` is a concrete session-level
