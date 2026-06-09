@@ -59,15 +59,27 @@ _DISALLOWED_NODES = (
 )
 
 
+class CodeValidationError(ValueError):
+    """Generated code violates the worker sandbox policy."""
+
+    def __init__(self, detail: str) -> None:
+        self.detail = detail
+        super().__init__(f"generated code violates sandbox policy: {detail}")
+
+
 class _AstValidator(ast.NodeVisitor):
     def visit(self, node: ast.AST) -> Any:
         if isinstance(node, _DISALLOWED_NODES):
-            raise ValueError(f"ast node '{type(node).__name__}' is not allowed")
+            raise CodeValidationError(
+                f"ast node '{type(node).__name__}' is not allowed"
+            )
         return super().visit(node)
 
     def visit_Attribute(self, node: ast.Attribute) -> Any:
         if node.attr.startswith("__") and node.attr.endswith("__"):
-            raise ValueError(f"dunder attribute access '{node.attr}' is not allowed")
+            raise CodeValidationError(
+                f"dunder attribute access '{node.attr}' is not allowed"
+            )
         return self.generic_visit(node)
 
 
@@ -264,6 +276,16 @@ def _compile_error_payload(exc: SyntaxError) -> dict[str, Any]:
     )
 
 
+def _validation_error_payload(exc: CodeValidationError) -> dict[str, Any]:
+    error = f"{type(exc).__name__}: {exc}"
+    logger.warning("Rejected generated code during AST validation: %s", exc)
+    return _error_payload(
+        error,
+        compile_success=False,
+        compile_error=error,
+    )
+
+
 def _handle_batch_inputs(
     code: str, function_name: str, input_values: list[Any]
 ) -> dict[str, Any]:
@@ -327,12 +349,20 @@ def _handle_function_call(req: dict[str, Any]) -> dict[str, Any]:
                 "results": [error_payload.copy() for _ in input_values],
                 "error": None,
             }
+        except CodeValidationError as exc:
+            error_payload = _validation_error_payload(exc)
+            return {
+                "results": [error_payload.copy() for _ in input_values],
+                "error": None,
+            }
         return _handle_batch_inputs(code, function_name, input_values)
     else:
         try:
             _validate_code_ast(code)
         except SyntaxError as exc:
             return _compile_error_payload(exc)
+        except CodeValidationError as exc:
+            return _validation_error_payload(exc)
         return _execute_single_input(code, function_name, req["input_value"])
 
 

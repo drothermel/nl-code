@@ -170,6 +170,21 @@ class TestRunFunctionBatch:
         assert results[0].error is not None
         assert "ValueError" in results[0].error
 
+    def test_sandbox_policy_error_is_returned_not_raised(self) -> None:
+        results = run_function_batch(
+            "def f(x):\n    f.__name__ = 'g'\n    return x\n",
+            "f",
+            [1, 2],
+        )
+        assert len(results) == 2
+        for result in results:
+            assert result.error is not None
+            assert "CodeValidationError" in result.error
+            assert "dunder attribute access '__name__'" in result.error
+            assert result.compile_success is False
+            assert result.compile_error is not None
+            assert "sandbox policy" in result.compile_error
+
     def test_timeout(self) -> None:
         from unittest.mock import patch
 
@@ -316,6 +331,21 @@ class TestRunTestCases:
         assert results[0].compile_success is False
         assert results[0].compile_error is not None
         assert "SyntaxError" in results[0].compile_error
+
+    def test_sandbox_policy_errors_are_returned_not_raised(self) -> None:
+        test_cases = [TestCase(input_value=1, expected_output=1)]
+        results, rate = run_test_cases(
+            "def f(x):\n    f.__name__ = 'g'\n    return x\n",
+            "f",
+            test_cases,
+        )
+        assert rate == 0.0
+        assert results[0].passed is False
+        assert "CodeValidationError" in (results[0].error or "")
+        assert "dunder attribute access '__name__'" in (results[0].error or "")
+        assert results[0].compile_success is False
+        assert results[0].compile_error is not None
+        assert "sandbox policy" in results[0].compile_error
 
     def test_runtime_errors_do_not_populate_compile_error(self) -> None:
         test_cases = [TestCase(input_value=1, expected_output=1)]
