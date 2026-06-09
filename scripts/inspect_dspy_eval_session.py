@@ -21,6 +21,12 @@ from nl_code.code_execution.models import TestCaseResult
 SCHEMA_VERSION = "dspy_eval_session_report_v0"
 MANIFEST_SCHEMA_VERSION = "dspy_eval_session_report_manifest_v0"
 METADATA_FILE_NAME = "metadata.json"
+MISSING_SESSION_METADATA_HELP = (
+    f"session directory must contain {METADATA_FILE_NAME}. "
+    "Raw log subdirectories such as logs/eval_full_5x/ are not session roots. "
+    "Run scripts/sessionize_dspy_logs_v0.py first to build a sessionized corpus, "
+    "or use scripts/parse_humaneval_dspy_logs.py for a flat logs/ aggregate snapshot."
+)
 RAW_DIR_NAME = "raw"
 EVAL_RUN_PREFIX = "human_eval_dspy_run_"
 LEGACY_EVAL_MARKER = "_eval_"
@@ -278,7 +284,7 @@ def build_session_report(session_dir: Path) -> SessionReport:
     session_dir = session_dir.resolve()
     metadata_path = session_dir / METADATA_FILE_NAME
     if not metadata_path.exists():
-        raise typer.BadParameter(f"session directory must contain {METADATA_FILE_NAME}")
+        raise typer.BadParameter(MISSING_SESSION_METADATA_HELP)
 
     metadata = read_json_file(metadata_path)
     raw_dir = session_dir / RAW_DIR_NAME

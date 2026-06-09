@@ -5,9 +5,11 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from pydantic import BaseModel
 
 from nl_code.code_execution.models import TestCaseResult
+from nl_code.datasets.humaneval_dataset import HumanEvalDataset
+from nl_code.datasets.humaneval_task import RawHumanEvalTask
+from nl_code.datasets.task import CodeDataset, Task, TaskSource, TaskTarget
 from nl_code.optim import humaneval_dspy_eval as eval_mod
 from nl_code.optim.humaneval_dspy_eval import (
     GenerationType,
@@ -19,27 +21,18 @@ from nl_code.optim.humaneval_dspy_eval import (
 )
 
 
-class FakeSample(BaseModel):
-    task_id: str
-    source__prompt: str
-    gt_solution: str
-    function_stub: str
-    entry_point: str
-    test_inputs: list[Any]
-    test_results: list[Any] | None
-
-
 class FakeDataset:
-    def __init__(self, samples: list[FakeSample]) -> None:
+    def __init__(self, samples: list[RawHumanEvalTask]) -> None:
         self.raw_samples = {sample.task_id: sample for sample in samples}
 
-    def get_raw_sample_at_index(self, index: int) -> FakeSample:
+    def get_raw_sample_at_index(self, index: int) -> RawHumanEvalTask:
         return list(self.raw_samples.values())[index]
 
 
-class FakePrediction(BaseModel):
-    completed_code: str
-    code_spec: str | None = None
+class FakePrediction:
+    def __init__(self, *, completed_code: str, code_spec: str | None = None) -> None:
+        self.completed_code = completed_code
+        self.code_spec = code_spec
 
 
 class FakeDirectGenerator:
@@ -222,8 +215,8 @@ def test_run_direct_eval_expands_repeats(
         GenerationType.DIRECT,
     ]
     assert direct_generator.calls == [
-        dataset.get_raw_sample_at_index(0).source__prompt,
-        dataset.get_raw_sample_at_index(0).source__prompt,
+        dataset.get_raw_sample_at_index(0).source.prompt,
+        dataset.get_raw_sample_at_index(0).source.prompt,
     ]
     assert run.summaries["direct"].attempt_pass_rate == 1.0
     assert run.run_log_file is not None
@@ -258,7 +251,10 @@ def test_run_both_eval_uses_same_selected_samples(
     assert set(run.summaries) == {"direct", "encdec"}
     assert len(direct_generator.calls) == 1
     assert encoder_decoder_generator.calls == [
-        ("def add_one(x):\n", "def add_one(x):\n")
+        (
+            _prompt_with_docstring(),
+            _function_stub_without_docstring(),
+        )
     ]
 
 
@@ -285,20 +281,56 @@ def test_encdec_eval_oracle_input_uses_gt_solution(
 
     sample = dataset.get_raw_sample_at_index(0)
     assert encoder_decoder_generator.calls == [
-        (sample.gt_solution, sample.function_stub)
+        (sample.gt_solution.code, sample.function_stub)
     ]
 
 
 def test_eval_config_resolves_llm_catalog_id() -> None:
     config = HumanEvalDspyEvalConfig(
-        llm_config_id="openrouter/openai/gpt-oss-20b/low/v1",
-        model="unused",
-        reasoning_effort="minimal",
-        reasoning_config={"effort": "low"},
+        llm_config_id="openrouter/xiaomi/mimo-v2-flash/off/v1",
     )
 
-    assert config.llm_config_id == "openrouter/openai/gpt-oss-20b/low/v1"
-    assert config.reasoning_config == {"effort": "low"}
+    assert config.llm_config_id == "openrouter/xiaomi/mimo-v2-flash/off/v1"
+    assert config.model == "openrouter/xiaomi/mimo-v2-flash"
+    assert config.reasoning_config == {"enabled": False}
+    assert config.reasoning_effort is None
+
+
+def test_eval_config_defaults_to_catalog_llm_config_id() -> None:
+    config = HumanEvalDspyEvalConfig()
+
+    assert config.llm_config_id == "openrouter/xiaomi/mimo-v2-flash/off/v1"
+    assert config.model == "openrouter/xiaomi/mimo-v2-flash"
+    assert config.reasoning_config == {"enabled": False}
+
+
+def test_run_eval_uses_resolved_catalog_model_from_config(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    captured: dict[str, Any] = {}
+
+    def capture_configure_dspy_lm(**kwargs: Any) -> FakeLm:
+        captured.update(kwargs)
+        return FakeLm()
+
+    monkeypatch.setattr(eval_mod, "configure_dspy_lm", capture_configure_dspy_lm)
+    monkeypatch.setattr(eval_mod, "run_test_cases", _fake_run_test_cases)
+    monkeypatch.setattr(eval_mod, "load_direct_generator", lambda _path: FakeDirectGenerator())
+
+    eval_mod.run_humaneval_dspy_eval(
+        HumanEvalDspyEvalConfig(
+            generation_type=GenerationType.DIRECT,
+            sample_indices=[0],
+            output_dir=tmp_path,
+            llm_config_id="openrouter/xiaomi/mimo-v2-flash/off/v1",
+        ),
+        dataset=_fake_dataset(),
+        api_key="test-key",
+    )
+
+    assert captured["model"] == "openrouter/xiaomi/mimo-v2-flash"
+    assert captured["llm_config_id"] == "openrouter/xiaomi/mimo-v2-flash/off/v1"
 
 
 def test_fenced_code_is_extracted_before_eval(
@@ -433,37 +465,124 @@ def test_run_log_serializes_repeated_results(
     assert [attempt["repeat_index"] for attempt in payload["attempts"]] == [0, 1]
 
 
+def test_run_eval_with_v3_raw_humaneval_task(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(eval_mod, "run_test_cases", _fake_run_test_cases)
+    dataset = _humaneval_dataset_with_v3_samples()
+
+    run = eval_mod.run_humaneval_dspy_eval(
+        HumanEvalDspyEvalConfig(
+            generation_type=GenerationType.DIRECT,
+            sample_indices=[0],
+            output_dir=tmp_path,
+        ),
+        dataset=dataset,
+        direct_generator=FakeDirectGenerator(),
+        lm=FakeLm(),
+    )
+
+    assert len(run.attempts) == 1
+    assert not run.attempts[0].skipped
+    assert run.attempts[0].test_pass_rate == 1.0
+
+
 def _fake_dataset() -> FakeDataset:
     return FakeDataset(
         [
-            FakeSample(
+            _raw_sample(
                 task_id="HumanEval/0",
-                source__prompt="def add_one(x):\n",
-                gt_solution="def add_one(x):\n    return x + 1\n",
-                function_stub="def add_one(x):\n",
                 entry_point="add_one",
-                test_inputs=[[1]],
-                test_results=[2],
+                prompt=_prompt_with_docstring(),
+                canonical_solution="    return x + 1\n",
+                test=_inputs_results_test(inputs="[[1]]", results="[2]"),
             ),
-            FakeSample(
+            _raw_sample(
                 task_id="HumanEval/1",
-                source__prompt="def skip(x):\n",
-                gt_solution="def skip(x):\n    return x\n",
-                function_stub="def skip(x):\n",
                 entry_point="skip",
-                test_inputs=[[1]],
-                test_results=None,
+                prompt="def skip(x):\n",
+                canonical_solution="    return x\n",
+                test=_inputs_ref_func_test(),
             ),
-            FakeSample(
+            _raw_sample(
                 task_id="HumanEval/2",
-                source__prompt="def add_one(x):\n",
-                gt_solution="def add_one(x):\n    return x + 1\n",
-                function_stub="def add_one(x):\n",
                 entry_point="add_one",
-                test_inputs=[[4]],
-                test_results=[5],
+                prompt=_prompt_with_docstring(),
+                canonical_solution="    return x + 1\n",
+                test=_inputs_results_test(inputs="[[4]]", results="[5]"),
             ),
         ]
+    )
+
+
+def _humaneval_dataset_with_v3_samples() -> HumanEvalDataset:
+    raw = _raw_sample(
+        task_id="HumanEval/0",
+        entry_point="add_one",
+        prompt="def add_one(x):\n",
+        canonical_solution="    return x + 1\n",
+        test=_inputs_results_test(inputs="[[1]]", results="[2]"),
+    )
+    task = Task(
+        dataset=CodeDataset.HUMANEVAL_PLUS,
+        task_id=raw.task_id,
+        target=TaskTarget(name=raw.entry_point),
+        source=TaskSource(code=raw.gt_solution.code),
+    )
+    return HumanEvalDataset(
+        raw_samples={raw.task_id: raw},
+        tasks={raw.task_id: task},
+    )
+
+
+def _prompt_with_docstring() -> str:
+    return 'def add_one(x):\n    """Return one more than x."""\n'
+
+
+def _function_stub_without_docstring() -> str:
+    return "def add_one(x):\n"
+
+
+def _raw_sample(
+    *,
+    task_id: str,
+    entry_point: str,
+    prompt: str,
+    canonical_solution: str,
+    test: str,
+) -> RawHumanEvalTask:
+    return RawHumanEvalTask.model_validate(
+        {
+            "task_id": task_id,
+            "entry_point": entry_point,
+            "source": {
+                "prompt": prompt,
+                "canonical_solution": canonical_solution,
+                "test": test,
+            },
+        }
+    )
+
+
+def _inputs_results_test(*, inputs: str, results: str) -> str:
+    return (
+        "def check(candidate):\n"
+        f"    inputs = {inputs}\n"
+        f"    results = {results}\n"
+        "    for inp, expected in zip(inputs, results):\n"
+        "        assert candidate(*inp) == expected\n"
+    )
+
+
+def _inputs_ref_func_test() -> str:
+    return (
+        "def check(candidate):\n"
+        "    inputs = [[1]]\n"
+        "    def ref_func(x):\n"
+        "        return x\n"
+        "    for inp in inputs:\n"
+        "        assertion(candidate(*inp), ref_func(*inp), 0)\n"
     )
 
 

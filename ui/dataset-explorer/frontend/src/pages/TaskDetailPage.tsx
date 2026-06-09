@@ -73,17 +73,6 @@ export default function TaskDetailPage() {
         ))}
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Description</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <pre className="whitespace-pre-wrap rounded-md border bg-card p-4 text-sm leading-7 text-card-foreground">
-            {data.description}
-          </pre>
-        </CardContent>
-      </Card>
-
       <DerivedFieldsCard derivedFields={data.derived_fields} />
 
       <Card>
@@ -91,7 +80,7 @@ export default function TaskDetailPage() {
           <CardTitle className="text-base">Derived Code</CardTitle>
         </CardHeader>
         <CardContent>
-          <PythonCodeBlock code={data.gt_solution} />
+          <PythonCodeBlock code={data.source_code} />
         </CardContent>
       </Card>
     </div>

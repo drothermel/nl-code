@@ -1,33 +1,6 @@
-from nl_code.datasets import (
-    BigCodeBenchLiteProDataset,
-    ClassEvalDataset,
-    Dataset,
-    DatasetSlice,
-    HumanEvalDataset,
-    HumanEvalProDataset,
-    MbppProDataset,
-    RawBigCodeBenchLiteProTask,
-    RawClassEvalTask,
-    RawHumanEvalProTask,
-    RawHumanEvalTask,
-    RawMbppProTask,
-    Task,
-)
+import nl_code.datasets as datasets_pkg
 
 
-def test_dataset_package_re_exports_task_and_dataset_classes() -> None:
-    assert Dataset.__name__ == "Dataset"
-    assert DatasetSlice.__name__ == "DatasetSlice"
-    assert Task.__name__ == "Task"
-
-    assert HumanEvalDataset.__name__ == "HumanEvalDataset"
-    assert HumanEvalProDataset.__name__ == "HumanEvalProDataset"
-    assert MbppProDataset.__name__ == "MbppProDataset"
-    assert BigCodeBenchLiteProDataset.__name__ == "BigCodeBenchLiteProDataset"
-    assert ClassEvalDataset.__name__ == "ClassEvalDataset"
-
-    assert RawHumanEvalTask.__name__ == "RawHumanEvalTask"
-    assert RawHumanEvalProTask.__name__ == "RawHumanEvalProTask"
-    assert RawMbppProTask.__name__ == "RawMbppProTask"
-    assert RawBigCodeBenchLiteProTask.__name__ == "RawBigCodeBenchLiteProTask"
-    assert RawClassEvalTask.__name__ == "RawClassEvalTask"
+def test_dataset_package_exports_are_importable() -> None:
+    for export_name in datasets_pkg.__all__:
+        assert getattr(datasets_pkg, export_name) is not None

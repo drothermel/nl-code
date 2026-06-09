@@ -33,24 +33,27 @@ class DatasetSlice(BaseModel):
 
     def get_source_code(self, task_id: str) -> str:
         if self.raw_source_field is None:
-            return self.dataset.tasks[task_id].gt_solution
+            return self.dataset.tasks[task_id].source.code
         return self._get_raw_str_field(task_id, self.raw_source_field)
 
     def get_official_prompt(self, task_id: str) -> str:
-        return self._get_raw_str_field(task_id, "new_official_prompt")
+        from nl_code.datasets.classeval_task import RawClassEvalTask
+        from nl_code.datasets.humaneval_task import RawHumanEvalTask
+        from nl_code.datasets.pro_task import RawProTask
 
-    def get_code_stub(self, task_id: str) -> str:
-        return self._get_raw_str_field(task_id, "new_code_stub")
-
-    def get_code_stub_with_comments(self, task_id: str) -> str:
-        return self._get_raw_str_field(task_id, "new_code_stub_with_comments")
+        raw = self.dataset.raw_samples[task_id]
+        if isinstance(raw, RawHumanEvalTask):
+            return raw.source.prompt
+        if isinstance(raw, RawProTask):
+            return raw.prompts.new_official
+        if isinstance(raw, RawClassEvalTask):
+            return raw.prompt.new_official
+        raise TypeError(f"Task {task_id!r}: unsupported raw sample type {type(raw)!r}")
 
     def _get_raw_str_field(self, task_id: str, field: str) -> str:
         raw = self.dataset.raw_samples[task_id]
         if not hasattr(raw, field):
-            raise AttributeError(
-                f"Task {task_id!r}: raw sample has no field {field!r}"
-            )
+            raise AttributeError(f"Task {task_id!r}: raw sample has no field {field!r}")
         value = getattr(raw, field)
         if not isinstance(value, str):
             raise TypeError(

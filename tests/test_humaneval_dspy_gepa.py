@@ -5,9 +5,9 @@ from typing import Any
 
 import dspy
 import pytest
-from pydantic import BaseModel
 
 from nl_code.code_execution.models import TestCaseResult
+from nl_code.datasets.humaneval_task import RawHumanEvalTask
 from nl_code.optim import humaneval_dspy_gepa as gepa_mod
 from nl_code.optim.dspy_generators import EncoderDecoderCodeGenerator
 from nl_code.optim.humaneval_dspy_gepa import (
@@ -18,16 +18,6 @@ from nl_code.optim.humaneval_dspy_optimize import (
     HumanEvalPassRateMetric,
     SplitTaskIds,
 )
-
-
-class FakeSample(BaseModel):
-    task_id: str
-    source__prompt: str
-    gt_solution: str
-    function_stub: str
-    entry_point: str
-    test_inputs: list[Any]
-    test_results: list[Any] | None
 
 
 def test_direct_gepa_metric_returns_feedback_score(
@@ -140,17 +130,46 @@ def test_direct_gepa_metric_handles_predictor_feedback(
     assert "Use the code_spec" in score.feedback
 
 
-def _samples_by_task_id() -> dict[str, FakeSample]:
-    sample = FakeSample(
+def _samples_by_task_id() -> dict[str, RawHumanEvalTask]:
+    sample = _raw_sample(
         task_id="HumanEval/0",
-        source__prompt="def add_one(x):\n",
-        gt_solution="def add_one(x):\n    return x + 1\n",
-        function_stub="def add_one(x):\n",
         entry_point="add_one",
-        test_inputs=[[1], [2]],
-        test_results=[2, 4],
+        prompt="def add_one(x):\n",
+        canonical_solution="    return x + 1\n",
+        test=_inputs_results_test(inputs="[[1], [2]]", results="[2, 4]"),
     )
     return {sample.task_id: sample}
+
+
+def _raw_sample(
+    *,
+    task_id: str,
+    entry_point: str,
+    prompt: str,
+    canonical_solution: str,
+    test: str,
+) -> RawHumanEvalTask:
+    return RawHumanEvalTask.model_validate(
+        {
+            "task_id": task_id,
+            "entry_point": entry_point,
+            "source": {
+                "prompt": prompt,
+                "canonical_solution": canonical_solution,
+                "test": test,
+            },
+        }
+    )
+
+
+def _inputs_results_test(*, inputs: str, results: str) -> str:
+    return (
+        "def check(candidate):\n"
+        f"    inputs = {inputs}\n"
+        f"    results = {results}\n"
+        "    for inp, expected in zip(inputs, results):\n"
+        "        assert candidate(*inp) == expected\n"
+    )
 
 
 def _fake_evaluate(**_kwargs: Any) -> tuple[str, list[TestCaseResult], float]:

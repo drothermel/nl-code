@@ -1,6 +1,6 @@
 import pytest
 
-from nl_code.datasets.task import CodeDataset, Task
+from nl_code.datasets.task import CodeDataset, Task, TaskSource, TaskTarget
 
 
 def test_code_dataset_humaneval_plus() -> None:
@@ -23,28 +23,26 @@ def test_task_construction() -> None:
     task = Task(
         dataset=CodeDataset.HUMANEVAL_PLUS,
         task_id="HumanEval/0",
-        entry_point_name="add",
-        description="Add two integers and return the result.",
-        gt_solution="def add(a, b):\n    return a + b\n",
+        target=TaskTarget(name="add"),
+        source=TaskSource(code="def add(a, b):\n    return a + b\n"),
     )
     assert task.task_id == "HumanEval/0"
-    assert task.entry_point_name == "add"
-    assert task.description == "Add two integers and return the result."
+    assert task.target.name == "add"
+    assert task.source.code == "def add(a, b):\n    return a + b\n"
     assert task.dataset == CodeDataset.HUMANEVAL_PLUS
-    assert task.version == "v2"
+    assert task.version == "v3"
 
 
 def test_task_validate_raw_task_version_match() -> None:
     task = Task(
         dataset=CodeDataset.HUMANEVAL_PLUS,
         task_id="HumanEval/0",
-        entry_point_name="add",
-        description="Add two integers and return the result.",
-        gt_solution="def add(a, b):\n    return a + b\n",
+        target=TaskTarget(name="add"),
+        source=TaskSource(code="def add(a, b):\n    return a + b\n"),
     )
 
     class _Raw:
-        version = "v2"
+        version = "v3"
 
     task.validate_raw_task_version(_Raw())
 
@@ -53,13 +51,12 @@ def test_task_validate_raw_task_version_mismatch() -> None:
     task = Task(
         dataset=CodeDataset.HUMANEVAL_PLUS,
         task_id="HumanEval/0",
-        entry_point_name="add",
-        description="Add two integers and return the result.",
-        gt_solution="def add(a, b):\n    return a + b\n",
+        target=TaskTarget(name="add"),
+        source=TaskSource(code="def add(a, b):\n    return a + b\n"),
     )
 
     class _Raw:
-        version = "v1"
+        version = "v2"
 
     with pytest.raises(ValueError, match="does not match raw task version"):
         task.validate_raw_task_version(_Raw())

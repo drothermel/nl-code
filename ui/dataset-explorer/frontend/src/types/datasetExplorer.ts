@@ -111,10 +111,8 @@ export interface TaskRow {
   task_id: string;
   status: "valid" | "flawed";
   has_derived_task: boolean;
-  entry_point_name: string | null;
-  description_preview: string | null;
-  description_length_chars: number | null;
-  description_length_tokens: number | null;
+  target_name: string | null;
+  target_kind: string | null;
   derived_code_length_chars: number | null;
   derived_code_length_tokens: number | null;
   derived_code_length_lines: number | null;
@@ -147,9 +145,10 @@ export interface DerivedFieldSummary {
 export interface TaskDetailResponse {
   dataset: DatasetOption;
   task_id: string;
-  entry_point_name: string;
-  description: string;
-  gt_solution: string;
+  target_name: string;
+  target_kind: string;
+  source_code: string;
+  source_kind: string;
   metrics: NumericMetric[];
   derived_fields: DerivedFieldSummary[];
   prev_task_id: string | null;

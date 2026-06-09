@@ -51,7 +51,6 @@ def dataset_tasks(
     status: Literal["all", "valid", "flawed"] = Query("all"),
     sort: Literal[
         "task_id",
-        "description_length_chars",
         "derived_code_length_chars",
         "prompt_length_chars",
         "raw_source_length_chars",

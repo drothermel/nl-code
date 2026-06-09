@@ -15,8 +15,8 @@ DEFAULT_ENCODER_INSTRUCTIONS = (
     "Do not output anything else."
 )
 DEFAULT_OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-DEFAULT_DSPY_MODEL = "openrouter/openai/gpt-oss-20b/low/v1"
-DEFAULT_REASONING_EFFORT = "minimal"
+DEFAULT_LLM_CONFIG_ID = "openrouter/xiaomi/mimo-v2-flash/off/v1"
+DEFAULT_REASONING_EFFORT = "none"
 
 
 class DspyLmCatalogConfig(BaseModel):
@@ -27,10 +27,6 @@ class DspyLmCatalogConfig(BaseModel):
 
 
 SUPPORTED_OPENROUTER_LLM_CONFIGS: dict[str, DspyLmCatalogConfig] = {
-    "openrouter/openai/gpt-oss-20b/low/v1": DspyLmCatalogConfig(
-        model="openrouter/openai/gpt-oss-20b",
-        reasoning={"effort": "low"},
-    ),
     "openrouter/deepseek/deepseek-chat-v3.1/off/v1": DspyLmCatalogConfig(
         model="openrouter/deepseek/deepseek-chat-v3.1",
         reasoning={"enabled": False},
@@ -60,6 +56,60 @@ SUPPORTED_OPENROUTER_LLM_CONFIGS: dict[str, DspyLmCatalogConfig] = {
         model="openrouter/qwen/qwen3-coder-30b-a3b-instruct",
     ),
 }
+
+
+DEFAULT_DSPY_MODEL = SUPPORTED_OPENROUTER_LLM_CONFIGS[DEFAULT_LLM_CONFIG_ID].model
+
+
+class ResolvedDspyLmSettings(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    model: str
+    llm_config_id: str | None
+    reasoning_effort: str | None
+    reasoning_config: dict[str, str | bool] | None
+
+
+def resolve_dspy_lm_settings(
+    *,
+    model: str | None = None,
+    llm_config_id: str | None = None,
+    reasoning_effort: str | None = DEFAULT_REASONING_EFFORT,
+    reasoning_config: dict[str, str | bool] | None = None,
+) -> ResolvedDspyLmSettings:
+    if llm_config_id is not None:
+        catalog = resolve_openrouter_llm_config(llm_config_id)
+        if reasoning_config is not None and reasoning_config != catalog.reasoning:
+            raise ValueError(
+                "reasoning_config conflicts with llm_config_id catalog entry"
+            )
+        if reasoning_effort not in (None, "none") and catalog.reasoning is not None:
+            raise ValueError(
+                "reasoning_effort cannot be combined with llm_config_id catalog entry"
+            )
+        return ResolvedDspyLmSettings(
+            model=catalog.model,
+            llm_config_id=llm_config_id,
+            reasoning_effort=None,
+            reasoning_config=catalog.reasoning,
+        )
+
+    effective_model = model if model is not None else DEFAULT_DSPY_MODEL
+    if effective_model != DEFAULT_DSPY_MODEL:
+        return ResolvedDspyLmSettings(
+            model=effective_model,
+            llm_config_id=None,
+            reasoning_effort=reasoning_effort,
+            reasoning_config=reasoning_config,
+        )
+
+    default_catalog = resolve_openrouter_llm_config(DEFAULT_LLM_CONFIG_ID)
+    return ResolvedDspyLmSettings(
+        model=default_catalog.model,
+        llm_config_id=DEFAULT_LLM_CONFIG_ID,
+        reasoning_effort=None,
+        reasoning_config=default_catalog.reasoning,
+    )
 
 
 def supported_openrouter_llm_config_ids() -> tuple[str, ...]:
@@ -182,23 +232,30 @@ class EncoderDecoderCodeGenerator(dspy.Module):
 
 def configure_dspy_lm(
     *,
-    model: str = DEFAULT_DSPY_MODEL,
+    model: str | None = None,
+    llm_config_id: str | None = None,
     api_key: str,
     api_base: str = DEFAULT_OPENROUTER_BASE_URL,
     reasoning_effort: str | None = DEFAULT_REASONING_EFFORT,
     reasoning: dict[str, str | bool] | None = None,
     disable_cache: bool = True,
 ) -> Any:
+    resolved = resolve_dspy_lm_settings(
+        model=model,
+        llm_config_id=llm_config_id,
+        reasoning_effort=reasoning_effort,
+        reasoning_config=reasoning,
+    )
     os.environ["OPENROUTER_API_KEY"] = api_key
     os.environ["OPENROUTER_API_BASE"] = api_base
     os.environ["OPENAI_API_KEY"] = api_key
     lm = dspy.LM(
-        model,
+        resolved.model,
         api_key=api_key,
         api_base=api_base,
-        reasoning=reasoning
-        if reasoning is not None
-        else reasoning_from_effort(reasoning_effort),
+        reasoning=resolved.reasoning_config
+        if resolved.reasoning_config is not None
+        else reasoning_from_effort(resolved.reasoning_effort),
     )
     dspy.configure(lm=lm)
     if disable_cache:

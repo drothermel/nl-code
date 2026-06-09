@@ -36,38 +36,41 @@ def _expected_new_official_prompt(raw_problem: str, new_problem: str) -> str:
     )
 
 
-class TestRawBigCodeBenchLiteProTask:
-    def test_non_code_fields(self) -> None:
-        assert RawBigCodeBenchLiteProTask.non_code_fields == (
-            "new_description",
-            "new_problem_comment",
-            "new_docstrings_and_comments",
-            "original_docstrings_and_comments",
-            "task_id",
-            "validated",
-            "version",
-        )
+def _task_input(row: dict[str, object]) -> dict[str, object]:
+    return {
+        "task_id": row["task_id"],
+        "validated": row.get("validated", False),
+        "source": {
+            "raw_problem": row["raw_problem"],
+            "raw_solution": row["raw_solution"],
+            "new_problem": row["new_problem"],
+            "new_solution": row["new_solution"],
+            "test_code": row["test_code"],
+        },
+    }
 
+
+class TestRawBigCodeBenchLiteProTask:
     def test_construction(self) -> None:
         row = make_bigcodebench_lite_pro_row()
         row["task_id"] = "BigCodeBenchLitePro/23"
-        task = RawBigCodeBenchLiteProTask.model_validate(row)
+        task = RawBigCodeBenchLiteProTask.model_validate(_task_input(row))
         assert task.task_id == "BigCodeBenchLitePro/23"
-        assert task.source__raw_problem == row["raw_problem"]
-        assert task.source__raw_solution == row["raw_solution"]
-        assert task.source__new_problem == row["new_problem"]
-        assert task.source__new_solution == row["new_solution"]
-        assert task.source__test_code == row["test_code"]
-        assert task.version == "v2"
+        assert task.source.raw_problem == row["raw_problem"]
+        assert task.source.raw_solution == row["raw_solution"]
+        assert task.source.new_problem == row["new_problem"]
+        assert task.source.new_solution == row["new_solution"]
+        assert task.source.test_code == row["test_code"]
+        assert task.version == "v3"
         assert task.validated is False
-        assert "def multiply" in task.original_function
-        assert "return a * b" in task.original_function
-        assert "def multiply" in task.original_function_with_docstrings_and_comments
-        assert "def multiply_pairs" in task.new_function_with_docstrings_and_comments
-        assert task.original_official_prompt == _expected_original_official_prompt(
+        assert "def multiply" in task.original_solution.code
+        assert "return a * b" in task.original_solution.code
+        assert "def multiply" in task.original_solution.code_with_comments
+        assert "def multiply_pairs" in task.new_solution.code_with_comments
+        assert task.prompts.original_official == _expected_original_official_prompt(
             row["raw_problem"]
         )
-        assert task.new_official_prompt == _expected_new_official_prompt(
+        assert task.prompts.new_official == _expected_new_official_prompt(
             row["raw_problem"], row["new_problem"]
         )
 
@@ -93,16 +96,16 @@ class TestRawBigCodeBenchLiteProTask:
             ),
         )
         row["task_id"] = "BigCodeBenchLitePro/23"
-        task = RawBigCodeBenchLiteProTask.model_validate(row)
+        task = RawBigCodeBenchLiteProTask.model_validate(_task_input(row))
 
-        assert task.original_function == textwrap.dedent("""\
+        assert task.original_solution.code == textwrap.dedent("""\
             import math
             from collections import deque
 
             def multiply(a: int, b: int) -> int:
                 return a * b
         """)
-        assert task.original_function_with_docstrings_and_comments == textwrap.dedent("""\
+        assert task.original_solution.code_with_comments == textwrap.dedent("""\
             import math
             from collections import deque
 
@@ -110,14 +113,14 @@ class TestRawBigCodeBenchLiteProTask:
                 \"\"\"Multiply two integers.\"\"\"
                 return a * b
         """)
-        assert task.new_function == textwrap.dedent("""\
+        assert task.new_solution.code == textwrap.dedent("""\
             def multiply_pairs(pairs: list[tuple[int, int]]) -> list[int]:
                 result = []
                 for a, b in pairs:
                     result.append(multiply(a, b))
                 return result
         """)
-        assert task.new_function_with_docstrings_and_comments == textwrap.dedent("""\
+        assert task.new_solution.code_with_comments == textwrap.dedent("""\
             # Given a list of pairs, multiply each pair and return the list of products.
             def multiply_pairs(pairs: list[tuple[int, int]]) -> list[int]:
                 \"\"\"Return products for each input pair.\"\"\"
@@ -126,39 +129,39 @@ class TestRawBigCodeBenchLiteProTask:
                     result.append(multiply(a, b))
                 return result
         """)
-        assert task.raw_problem_imports == textwrap.dedent("""\
+        assert task.original_solution.imports == textwrap.dedent("""\
             import math
             from collections import deque
         """)
         assert (
-            task.new_problem_without_docstrings_and_comments
+            task.new_solution.problem_without_docstrings_and_comments
             == "def multiply_pairs(pairs: list[tuple[int, int]]) -> list[int]:\n"
         )
-        assert task.original_docstrings_and_comments == "Multiply two integers."
-        assert task.new_docstrings_and_comments == (
+        assert (
+            task.original_solution.docstrings_and_comments == "Multiply two integers."
+        )
+        assert task.new_solution.docstrings_and_comments == (
             "Given a list of pairs, multiply each pair and return the list of products.\n\n"
             "Return products for each input pair."
         )
         assert (
-            task.new_problem_comment
+            task.new_solution.problem_comment
             == "Given a list of pairs, multiply each pair and return the list of products."
         )
-        assert task.original_function_stub == textwrap.dedent("""\
+        assert task.original_solution.stub == textwrap.dedent("""\
             import math
             from collections import deque
 
             def multiply(a: int, b: int) -> int:
         """)
-        assert task.original_function_stub_with_comments == row["raw_problem"]
-        assert task.new_function_stub == textwrap.dedent("""\
+        assert task.original_solution.stub_with_comments == row["raw_problem"]
+        assert task.new_solution.stub == textwrap.dedent("""\
             import math
             from collections import deque
             def multiply_pairs(pairs: list[tuple[int, int]]) -> list[int]:
         """)
-        assert task.new_function_stub_with_comments == row["new_problem"]
-        assert task.new_code_stub == task.new_function_stub
-        assert task.new_code_stub_with_comments == task.new_function_stub_with_comments
-        assert task.new_two_part_function_stub == textwrap.dedent("""\
+        assert task.new_solution.stub_with_comments == row["new_problem"]
+        assert task.new_solution.two_part_stub == textwrap.dedent("""\
             import math
             from collections import deque
 
@@ -167,7 +170,7 @@ class TestRawBigCodeBenchLiteProTask:
 
             def multiply_pairs(pairs: list[tuple[int, int]]) -> list[int]:
         """)
-        assert task.new_two_part_function_stub_with_comments == textwrap.dedent("""\
+        assert task.new_solution.two_part_stub_with_comments == textwrap.dedent("""\
             import math
             from collections import deque
 
@@ -178,72 +181,72 @@ class TestRawBigCodeBenchLiteProTask:
             # Given a list of pairs, multiply each pair and return the list of products.
             def multiply_pairs(pairs: list[tuple[int, int]]) -> list[int]:
         """)
-        assert task.original_official_prompt == _expected_original_official_prompt(
+        assert task.prompts.original_official == _expected_original_official_prompt(
             row["raw_problem"]
         )
-        assert task.new_official_prompt == _expected_new_official_prompt(
+        assert task.prompts.new_official == _expected_new_official_prompt(
             row["raw_problem"], row["new_problem"]
         )
 
     def test_gt_solution_contains_both_functions(self) -> None:
         row = make_bigcodebench_lite_pro_row()
         row["task_id"] = "BigCodeBenchLitePro/23"
-        task = RawBigCodeBenchLiteProTask.model_validate(row)
-        assert "def multiply" in task.gt_solution
-        assert "def multiply_pairs" in task.gt_solution
+        task = RawBigCodeBenchLiteProTask.model_validate(_task_input(row))
+        assert "def multiply" in task.gt_solution.code
+        assert "def multiply_pairs" in task.gt_solution.code
 
     def test_gt_solution_base_before_new(self) -> None:
         row = make_bigcodebench_lite_pro_row()
         row["task_id"] = "BigCodeBenchLitePro/23"
-        task = RawBigCodeBenchLiteProTask.model_validate(row)
-        mul_pos = task.gt_solution_with_comments.index("def multiply(")
-        mul_pairs_pos = task.gt_solution_with_comments.index("def multiply_pairs(")
+        task = RawBigCodeBenchLiteProTask.model_validate(_task_input(row))
+        mul_pos = task.gt_solution.code_with_comments.index("def multiply(")
+        mul_pairs_pos = task.gt_solution.code_with_comments.index("def multiply_pairs(")
         assert mul_pos < mul_pairs_pos
         assert (
             "\n\n\n# Given a list of pairs, multiply each pair and return the list of products.\n"
-            in task.gt_solution_with_comments
+            in task.gt_solution.code_with_comments
         )
-        assert "\n\n\ndef multiply_pairs(" in task.gt_solution
+        assert "\n\n\ndef multiply_pairs(" in task.gt_solution.code
 
     def test_gt_solution_with_comments(self) -> None:
         row = make_bigcodebench_lite_pro_row()
         row["task_id"] = "BigCodeBenchLitePro/23"
-        task = RawBigCodeBenchLiteProTask.model_validate(row)
-        assert '"""' in task.gt_solution_with_comments
-        assert "def multiply" in task.gt_solution_with_comments
+        task = RawBigCodeBenchLiteProTask.model_validate(_task_input(row))
+        assert '"""' in task.gt_solution.code_with_comments
+        assert "def multiply" in task.gt_solution.code_with_comments
 
     def test_gt_solution(self) -> None:
         row = make_bigcodebench_lite_pro_row()
         row["task_id"] = "BigCodeBenchLitePro/23"
-        task = RawBigCodeBenchLiteProTask.model_validate(row)
-        assert '"""' not in task.gt_solution
-        assert "#" not in task.gt_solution
-        assert "def multiply" in task.gt_solution
-        assert '"""' not in task.original_function
-        assert "#" not in task.original_function
-        assert '"""' not in task.new_function
-        assert "#" not in task.new_function
-        assert task.original_official_prompt.startswith(
+        task = RawBigCodeBenchLiteProTask.model_validate(_task_input(row))
+        assert '"""' not in task.gt_solution.code
+        assert "#" not in task.gt_solution.code
+        assert "def multiply" in task.gt_solution.code
+        assert '"""' not in task.original_solution.code
+        assert "#" not in task.original_solution.code
+        assert '"""' not in task.new_solution.code
+        assert "#" not in task.new_solution.code
+        assert task.prompts.original_official.startswith(
             "You are an exceptionally intelligent coding assistant"
         )
-        assert '"""' in task.original_official_prompt
-        assert task.new_official_prompt.startswith(
+        assert '"""' in task.prompts.original_official
+        assert task.prompts.new_official.startswith(
             "You are an exceptionally intelligent coding assistant"
         )
-        assert "```python\n" in task.new_official_prompt
-        assert "#" in task.new_official_prompt
+        assert "```python\n" in task.prompts.new_official
+        assert "#" in task.prompts.new_official
 
     def test_new_entry_point(self) -> None:
         row = make_bigcodebench_lite_pro_row()
         row["task_id"] = "BigCodeBenchLitePro/23"
-        task = RawBigCodeBenchLiteProTask.model_validate(row)
-        assert task.new_entry_point == "multiply_pairs"
+        task = RawBigCodeBenchLiteProTask.model_validate(_task_input(row))
+        assert task.target.name == "multiply_pairs"
 
     def test_new_description(self) -> None:
         row = make_bigcodebench_lite_pro_row()
         row["task_id"] = "BigCodeBenchLitePro/23"
-        task = RawBigCodeBenchLiteProTask.model_validate(row)
-        assert "list of pairs" in task.new_description
+        task = RawBigCodeBenchLiteProTask.model_validate(_task_input(row))
+        assert "list of pairs" in task.description
 
     def test_new_docstring_must_be_present_in_new_solution(self) -> None:
         row = make_bigcodebench_lite_pro_row(
@@ -263,18 +266,19 @@ class TestRawBigCodeBenchLiteProTask:
         with pytest.raises(
             ValueError, match="new function docstring must be present in new_solution"
         ):
-            RawBigCodeBenchLiteProTask.model_validate(row)
+            task = RawBigCodeBenchLiteProTask.model_validate(_task_input(row))
+            _ = task.new_solution.docstrings_and_comments
 
     def test_run_test_passes_gt(self) -> None:
         row = make_bigcodebench_lite_pro_row()
         row["task_id"] = "BigCodeBenchLitePro/23"
-        task = RawBigCodeBenchLiteProTask.model_validate(row)
+        task = RawBigCodeBenchLiteProTask.model_validate(_task_input(row))
         assert task.run_test_on_gt_solution() is True
 
     def test_run_test_fails_bad_code(self) -> None:
         row = make_bigcodebench_lite_pro_row()
         row["task_id"] = "BigCodeBenchLitePro/23"
-        task = RawBigCodeBenchLiteProTask.model_validate(row)
+        task = RawBigCodeBenchLiteProTask.model_validate(_task_input(row))
         bad_code = "def multiply_pairs(pairs):\n    return []\n"
         assert task.run_test(bad_code) is False
 
@@ -283,7 +287,7 @@ class TestRawBigCodeBenchLiteProTask:
             new_solution="    return []\n",
         )
         row["task_id"] = "BigCodeBenchLitePro/23"
-        task = RawBigCodeBenchLiteProTask.model_validate(row)
+        task = RawBigCodeBenchLiteProTask.model_validate(_task_input(row))
         assert task.validated is False
         assert task.run_test_on_gt_solution() is False
 
@@ -293,5 +297,5 @@ class TestRawBigCodeBenchLiteProTask:
         )
         row["task_id"] = "BigCodeBenchLitePro/23"
         row["validated"] = True
-        task = RawBigCodeBenchLiteProTask.model_validate(row)
+        task = RawBigCodeBenchLiteProTask.model_validate(_task_input(row))
         assert task.validated is True

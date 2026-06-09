@@ -36,21 +36,10 @@ def _():
 def render_sample_fields(sample, *, prefix=None, suppress_prefix=None):
     return mo.vstack(
         [
-            mo.accordion(
-                {
-                    field: (
-                        mo.plain_text(str(value))
-                        if field in sample.non_code_fields
-                        else mo.ui.code_editor(str(value))
-                    )
-                }
-            )
+            mo.accordion({field: mo.ui.code_editor(str(value))})
             for field, value in sample.model_dump().items()
             if (prefix is None or field.startswith(prefix))
-            and (
-                suppress_prefix is None
-                or not field.startswith(suppress_prefix)
-            )
+            and (suppress_prefix is None or not field.startswith(suppress_prefix))
         ]
     )
 
@@ -76,7 +65,7 @@ def _(sample):
     mo.vstack(
         [
             mo.md("## Source Fields"),
-            render_sample_fields(sample, prefix="source__"),
+            render_sample_fields(sample.source),
         ]
     ) if sample is not None else None
     return
@@ -87,7 +76,7 @@ def _(sample):
     mo.vstack(
         [
             mo.md("## Derived Fields"),
-            render_sample_fields(sample, suppress_prefix="source__"),
+            render_sample_fields(sample),
         ]
     ) if sample is not None else None
     return

@@ -1,8 +1,11 @@
+from typing import cast
+
 import pytest
 
 from nl_code.code_execution.models import CodeExecutionInfrastructureError
 from nl_code.datasets.dataset import FlawedSample
 from nl_code.datasets.humaneval_dataset import HumanEvalDataset
+from nl_code.datasets.humaneval_task import RawHumanEvalTask
 
 from conftest import make_humaneval_row, prime_dataset_cache
 
@@ -43,16 +46,44 @@ class TestHumanEvalDataset:
             HumanEvalDataset(), [make_humaneval_row()], monkeypatch
         )
         task = ds.tasks["HumanEval/0"]
-        assert '"""' not in task.gt_solution
+        assert '"""' not in task.source.code
 
-    def test_derived_tasks_have_description(
+    def test_get_test_cases_at_index(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        ds = cast(
+            HumanEvalDataset,
+            prime_dataset_cache(
+                HumanEvalDataset(),
+                [make_humaneval_row()],
+                monkeypatch,
+            ),
+        )
+
+        cases = list(ds.get_test_cases_at_index(0))
+
+        assert [case.input_value for case in cases] == [[1, 2], [0, 0], [-1, 1]]
+        assert [case.expected_output for case in cases] == [3, 0, 0]
+        raw = cast(RawHumanEvalTask, ds.get_raw_sample_at_index(0))
+        assert raw.test_suite.assertion_test_code_for_index(0).endswith(
+            "\n\ncheck(add)\n"
+        )
+
+    def test_cached_reload_restores_test_suite(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        ds = prime_dataset_cache(
-            HumanEvalDataset(), [make_humaneval_row()], monkeypatch
+        ds = cast(
+            HumanEvalDataset,
+            prime_dataset_cache(
+                HumanEvalDataset(),
+                [make_humaneval_row()],
+                monkeypatch,
+            ),
         )
-        task = ds.tasks["HumanEval/0"]
-        assert task.description == "Add two integers and return the result."
+
+        raw = cast(RawHumanEvalTask, ds.raw_samples["HumanEval/0"])
+
+        assert raw.test_suite.shape == "inputs_results"
+        assert raw.test_suite.inputs == [[1, 2], [0, 0], [-1, 1]]
+        assert raw.test_suite.results == [3, 0, 0]
 
     def test_docker_failures_are_tracked_separately(
         self, monkeypatch: pytest.MonkeyPatch

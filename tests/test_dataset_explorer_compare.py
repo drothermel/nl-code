@@ -133,16 +133,12 @@ def test_get_comparison_summarizes_counts_metrics_and_ratios(
     assert human_row.flawed_rate == 1.0
 
     human_metric_stats = _metric_stats_by_key(human_row)
-    human_task = explorer_service.DATASET_CACHE["humaneval-plus"].tasks["HumanEval/0"]
     human_raw = cast(
         RawHumanEvalTask,
         explorer_service.DATASET_CACHE["humaneval-plus"].raw_samples["HumanEval/0"],
     )
-    assert human_metric_stats["description_length_chars"].median == float(
-        len(human_task.description)
-    )
     assert human_metric_stats["prompt_length_chars"].median == float(
-        len(human_raw.official_prompt)
+        len(human_raw.source.prompt)
     )
 
     mbpp_row = response.datasets[1]
@@ -151,7 +147,7 @@ def test_get_comparison_summarizes_counts_metrics_and_ratios(
     mbpp_dataset = explorer_service.DATASET_CACHE["mbpp-pro"]
 
     derived_lengths = sorted(
-        float(len(task.gt_solution)) for task in mbpp_dataset.tasks.values()
+        float(len(task.source.code)) for task in mbpp_dataset.tasks.values()
     )
     expected_derived_p90 = derived_lengths[0] + 0.9 * (
         derived_lengths[1] - derived_lengths[0]
@@ -160,7 +156,7 @@ def test_get_comparison_summarizes_counts_metrics_and_ratios(
     assert mbpp_metric_stats["derived_code_length_chars"].p90 == expected_derived_p90
 
     ratios = sorted(
-        float(len(raw.source__test_code)) / float(len(task.gt_solution))
+        float(len(raw.source.test_code)) / float(len(task.source.code))
         for task_id, task in mbpp_dataset.tasks.items()
         for raw in [cast(RawMbppProTask, mbpp_dataset.raw_samples[task_id])]
     )
@@ -199,13 +195,44 @@ def test_compare_endpoint_returns_compare_payload(
         "mbpp-pro",
     ]
     assert any(
-        series["key"] == "description_length_chars"
+        series["key"] == "derived_code_length_chars"
         for series in payload["metric_series"]
     )
     assert any(
-        series["key"] == "description_to_prompt_ratio"
+        series["key"] == "derived_code_to_raw_source_ratio"
         for series in payload["ratio_series"]
     )
+
+
+def test_humaneval_raw_detail_uses_test_suite_design(
+    configured_compare_registry: None,
+) -> None:
+    detail = explorer_service.get_raw_detail("humaneval-plus", "HumanEval/0")
+
+    assert detail.detail_kind == "humaneval_raw_detail"
+    solution_section = next(
+        section
+        for section in detail.sections
+        if section.title == "Prompt and Solutions"
+    )
+    solution_fields = {field.key: field for field in solution_section.fields}
+    assert "def add" in solution_fields["gt_solution.code"].value
+    assert '"""' not in solution_fields["gt_solution.code"].value
+    assert '"""' in solution_fields["gt_solution.code_with_comments"].value
+
+    tests_section = next(
+        section for section in detail.sections if section.title == "Tests"
+    )
+    fields = {field.key: field for field in tests_section.fields}
+    assert fields["test_shape"].value == "inputs_results"
+    assert fields["test_case_count"].value == "3"
+    assert fields["test_suite.inputs"].value == [[1, 2], [0, 0], [-1, 1]]
+    assert fields["test_suite.results"].value == [3, 0, 0]
+    assert "inputs = [[1, 2]]" in fields["test_suite.first_case_source"].value
+    assert "check(add)" in fields["test_suite.first_case_assertion_code"].value
+    assert detail.raw_json["source"]["test"]
+    assert "test_suite" not in detail.raw_json
+    assert "gt_solution" not in detail.raw_json
 
 
 def test_refresh_endpoint_reloads_cached_dataset(

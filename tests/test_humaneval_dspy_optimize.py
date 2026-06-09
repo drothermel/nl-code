@@ -7,9 +7,9 @@ from typing import Any
 
 import dspy
 import pytest
-from pydantic import BaseModel
 
 from nl_code.code_execution.models import TestCaseResult
+from nl_code.datasets.humaneval_task import RawHumanEvalTask
 from nl_code.optim import dspy_generators as gen_mod
 from nl_code.optim import humaneval_dspy_optimize as opt_mod
 from nl_code.optim.dspy_generators import (
@@ -28,16 +28,6 @@ from nl_code.optim.humaneval_dspy_optimize import (
     score_value,
     validate_disjoint_splits,
 )
-
-
-class FakeSample(BaseModel):
-    task_id: str
-    source__prompt: str
-    gt_solution: str
-    function_stub: str
-    entry_point: str
-    test_inputs: list[Any]
-    test_results: list[Any] | None
 
 
 def test_parse_task_ids_accepts_repeated_and_csv_values() -> None:
@@ -75,10 +65,13 @@ def test_validate_disjoint_splits_rejects_duplicate_ids_within_split() -> None:
         )
 
 
-def test_default_dspy_model_resolves_via_catalog() -> None:
-    config = resolve_openrouter_llm_config(gen_mod.DEFAULT_DSPY_MODEL)
-    assert config.model == "openrouter/openai/gpt-oss-20b"
-    assert config.reasoning == {"effort": "low"}
+def test_default_dspy_model_uses_catalog_first_defaults() -> None:
+    resolved = gen_mod.resolve_dspy_lm_settings()
+    assert gen_mod.DEFAULT_LLM_CONFIG_ID == "openrouter/xiaomi/mimo-v2-flash/off/v1"
+    assert gen_mod.DEFAULT_DSPY_MODEL == "openrouter/xiaomi/mimo-v2-flash"
+    assert resolved.llm_config_id == gen_mod.DEFAULT_LLM_CONFIG_ID
+    assert resolved.model == gen_mod.DEFAULT_DSPY_MODEL
+    assert resolved.reasoning_config == {"enabled": False}
 
 
 def test_metric_raises_on_infrastructure_error(
@@ -155,9 +148,8 @@ def test_score_value_accepts_score_with_feedback_like_object() -> None:
     assert score_value(1.0) == 1.0
 
 
-def test_supported_openrouter_llm_config_ids_are_low_off_or_na() -> None:
+def test_supported_openrouter_llm_config_ids_are_off_or_na() -> None:
     assert supported_openrouter_llm_config_ids() == (
-        "openrouter/openai/gpt-oss-20b/low/v1",
         "openrouter/deepseek/deepseek-chat-v3.1/off/v1",
         "openrouter/xiaomi/mimo-v2-flash/off/v1",
         "openrouter/nvidia/llama-3.3-nemotron-super-49b-v1.5/off/v1",
@@ -170,14 +162,11 @@ def test_supported_openrouter_llm_config_ids_are_low_off_or_na() -> None:
 
 
 def test_openrouter_llm_config_reasoning_variants() -> None:
-    low = resolve_openrouter_llm_config("openrouter/openai/gpt-oss-20b/low/v1")
     off = resolve_openrouter_llm_config("openrouter/deepseek/deepseek-chat-v3.1/off/v1")
     no_control = resolve_openrouter_llm_config(
         "openrouter/mistralai/devstral-small/na/v1"
     )
 
-    assert low.model == "openrouter/openai/gpt-oss-20b"
-    assert low.reasoning == {"effort": "low"}
     assert off.model == "openrouter/deepseek/deepseek-chat-v3.1"
     assert off.reasoning == {"enabled": False}
     assert no_control.model == "openrouter/mistralai/devstral-small"
@@ -282,7 +271,9 @@ def test_optimization_log_context_tees_output_and_events(
 def test_direct_examples_only_pass_code_stub_as_program_input() -> None:
     examples = direct_examples(_samples_by_task_id(), ["HumanEval/0"])
 
-    assert examples[0].inputs().toDict() == {"code_stub": "def add_one(x):\n"}
+    assert examples[0].inputs().toDict() == {
+        "code_stub": ('def add_one(x):\n    """Return one more than x."""\n')
+    }
     assert examples[0].task_id == "HumanEval/0"
     assert examples[0].completed_code == "def add_one(x):\n    return x + 1\n"
 
@@ -294,6 +285,7 @@ def test_encoder_examples_only_pass_input_code_as_program_input() -> None:
         "input_code": "def add_one(x):\n    return x + 1\n"
     }
     assert examples[0].function_stub == "def add_one(x):\n"
+    assert '"""' not in examples[0].function_stub
 
 
 def test_metric_scores_generated_code(
@@ -358,17 +350,46 @@ def test_encoder_metric_accepts_bootstrap_trace_argument(
     assert metric(example, prediction, []) == 1.0
 
 
-def _samples_by_task_id() -> dict[str, FakeSample]:
-    sample = FakeSample(
+def _samples_by_task_id() -> dict[str, RawHumanEvalTask]:
+    sample = _raw_sample(
         task_id="HumanEval/0",
-        source__prompt="def add_one(x):\n",
-        gt_solution="def add_one(x):\n    return x + 1\n",
-        function_stub="def add_one(x):\n",
         entry_point="add_one",
-        test_inputs=[[1]],
-        test_results=[2],
+        prompt=('def add_one(x):\n    """Return one more than x."""\n'),
+        canonical_solution="    return x + 1\n",
+        test=_inputs_results_test(inputs="[[1]]", results="[2]"),
     )
     return {sample.task_id: sample}
+
+
+def _raw_sample(
+    *,
+    task_id: str,
+    entry_point: str,
+    prompt: str,
+    canonical_solution: str,
+    test: str,
+) -> RawHumanEvalTask:
+    return RawHumanEvalTask.model_validate(
+        {
+            "task_id": task_id,
+            "entry_point": entry_point,
+            "source": {
+                "prompt": prompt,
+                "canonical_solution": canonical_solution,
+                "test": test,
+            },
+        }
+    )
+
+
+def _inputs_results_test(*, inputs: str, results: str) -> str:
+    return (
+        "def check(candidate):\n"
+        f"    inputs = {inputs}\n"
+        f"    results = {results}\n"
+        "    for inp, expected in zip(inputs, results):\n"
+        "        assert candidate(*inp) == expected\n"
+    )
 
 
 def _fake_evaluate(**_kwargs: Any) -> tuple[str, list[TestCaseResult], float]:

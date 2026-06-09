@@ -56,18 +56,21 @@ uv run nl-code-test docker -q tests/test_execution_runner.py
 
 Loaders for HumanEval, HumanEval-Pro, MBPP-Pro, BigCodeBench Lite Pro, and ClassEval. Datasets are fetched from HuggingFace, parsed into `Task` objects, and cached locally.
 
-The corresponding raw task models preserve the original dataset inputs as `source__...` fields and expose richer derived artifacts such as:
-- official prompt fields
-- stripped and comment-preserving code stubs
-- stripped and comment-preserving ground-truth code
+Derived `Task` objects use schema version `v3`:
+- `target: TaskTarget` with `name` and `kind` (`"function"` or `"class"`)
+- `source: TaskSource` with runnable ground-truth code in `source.code`
 
-Across task families, `new_official_prompt`, `new_code_stub`, and `new_code_stub_with_comments` provide a consistent interface for prompt/stub access even when the underlying dataset-specific field names differ.
+Raw task models preserve the original dataset inputs in a nested `source` object. Derived artifacts such as ground-truth code, parsed test suites, and official prompts are exposed as `@cached_property` helpers (`gt_solution`, `test_suite`, `prompts`, and family-specific views) and are not serialized into cache payloads.
 
-`DatasetSlice` supports filtering, seeded shuffling, limits, and parallel accessors for common raw-task artifacts:
-- `get_source_code(task_id)`
-- `get_official_prompt(task_id)`
-- `get_code_stub(task_id)`
-- `get_code_stub_with_comments(task_id)`
+`DatasetSlice` supports filtering, seeded shuffling, limits, and accessors for common artifacts:
+- `get_source_code(task_id)` — normalized runnable code from the derived `Task`
+- `get_official_prompt(task_id)` — dataset-specific official prompt (HumanEval returns the raw HuggingFace prompt)
+
+Parsed dataset caches use schema version 3. Rebuild after upgrading:
+
+```bash
+uv run python -m nl_code.datasets.cache_cli rebuild all
+```
 
 ## Dataset Explorer
 
@@ -80,8 +83,14 @@ generation against an encoder-decoder setup on HumanEval.
 
 - `scripts/humaneval_dspy_eval.py` runs the evaluation from the command line.
   It writes a run JSON plus generation-history JSONL records under `logs/`.
-  ENCDEC eval defaults to stub encoder input (`source__prompt`); pass
-  `--encoder-input oracle` to feed `gt_solution` for oracle round-trip checks.
+  ENCDEC eval uses `raw.code_stub` (full prompt with docstrings) as the default
+  encoder input; pass `--encoder-input oracle` to feed `raw.gt_solution.code`
+  for oracle round-trip checks. The decoder always receives
+  `raw.function_stub`, which strips docstrings while preserving comments.
+  Random `--n-samples` selection includes only HumanEval tasks whose tests
+  expose expected outputs (`inputs_results` shape). Tasks that compare against
+  a reference function (`inputs_ref_func`) are skipped even when selected
+  explicitly via `--task-id`.
 - `scripts/optimize_humaneval_dspy_direct.py` and
   `scripts/optimize_humaneval_dspy_encdec.py` run MIPRO optimization for the
   direct and encoder-decoder HumanEval programs.
@@ -119,8 +128,41 @@ uv run marimo edit nbs/exp/human_eval_dspy.py
 
 ### DSPy Log And Report Inspection
 
-The branch also includes forensic tooling for the archived DSPy experiment
-corpus under `data/code-comp/dspy-exps/v0/`.
+Forensic tooling works in layers. Flat `logs/` output from eval and optimization
+is not a session root on its own.
+
+```text
+logs/  ──parse_humaneval_dspy_logs.py──►  one aggregate snapshot JSON
+logs/  ──sessionize_dspy_logs_v0.py────►  sessionized corpus (metadata.json + raw/)
+sessionized corpus  ──inspect_dspy_* --walk──►  parsed_*_reports/
+parsed_gepa_reports/  ──build_dspy_gepa_agent_bundle.py──►  agent bundle JSON
+```
+
+Use `parse_humaneval_dspy_logs.py` for quick notebook-style exploration across
+all files in `logs/`. Use `sessionize_dspy_logs_v0.py` before
+`inspect_dspy_eval_session.py` or `inspect_dspy_gepa_session.py`. Those inspect
+scripts require a session directory containing `metadata.json`; pointing them at
+raw subdirectories such as `logs/eval_full_5x/baseline_direct` will fail.
+
+The canonical sessionized corpus lives outside the repo at
+`~/drotherm/data/code-comp/dspy-exps/v0`. Regenerate it from the repo root:
+
+```bash
+SESSIONIZE_SOURCE_ROOT=$PWD \
+SESSIONIZE_OUTPUT_ROOT=~/drotherm/data/code-comp/dspy-exps/v0 \
+uv run python scripts/sessionize_dspy_logs_v0.py
+
+uv run python scripts/inspect_dspy_eval_session.py \
+  ~/drotherm/data/code-comp/dspy-exps/v0 --walk
+
+uv run python scripts/inspect_dspy_gepa_session.py \
+  ~/drotherm/data/code-comp/dspy-exps/v0 --walk
+
+uv run python scripts/build_dspy_gepa_agent_bundle.py \
+  ~/drotherm/data/code-comp/dspy-exps/v0/parsed_gepa_reports
+```
+
+Scripts:
 
 - `scripts/sessionize_dspy_logs_v0.py` groups raw DSPy log artifacts into
   session directories and writes session metadata.
@@ -135,7 +177,8 @@ corpus under `data/code-comp/dspy-exps/v0/`.
   reports into one cross-session `gepa_optimization_agent_bundle.json` for
   downstream analysis agents or UI tooling. The bundle omits raw LLM request
   payloads; treat parsed forensic reports as sensitive if shared externally.
-- `docs/dspy-log-sessions-v0.md` documents the sessionized log corpus.
+- `docs/dspy-log-sessions-v0.md` documents the sessionized log corpus and
+  sessionization rules.
 - `docs/dspy-eval-optimizer-extraction-progress.md` records extraction progress
   and the known limits of eval versus optimizer logs.
 - `docs/session_000018_gepa_prompt_variants.md` is a concrete session-level

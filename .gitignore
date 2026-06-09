@@ -1,7 +1,9 @@
 logs/
 los/
+.worktrees/
 .env
 __marimo__/
+nbs/exp/
 
 # Python
 __pycache__/

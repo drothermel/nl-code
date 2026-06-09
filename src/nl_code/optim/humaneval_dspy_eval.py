@@ -18,6 +18,7 @@ from nl_code.code_execution.models import (
 )
 from nl_code.code_execution.runner import run_test_cases
 from nl_code.datasets import HumanEvalDataset
+from nl_code.datasets.humaneval_task import RawHumanEvalTask
 from nl_code.optim.dspy_generators import (
     CodeSpecDecoder,
     CodeSpecEncoder,
@@ -27,6 +28,14 @@ from nl_code.optim.dspy_generators import (
     DirectCodeGenerator,
     EncoderDecoderCodeGenerator,
     configure_dspy_lm,
+    resolve_dspy_lm_settings,
+)
+from nl_code.optim.humaneval_dspy_sample import (
+    code_stub,
+    function_stub,
+    gt_code,
+    has_function_call_tests,
+    test_cases as dspy_test_cases,
 )
 
 RUN_SINGLE_TEST_CASE_FUNCTION = "run_single_test_case"
@@ -90,6 +99,16 @@ class HumanEvalDspyEvalConfig(BaseModel):
                 "encdec_program_path cannot be combined with encoder_program_path "
                 "or decoder_program_path"
             )
+        resolved = resolve_dspy_lm_settings(
+            model=self.model,
+            llm_config_id=self.llm_config_id,
+            reasoning_effort=self.reasoning_effort,
+            reasoning_config=self.reasoning_config,
+        )
+        self.model = resolved.model
+        self.llm_config_id = resolved.llm_config_id
+        self.reasoning_effort = resolved.reasoning_effort
+        self.reasoning_config = resolved.reasoning_config
         return self
 
 
@@ -155,7 +174,7 @@ def select_dataset_indices(
     evaluable_indices = [
         index
         for index in range(len(dataset.raw_samples))
-        if _sample_at_index(dataset, index).test_results is not None
+        if has_function_call_tests(_sample_at_index(dataset, index))
     ]
     sample_n = min(n_samples, len(evaluable_indices))
     return random.Random(seed).sample(evaluable_indices, k=sample_n)
@@ -174,23 +193,14 @@ def build_single_test_case_solution(code: str, entry_point: str) -> str:
     )
 
 
-def build_test_cases(sample: Any) -> list[TestCase]:
-    if sample.test_results is None:
-        raise ValueError("sample does not provide expected test results")
-    return [
-        TestCase(input_value=input_value, expected_output=expected_output)
-        for input_value, expected_output in zip(
-            sample.test_inputs,
-            sample.test_results,
-            strict=True,
-        )
-    ]
+def build_test_cases(sample: RawHumanEvalTask) -> list[TestCase]:
+    return dspy_test_cases(sample)
 
 
 def evaluate_completed_code(
     *,
     completed_code: str,
-    sample: Any,
+    sample: RawHumanEvalTask,
     timeout_seconds: float = 30.0,
     docker_image: str | None = None,
 ) -> tuple[str, list[TestCaseResult], float]:
@@ -227,6 +237,7 @@ def run_humaneval_dspy_eval(
             raise ValueError("api_key is required when generators are not provided")
         lm = configure_dspy_lm(
             model=config.model,
+            llm_config_id=config.llm_config_id,
             api_key=api_key,
             api_base=config.api_base,
             reasoning_effort=config.reasoning_effort,
@@ -472,7 +483,7 @@ def _run_attempt(
     generation_log_file: Path,
 ) -> HumanEvalDspyAttemptResult:
     sample = _sample_at_index(dataset, dataset_index)
-    if sample.test_results is None:
+    if not has_function_call_tests(sample):
         return HumanEvalDspyAttemptResult(
             generation_type=generation_type,
             dataset_index=dataset_index,
@@ -546,21 +557,19 @@ def _run_attempt(
 
 def _generate_prediction(
     *,
-    sample: Any,
+    sample: RawHumanEvalTask,
     generation_type: GenerationType,
     encoder_input: EncoderInputMode,
     direct_generator: GeneratorCallable,
     encoder_decoder_generator: GeneratorCallable,
 ) -> Any:
     if generation_type == GenerationType.DIRECT:
-        return direct_generator(code_stub=sample.source__prompt)
+        return direct_generator(code_stub=code_stub(sample))
     if generation_type == GenerationType.ENCDEC:
-        input_code = (
-            sample.gt_solution if encoder_input == "oracle" else sample.source__prompt
-        )
+        input_code = gt_code(sample) if encoder_input == "oracle" else code_stub(sample)
         return encoder_decoder_generator(
             input_code=input_code,
-            function_stub=sample.function_stub,
+            function_stub=function_stub(sample),
         )
     raise ValueError(f"cannot generate prediction for {generation_type!r}")
 
@@ -600,8 +609,13 @@ def _prediction_field(prediction: Any, field: str, *, default: Any) -> Any:
     return getattr(prediction, field, default)
 
 
-def _sample_at_index(dataset: Any, index: int) -> Any:
-    return dataset.get_raw_sample_at_index(index)
+def _sample_at_index(dataset: Any, index: int) -> RawHumanEvalTask:
+    raw = dataset.get_raw_sample_at_index(index)
+    if not isinstance(raw, RawHumanEvalTask):
+        raise TypeError(
+            f"expected RawHumanEvalTask at index {index}, got {type(raw).__name__}"
+        )
+    return raw
 
 
 def _normalize_dataset_index(dataset: Any, index: int) -> int:
