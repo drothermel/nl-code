@@ -49,10 +49,7 @@ def render_sample_fields(sample, *, prefix=None, suppress_prefix=None):
             )
             for field, value in sample.model_dump().items()
             if (prefix is None or field.startswith(prefix))
-            and (
-                suppress_prefix is None
-                or not field.startswith(suppress_prefix)
-            )
+            and (suppress_prefix is None or not field.startswith(suppress_prefix))
         ]
     )
 
@@ -68,12 +65,12 @@ def run_single_test_case(input_value):
 
 @app.cell
 def _(ds):
+    import random
+
     total_n = len(ds.raw_samples)
     val_n = 10
     seed = 42
-    val_ids = [
-        0
-    ]  # TODO: seeded random sample of ids in range [0, total_n-1] (eg from ds.raw_samples)
+    val_ids = random.Random(seed).sample(range(total_n), min(val_n, total_n))
     return (val_ids,)
 
 

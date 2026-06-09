@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 
 import typer
@@ -28,7 +28,7 @@ def main(
 ) -> None:
     snapshot = parse_humaneval_dspy_logs(logs_dir)
     if output_path is None:
-        timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        timestamp = datetime.now(datetime.UTC).strftime("%Y%m%dT%H%M%SZ")
         output_path = logs_dir / f"human_eval_dspy_snapshot_{timestamp}.json"
     written_path = write_humaneval_dspy_log_snapshot(snapshot, output_path)
 

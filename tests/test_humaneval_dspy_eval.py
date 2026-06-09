@@ -64,7 +64,8 @@ class FakeEncoderDecoderGenerator:
 
 
 class FakeLm:
-    history: list[dict[str, Any]] = [{"model": "fake"}]
+    def __init__(self) -> None:
+        self.history: list[dict[str, Any]] = [{"model": "fake"}]
 
 
 class MutableFakeLm:

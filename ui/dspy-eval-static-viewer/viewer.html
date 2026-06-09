@@ -222,9 +222,9 @@
     <h1>DSPy GEPA / HumanEval Static Viewer</h1>
     <p id="subtitle">Loading compact eval data…</p>
     <div class="tabs">
-      <button class="tab-btn active" data-tab="flow">Prompt flow</button>
-      <button class="tab-btn" data-tab="matrix">Sample variation matrix</button>
-      <button class="tab-btn" data-tab="about">About / usage</button>
+      <button type="button" class="tab-btn active" data-tab="flow">Prompt flow</button>
+      <button type="button" class="tab-btn" data-tab="matrix">Sample variation matrix</button>
+      <button type="button" class="tab-btn" data-tab="about">About / usage</button>
     </div>
   </header>
 
@@ -239,16 +239,16 @@
         <div>
           <label>Prompt flow mode</label>
           <div class="segmented" id="flowModeButtons">
-            <button data-flow-mode="lineage" class="active">Final lineage</button>
-            <button data-flow-mode="promoted">Promoted only</button>
-            <button data-flow-mode="all">All candidates</button>
+            <button type="button" data-flow-mode="lineage" class="active">Final lineage</button>
+            <button type="button" data-flow-mode="promoted">Promoted only</button>
+            <button type="button" data-flow-mode="all">All candidates</button>
           </div>
         </div>
         <div>
           <label for="promptSearch">Search prompt text / label</label>
           <input id="promptSearch" type="search" placeholder="e.g. executable Python, edge cases" />
         </div>
-        <button class="action" id="fitPromptCards">Jump to top-left</button>
+        <button type="button" class="action" id="fitPromptCards">Jump to top-left</button>
       </div>
       <div class="flow-shell">
         <div class="flow-info">
@@ -298,9 +298,9 @@
             <option value="task_id">Task id</option>
           </select>
         </div>
-        <button class="action" data-download="matrix">Download matrix CSV</button>
-        <button class="action" data-download="stable">Download stable CSV</button>
-        <button class="action" data-download="unstable">Download unstable CSV</button>
+        <button type="button" class="action" data-download="matrix">Download matrix CSV</button>
+        <button type="button" class="action" data-download="stable">Download stable CSV</button>
+        <button type="button" class="action" data-download="unstable">Download unstable CSV</button>
       </div>
       <div class="summary" id="matrixSummary"></div>
       <div class="matrix-wrap">
@@ -684,7 +684,7 @@
         const reps = attempts.map(a => {
           const cls = a.passed === true ? 'pass' : a.passed === false ? 'fail' : 'skip';
           const active = state.selectedAttempt && state.selectedAttempt.label === label && Number(state.selectedAttempt.repeat) === Number(a.repeat_index);
-          return `<button class="repeat-btn ${cls} ${active ? 'active' : ''}" data-label="${esc(label)}" data-repeat="${esc(a.repeat_index)}" title="repeat ${esc(a.repeat_index)} • ${percent(a.test_pass_rate)}">${esc(a.repeat_index)}</button>`;
+          return `<button type="button" class="repeat-btn ${cls} ${active ? 'active' : ''}" data-label="${esc(label)}" data-repeat="${esc(a.repeat_index)}" title="repeat ${esc(a.repeat_index)} • ${percent(a.test_pass_rate)}">${esc(a.repeat_index)}</button>`;
         }).join('');
         return `<div class="condition-card">
           <h3><span>${esc(label)}</span><span>${esc(cell.pass_count ?? '—')}/${esc(cell.evaluated_attempt_count ?? '—')}</span></h3>
