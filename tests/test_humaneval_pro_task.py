@@ -264,7 +264,8 @@ class TestRawHumanEvalProTask:
         with pytest.raises(
             ValueError, match="new function docstring must be present in new_solution"
         ):
-            RawHumanEvalProTask.model_validate(_task_input(row))
+            task = RawHumanEvalProTask.model_validate(_task_input(row))
+            _ = task.new_solution.docstrings_and_comments
 
     def test_run_test_passes_gt(self) -> None:
         row = make_humaneval_pro_row()

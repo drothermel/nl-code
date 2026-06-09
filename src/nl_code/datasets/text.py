@@ -1,7 +1,9 @@
 def strip_surrounding_empty_lines(value: str) -> str:
     lines = value.splitlines()
-    while lines and not lines[0].strip():
-        lines.pop(0)
-    while lines and not lines[-1].strip():
-        lines.pop()
-    return "\n".join(lines)
+    start = 0
+    while start < len(lines) and not lines[start].strip():
+        start += 1
+    end = len(lines)
+    while end > start and not lines[end - 1].strip():
+        end -= 1
+    return "\n".join(lines[start:end])

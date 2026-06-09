@@ -1,3 +1,12 @@
+"""DSPy-facing accessors for HumanEval raw tasks.
+
+``code_stub`` is the full source prompt (docstrings and comments preserved).
+Use it for direct generation and as the default encoder input in enc/dec eval.
+
+``function_stub`` removes docstrings while preserving comments. Use it as the
+decoder signature input in enc/dec and GEPA workflows.
+"""
+
 from __future__ import annotations
 
 from nl_code.code_execution.models import TestCase
@@ -5,11 +14,11 @@ from nl_code.datasets.humaneval_task import RawHumanEvalTask
 
 
 def code_stub(raw: RawHumanEvalTask) -> str:
-    return raw.source.prompt
+    return raw.code_stub
 
 
 def function_stub(raw: RawHumanEvalTask) -> str:
-    return raw.source.prompt
+    return raw.function_stub
 
 
 def gt_code(raw: RawHumanEvalTask) -> str:

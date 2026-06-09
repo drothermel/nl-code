@@ -126,6 +126,12 @@ class TestParseSourceWithStubBody:
         tree = parse_source_with_stub_body("def foo():")
         assert isinstance(tree.body[0], ast.FunctionDef)
 
+    def test_parses_stub_ending_in_ellipsis(self) -> None:
+        tree = parse_source_with_stub_body("def foo():\n    ...")
+        assert isinstance(tree.body[0], ast.FunctionDef)
+        assert isinstance(tree.body[0].body[0], ast.Expr)
+        assert isinstance(tree.body[0].body[0].value, ast.Constant)
+
 
 class TestFindFirstFunctionName:
     def test_finds_first(self) -> None:
@@ -241,9 +247,19 @@ class TestSourceSpans:
     def test_line_col_to_index_handles_utf8_byte_offsets(self) -> None:
         source = "é = 1\nvalue = 2\n"
         assign = ast.parse(source).body[1]
+        assert isinstance(assign, ast.Assign)
         assert line_col_to_index(source, assign.lineno, assign.col_offset) == len(
             "é = 1\n"
         )
+
+    def test_line_col_to_index_maps_constant_byte_offset_to_character_index(self) -> None:
+        source = "é = 1\n"
+        stmt = ast.parse(source).body[0]
+        assert isinstance(stmt, ast.Assign)
+        value = stmt.value
+        assert isinstance(value, ast.Constant)
+        index = line_col_to_index(source, value.lineno, value.col_offset)
+        assert source[index] == "1"
 
     def test_node_span_and_replace_source_spans(self) -> None:
         source = "x = [1, 2, 3]\n"

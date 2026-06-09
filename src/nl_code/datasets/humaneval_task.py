@@ -14,6 +14,7 @@ from nl_code.code_parsing import (
     node_references_name,
     node_span,
     remove_docstrings_and_comments,
+    remove_docstrings_preserving_comments,
     replace_source_spans,
     single_item_list_source,
 )
@@ -36,6 +37,11 @@ def build_assertion_test_code(test_source: Any, entry_point: Any) -> str:
 
 def build_official_prompt(prompt: Any) -> str:
     return require_string(prompt, name="prompt")
+
+
+def build_function_stub(prompt: Any) -> str:
+    prompt_str = require_string(prompt, name="prompt")
+    return remove_docstrings_preserving_comments(prompt_str)
 
 
 def get_check_assignment(test_source: Any, name: str, default: object = ...) -> object:
@@ -204,6 +210,11 @@ def parse_inputs_ref_func_test(
 
 
 def parse_humaneval_test(test_source: Any, entry_point: Any) -> HumanEvalTest:
+    """Parse a HumanEval+ test suite, inferring shape from check() assignments.
+
+    Tasks with a ``results = [...]`` assignment use the ``inputs_results`` shape.
+    Otherwise the suite is treated as ``inputs_ref_func``.
+    """
     test_source_str = require_string(test_source, name="test_source")
     check_fn = find_named_function(test_source_str, "check")
     if find_named_assignment_in_body(check_fn.body, "results") is not None:
@@ -265,6 +276,14 @@ class RawHumanEvalTask(BaseModel):
     @cached_property
     def test_suite(self) -> HumanEvalTest:
         return parse_humaneval_test(self.source.test, self.entry_point)
+
+    @cached_property
+    def code_stub(self) -> str:
+        return self.source.prompt
+
+    @cached_property
+    def function_stub(self) -> str:
+        return build_function_stub(self.source.prompt)
 
     def _display_(self) -> Any:
         model_dump = self.model_dump()

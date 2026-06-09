@@ -21,6 +21,8 @@ def parse_source_with_stub_body(source: str) -> ast.Module:
         stripped_source = source.rstrip()
         if stripped_source.endswith(":"):
             return ast.parse(stripped_source + "\n    pass\n")
+        if stripped_source.endswith("..."):
+            return ast.parse(stripped_source + "\n")
         raise
 
 

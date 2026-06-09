@@ -7,9 +7,9 @@ import typer
 
 from nl_code.optim.dspy_generators import (
     DEFAULT_DSPY_MODEL,
+    DEFAULT_LLM_CONFIG_ID,
     DEFAULT_OPENROUTER_BASE_URL,
     DEFAULT_REASONING_EFFORT,
-    resolve_openrouter_llm_config,
 )
 from nl_code.optim.humaneval_dspy_gepa import (
     optimize_encoder_decoder_generation_gepa,
@@ -51,12 +51,18 @@ def main(
     model: str = typer.Option(
         DEFAULT_DSPY_MODEL,
         "--model",
-        help="DSPy/LiteLLM model name used for task and reflection calls. Overridden by --llm-config-id.",
+        help=(
+            "DSPy/LiteLLM model name for raw OpenRouter calls. "
+            f"Defaults to the catalog model behind {DEFAULT_LLM_CONFIG_ID!r}."
+        ),
     ),
     llm_config_id: str | None = typer.Option(
         None,
         "--llm-config-id",
-        help="Supported OpenRouter catalog config id. Overrides --model and --reasoning-effort.",
+        help=(
+            "Supported OpenRouter catalog config id. "
+            f"When omitted, {DEFAULT_LLM_CONFIG_ID!r} is used."
+        ),
     ),
     reasoning_effort: str | None = typer.Option(
         DEFAULT_REASONING_EFFORT,
@@ -128,12 +134,6 @@ def main(
         require_task_ids(task_ids)
         api_key = api_key_from_env()
         auto_mode = None if max_metric_calls is not None else normalize_auto(auto)
-        reasoning_config = None
-        if llm_config_id:
-            lm_catalog_config = resolve_openrouter_llm_config(llm_config_id)
-            model = lm_catalog_config.model
-            reasoning_effort = None
-            reasoning_config = lm_catalog_config.reasoning
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc
     if auto_mode is None and max_metric_calls is None:
@@ -160,7 +160,6 @@ def main(
             api_key=api_key,
             api_base=api_base,
             reasoning_effort=reasoning_effort,
-            reasoning_config=reasoning_config,
             llm_config_id=llm_config_id,
             output_dir=output_dir,
             auto=auto_mode,

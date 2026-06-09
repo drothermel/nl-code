@@ -18,6 +18,7 @@ class TaskTarget(BaseModel):
 
 
 class TaskSource(BaseModel):
+    # Tags provenance for future non-gt source kinds.
     kind: Literal["gt_solution"] = "gt_solution"
     code: str
     language: Literal["python"] = "python"

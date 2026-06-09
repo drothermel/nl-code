@@ -65,9 +65,13 @@ def test_validate_disjoint_splits_rejects_duplicate_ids_within_split() -> None:
         )
 
 
-def test_default_dspy_model_is_raw_litellm_model() -> None:
+def test_default_dspy_model_uses_catalog_first_defaults() -> None:
+    resolved = gen_mod.resolve_dspy_lm_settings()
+    assert gen_mod.DEFAULT_LLM_CONFIG_ID == "openrouter/xiaomi/mimo-v2-flash/off/v1"
     assert gen_mod.DEFAULT_DSPY_MODEL == "openrouter/xiaomi/mimo-v2-flash"
-    assert gen_mod.DEFAULT_REASONING_EFFORT == "none"
+    assert resolved.llm_config_id == gen_mod.DEFAULT_LLM_CONFIG_ID
+    assert resolved.model == gen_mod.DEFAULT_DSPY_MODEL
+    assert resolved.reasoning_config == {"enabled": False}
 
 
 def test_metric_raises_on_infrastructure_error(
@@ -267,7 +271,9 @@ def test_optimization_log_context_tees_output_and_events(
 def test_direct_examples_only_pass_code_stub_as_program_input() -> None:
     examples = direct_examples(_samples_by_task_id(), ["HumanEval/0"])
 
-    assert examples[0].inputs().toDict() == {"code_stub": "def add_one(x):\n"}
+    assert examples[0].inputs().toDict() == {
+        "code_stub": ('def add_one(x):\n    """Return one more than x."""\n')
+    }
     assert examples[0].task_id == "HumanEval/0"
     assert examples[0].completed_code == "def add_one(x):\n    return x + 1\n"
 
@@ -279,6 +285,7 @@ def test_encoder_examples_only_pass_input_code_as_program_input() -> None:
         "input_code": "def add_one(x):\n    return x + 1\n"
     }
     assert examples[0].function_stub == "def add_one(x):\n"
+    assert '"""' not in examples[0].function_stub
 
 
 def test_metric_scores_generated_code(
@@ -347,7 +354,7 @@ def _samples_by_task_id() -> dict[str, RawHumanEvalTask]:
     sample = _raw_sample(
         task_id="HumanEval/0",
         entry_point="add_one",
-        prompt="def add_one(x):\n",
+        prompt=('def add_one(x):\n    """Return one more than x."""\n'),
         canonical_solution="    return x + 1\n",
         test=_inputs_results_test(inputs="[[1]]", results="[2]"),
     )

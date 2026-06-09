@@ -264,7 +264,8 @@ class TestRawMbppProTask:
         with pytest.raises(
             ValueError, match="new function docstring must be present in new_solution"
         ):
-            RawMbppProTask.model_validate(_task_input(row))
+            task = RawMbppProTask.model_validate(_task_input(row))
+            _ = task.new_solution.docstrings_and_comments
 
     def test_run_test_passes_gt(self) -> None:
         row = make_mbpp_pro_row()

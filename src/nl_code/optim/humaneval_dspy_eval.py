@@ -28,6 +28,7 @@ from nl_code.optim.dspy_generators import (
     DirectCodeGenerator,
     EncoderDecoderCodeGenerator,
     configure_dspy_lm,
+    resolve_dspy_lm_settings,
 )
 from nl_code.optim.humaneval_dspy_sample import (
     code_stub,
@@ -98,6 +99,16 @@ class HumanEvalDspyEvalConfig(BaseModel):
                 "encdec_program_path cannot be combined with encoder_program_path "
                 "or decoder_program_path"
             )
+        resolved = resolve_dspy_lm_settings(
+            model=self.model,
+            llm_config_id=self.llm_config_id,
+            reasoning_effort=self.reasoning_effort,
+            reasoning_config=self.reasoning_config,
+        )
+        self.model = resolved.model
+        self.llm_config_id = resolved.llm_config_id
+        self.reasoning_effort = resolved.reasoning_effort
+        self.reasoning_config = resolved.reasoning_config
         return self
 
 
@@ -226,6 +237,7 @@ def run_humaneval_dspy_eval(
             raise ValueError("api_key is required when generators are not provided")
         lm = configure_dspy_lm(
             model=config.model,
+            llm_config_id=config.llm_config_id,
             api_key=api_key,
             api_base=config.api_base,
             reasoning_effort=config.reasoning_effort,

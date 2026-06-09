@@ -266,7 +266,8 @@ class TestRawBigCodeBenchLiteProTask:
         with pytest.raises(
             ValueError, match="new function docstring must be present in new_solution"
         ):
-            RawBigCodeBenchLiteProTask.model_validate(_task_input(row))
+            task = RawBigCodeBenchLiteProTask.model_validate(_task_input(row))
+            _ = task.new_solution.docstrings_and_comments
 
     def test_run_test_passes_gt(self) -> None:
         row = make_bigcodebench_lite_pro_row()

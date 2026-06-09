@@ -18,6 +18,11 @@ def test_strip_surrounding_empty_lines() -> None:
     assert strip_surrounding_empty_lines("\n\n  hello\n\n") == "  hello"
 
 
+def test_strip_surrounding_empty_lines_is_linear() -> None:
+    value = "\n" * 10_000 + "hello" + "\n" * 10_000
+    assert strip_surrounding_empty_lines(value) == "hello"
+
+
 def test_normalize_sequence_index() -> None:
     assert normalize_sequence_index(1, 3, collection_name="item") == 1
     assert normalize_sequence_index(-1, 3, collection_name="item") == 2

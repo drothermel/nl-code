@@ -7,9 +7,9 @@ import typer
 
 from nl_code.optim.dspy_generators import (
     DEFAULT_DSPY_MODEL,
+    DEFAULT_LLM_CONFIG_ID,
     DEFAULT_OPENROUTER_BASE_URL,
     DEFAULT_REASONING_EFFORT,
-    resolve_openrouter_llm_config,
 )
 from nl_code.optim.humaneval_dspy_eval import (
     EncoderInputMode,
@@ -56,12 +56,18 @@ def main(
     model: str = typer.Option(
         DEFAULT_DSPY_MODEL,
         "--model",
-        help="DSPy/LiteLLM model name. Overridden by --llm-config-id.",
+        help=(
+            "DSPy/LiteLLM model name for raw OpenRouter calls. "
+            f"Defaults to the catalog model behind {DEFAULT_LLM_CONFIG_ID!r}."
+        ),
     ),
     llm_config_id: str | None = typer.Option(
         None,
         "--llm-config-id",
-        help="Supported OpenRouter catalog config id. Overrides --model and --reasoning-effort.",
+        help=(
+            "Supported OpenRouter catalog config id. "
+            f"When omitted, {DEFAULT_LLM_CONFIG_ID!r} is used."
+        ),
     ),
     reasoning_effort: str | None = typer.Option(
         DEFAULT_REASONING_EFFORT,
@@ -139,38 +145,30 @@ def main(
     if not api_key:
         raise typer.BadParameter("OPENROUTER_API_KEY must be set")
 
-    reasoning_config = None
-    if llm_config_id:
-        try:
-            lm_catalog_config = resolve_openrouter_llm_config(llm_config_id)
-        except ValueError as exc:
-            raise typer.BadParameter(str(exc)) from exc
-        model = lm_catalog_config.model
-        reasoning_effort = None
-        reasoning_config = lm_catalog_config.reasoning
-
-    config = HumanEvalDspyEvalConfig(
-        generation_type=generation_type,
-        n_samples=n_samples,
-        seed=seed,
-        sample_indices=sample_indices or [],
-        task_ids=_parse_task_ids(task_ids),
-        num_repeats=num_repeats,
-        model=model,
-        llm_config_id=llm_config_id,
-        reasoning_effort=reasoning_effort,
-        reasoning_config=reasoning_config,
-        encoder_input=encoder_input,
-        api_base=api_base,
-        output_dir=output_dir,
-        direct_program_path=direct_program_path,
-        encdec_program_path=encdec_program_path,
-        encoder_program_path=encoder_program_path,
-        decoder_program_path=decoder_program_path,
-        timeout_seconds=timeout_seconds,
-        docker_image=docker_image,
-        log_every=log_every,
-    )
+    try:
+        config = HumanEvalDspyEvalConfig(
+            generation_type=generation_type,
+            n_samples=n_samples,
+            seed=seed,
+            sample_indices=sample_indices or [],
+            task_ids=_parse_task_ids(task_ids),
+            num_repeats=num_repeats,
+            model=model,
+            llm_config_id=llm_config_id,
+            reasoning_effort=reasoning_effort,
+            encoder_input=encoder_input,
+            api_base=api_base,
+            output_dir=output_dir,
+            direct_program_path=direct_program_path,
+            encdec_program_path=encdec_program_path,
+            encoder_program_path=encoder_program_path,
+            decoder_program_path=decoder_program_path,
+            timeout_seconds=timeout_seconds,
+            docker_image=docker_image,
+            log_every=log_every,
+        )
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
     run = run_humaneval_dspy_eval(config, api_key=api_key)
 
     typer.echo(f"Selected dataset indices: {run.selected_dataset_indices}")

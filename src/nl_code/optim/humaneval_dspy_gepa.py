@@ -229,6 +229,7 @@ def optimize_direct_generation_gepa(
     log_step("Configuring DSPy LM and GEPA reflection LM", verbose=verbose)
     lm = configure_dspy_lm(
         model=model,
+        llm_config_id=llm_config_id,
         api_key=api_key,
         api_base=api_base,
         reasoning_effort=reasoning_effort,
@@ -333,6 +334,7 @@ def optimize_encoder_decoder_generation_gepa(
     log_step("Configuring DSPy LM and GEPA reflection LM", verbose=verbose)
     lm = configure_dspy_lm(
         model=model,
+        llm_config_id=llm_config_id,
         api_key=api_key,
         api_base=api_base,
         reasoning_effort=reasoning_effort,

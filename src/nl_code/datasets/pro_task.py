@@ -1,7 +1,7 @@
 from functools import cached_property
-from typing import Literal, Self
+from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict
 
 from nl_code.code_execution.runner import run_assertion_test
 from nl_code.code_parsing import remove_docstrings_and_comments
@@ -202,12 +202,6 @@ class RawProTask(BaseModel):
     source: ProTaskSource
     version: Literal["v3"] = "v3"
     validated: bool = False
-
-    @model_validator(mode="after")
-    def validate_source_derivations(self) -> Self:
-        _ = self.new_solution.docstrings_and_comments
-        _ = self.target.name
-        return self
 
     @cached_property
     def original_solution(self) -> ProOriginalSolution:

@@ -23,15 +23,16 @@ npm run check
 These commands require `OPENROUTER_API_KEY` and a working Docker daemon. They
 intentionally use tiny datasets and write outputs to `/tmp` so they only verify
 that the live evaluation and optimizer jobs still start and complete.
-Pin `--llm-config-id openrouter/xiaomi/mimo-v2-flash/off/v1` so the smoke tests
-are explicit about the verified low-cost live model.
 
-The repo default model is set in `src/nl_code/optim/dspy_generators.py` as
-`DEFAULT_DSPY_MODEL`. If a live run fails before any local evaluation starts
-with an OpenRouter "not a valid model ID" error, the default model or pinned
+By default, DSPy scripts resolve `DEFAULT_LLM_CONFIG_ID`
+(`openrouter/xiaomi/mimo-v2-flash/off/v1`) through the OpenRouter catalog.
+Pin `--llm-config-id` only when you need a different verified model.
+
+If a live run fails before any local evaluation starts with an OpenRouter
+"not a valid model ID" error, the default catalog entry or pinned
 `--llm-config-id` has likely drifted from provider availability. Prefer fixing
-the default raw model or catalog entry instead of only working around the issue
-at the command line.
+the default catalog entry in `src/nl_code/optim/dspy_generators.py` instead of
+only working around the issue at the command line.
 
 Expect verbose DSPy output. `--auto light` is the smallest MIPRO budget exposed
 by these scripts, but it still proposes several instruction candidates and runs
@@ -49,7 +50,6 @@ uv run python scripts/humaneval_dspy_eval.py \
   --generation-type both \
   --n-samples 5 \
   --num-repeats 1 \
-  --llm-config-id openrouter/xiaomi/mimo-v2-flash/off/v1 \
   --output-dir /tmp/nl-code-live-dspy-eval
 ```
 
@@ -63,7 +63,6 @@ uv run python scripts/optimize_humaneval_dspy_direct.py \
   --train-task-ids HumanEval/0 \
   --dev-task-ids HumanEval/1 \
   --eval-task-ids HumanEval/2 \
-  --llm-config-id openrouter/xiaomi/mimo-v2-flash/off/v1 \
   --auto light \
   --num-threads 1 \
   --output-dir /tmp/nl-code-live-dspy-optimize-direct
@@ -77,7 +76,6 @@ uv run python scripts/optimize_humaneval_dspy_encdec.py \
   --train-task-ids HumanEval/0 \
   --dev-task-ids HumanEval/1 \
   --eval-task-ids HumanEval/2 \
-  --llm-config-id openrouter/xiaomi/mimo-v2-flash/off/v1 \
   --auto light \
   --num-threads 1 \
   --output-dir /tmp/nl-code-live-dspy-optimize-encdec
