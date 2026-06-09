@@ -24,9 +24,25 @@ These commands require `OPENROUTER_API_KEY` and a working Docker daemon. They
 intentionally use tiny datasets and write outputs to `/tmp` so they only verify
 that the live evaluation and optimizer jobs still start and complete.
 Pin `--llm-config-id openrouter/xiaomi/mimo-v2-flash/off/v1` so the smoke tests
-do not depend on a stale or unavailable default model.
+are explicit about the verified low-cost live model.
+
+The repo default model is set in `src/nl_code/optim/dspy_generators.py` as
+`DEFAULT_DSPY_MODEL`. If a live run fails before any local evaluation starts
+with an OpenRouter "not a valid model ID" error, the default model or pinned
+`--llm-config-id` has likely drifted from provider availability. Prefer fixing
+the default raw model or catalog entry instead of only working around the issue
+at the command line.
+
+Expect verbose DSPy output. `--auto light` is the smallest MIPRO budget exposed
+by these scripts, but it still proposes several instruction candidates and runs
+about 9-10 trials even with one train/dev/eval task. Warnings from DSPy about
+ignored proposer fields are expected during these optimizer smoke tests; the
+success signal is that the command writes an optimized program, summary, run
+log, and event log under the requested `/tmp` output directory.
 
 Run HumanEval DSPy eval with five samples:
+
+Expected time: about 1 minute.
 
 ```bash
 uv run python scripts/humaneval_dspy_eval.py \
@@ -40,6 +56,8 @@ uv run python scripts/humaneval_dspy_eval.py \
 Run both MIPRO optimizer smoke tests with the smallest exposed optimizer budget:
 `--auto light`. Keep one task in each required split and one worker thread.
 
+Direct optimizer expected time: about 1-2 minutes.
+
 ```bash
 uv run python scripts/optimize_humaneval_dspy_direct.py \
   --train-task-ids HumanEval/0 \
@@ -50,6 +68,8 @@ uv run python scripts/optimize_humaneval_dspy_direct.py \
   --num-threads 1 \
   --output-dir /tmp/nl-code-live-dspy-optimize-direct
 ```
+
+Encoder-decoder optimizer expected time: about 2-3 minutes.
 
 ```bash
 uv run python scripts/optimize_humaneval_dspy_encdec.py \

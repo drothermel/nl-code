@@ -15,8 +15,8 @@ DEFAULT_ENCODER_INSTRUCTIONS = (
     "Do not output anything else."
 )
 DEFAULT_OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-DEFAULT_DSPY_MODEL = "openrouter/openai/gpt-oss-20b/low/v1"
-DEFAULT_REASONING_EFFORT = "minimal"
+DEFAULT_DSPY_MODEL = "openrouter/xiaomi/mimo-v2-flash"
+DEFAULT_REASONING_EFFORT = "none"
 
 
 class DspyLmCatalogConfig(BaseModel):
@@ -27,10 +27,6 @@ class DspyLmCatalogConfig(BaseModel):
 
 
 SUPPORTED_OPENROUTER_LLM_CONFIGS: dict[str, DspyLmCatalogConfig] = {
-    "openrouter/openai/gpt-oss-20b/low/v1": DspyLmCatalogConfig(
-        model="openrouter/openai/gpt-oss-20b",
-        reasoning={"effort": "low"},
-    ),
     "openrouter/deepseek/deepseek-chat-v3.1/off/v1": DspyLmCatalogConfig(
         model="openrouter/deepseek/deepseek-chat-v3.1",
         reasoning={"enabled": False},

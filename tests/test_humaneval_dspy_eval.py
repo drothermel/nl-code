@@ -284,14 +284,14 @@ def test_encdec_eval_oracle_input_uses_gt_solution(
 
 def test_eval_config_resolves_llm_catalog_id() -> None:
     config = HumanEvalDspyEvalConfig(
-        llm_config_id="openrouter/openai/gpt-oss-20b/low/v1",
+        llm_config_id="openrouter/xiaomi/mimo-v2-flash/off/v1",
         model="unused",
         reasoning_effort="minimal",
-        reasoning_config={"effort": "low"},
+        reasoning_config={"enabled": False},
     )
 
-    assert config.llm_config_id == "openrouter/openai/gpt-oss-20b/low/v1"
-    assert config.reasoning_config == {"effort": "low"}
+    assert config.llm_config_id == "openrouter/xiaomi/mimo-v2-flash/off/v1"
+    assert config.reasoning_config == {"enabled": False}
 
 
 def test_fenced_code_is_extracted_before_eval(
