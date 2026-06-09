@@ -53,7 +53,13 @@ def test_build_agent_bundle_preserves_normalized_and_best_effort_records(
         "session_missing:human_eval_dspy_direct_gepa_optimized_20260515T000001Z"
         ":prompt:baseline"
     )
+    missing_optimized = (
+        "session_missing:human_eval_dspy_direct_gepa_optimized_20260515T000001Z"
+        ":prompt:optimized"
+    )
     assert prompt_by_id[missing_baseline].status == module.PromptVariantStatus.MISSING
+    assert prompt_by_id[missing_optimized].status == module.PromptVariantStatus.MISSING
+    assert prompt_by_id[missing_optimized].is_final_saved_prompt is False
     assert any(
         record.get("prompt_variant_id") == missing_baseline
         for record in bundle.not_present
@@ -98,6 +104,87 @@ def test_build_agent_bundle_preserves_normalized_and_best_effort_records(
         "session_full"
     ] == [candidate_id, optimized_id]
     assert "HumanEval/1" in bundle.agent_index["evaluations_by_task_id"]
+
+
+def test_build_agent_bundle_handles_multiple_optimizer_runs(tmp_path: Path) -> None:
+    module = load_script_module()
+    reports_dir = tmp_path / "parsed_gepa_reports"
+    reports_dir.mkdir()
+    direct_run_id = "human_eval_dspy_direct_gepa_optimized_20260515T000000Z"
+    encdec_run_id = "human_eval_dspy_encdec_gepa_optimized_20260515T000001Z"
+    report_path = reports_dir / "session_multi.gepa_report.json"
+    direct_payload = parsed_report_payload("session_multi", run_suffix="000000Z")
+    encdec_payload = parsed_report_payload(
+        "session_multi",
+        run_suffix="000001Z",
+        generation_type="encdec_gepa",
+        optimization_target="both",
+    )
+    report = {
+        **direct_payload,
+        "optimizer_runs": [
+            direct_payload["optimizer_runs"][0],
+            encdec_payload["optimizer_runs"][0],
+        ],
+        "programs": direct_payload["programs"] + encdec_payload["programs"],
+        "split_evaluations": (
+            direct_payload["split_evaluations"] + encdec_payload["split_evaluations"]
+        ),
+        "task_scores": direct_payload["task_scores"] + encdec_payload["task_scores"],
+        "metric_calls": direct_payload["metric_calls"] + encdec_payload["metric_calls"],
+        "generated_outputs": (
+            direct_payload["generated_outputs"] + encdec_payload["generated_outputs"]
+        ),
+        "optimizer_iterations": (
+            direct_payload["optimizer_iterations"]
+            + encdec_payload["optimizer_iterations"]
+        ),
+        "state_files": direct_payload["state_files"] + encdec_payload["state_files"],
+    }
+    write_json(report_path, report)
+    write_json(
+        reports_dir / "manifest.json",
+        {
+            "schema_version": "dspy_gepa_session_report_manifest_v0",
+            "created_at": "2026-06-08T00:00:00Z",
+            "source_root": str(tmp_path),
+            "output_dir": str(reports_dir),
+            "session_count": 1,
+            "gepa_session_count": 1,
+            "skipped_session_count": 0,
+            "reports": [manifest_item("session_multi", report_path)],
+        },
+    )
+
+    bundle = module.build_agent_bundle(reports_dir)
+
+    session_prompts = [
+        prompt
+        for prompt in bundle.prompt_variants
+        if prompt.session_id == "session_multi"
+    ]
+    run_ids = {prompt.run_id for prompt in session_prompts}
+    assert run_ids == {direct_run_id, encdec_run_id}
+    assert bundle.agent_index["final_prompt_variant_by_run"] == {
+        f"session_multi:{direct_run_id}": (
+            f"session_multi:{direct_run_id}:prompt:optimized"
+        ),
+        f"session_multi:{encdec_run_id}": (
+            f"session_multi:{encdec_run_id}:prompt:optimized"
+        ),
+    }
+    assert bundle.sessions[0].availability["split_contexts_by_run"] == {
+        direct_run_id: {
+            "train": ["HumanEval/0"],
+            "dev": ["HumanEval/1"],
+            "eval": [],
+        },
+        encdec_run_id: {
+            "train": ["HumanEval/0"],
+            "dev": ["HumanEval/1"],
+            "eval": [],
+        },
+    }
 
 
 def test_cli_writes_agent_bundle(tmp_path: Path) -> None:
@@ -167,11 +254,18 @@ def parsed_report_payload(
     session_id: str,
     *,
     run_suffix: str,
+    generation_type: str = "direct_gepa",
+    optimization_target: str | None = None,
     include_program_prompts: bool = True,
     include_state: bool = True,
     include_candidate: bool = True,
 ) -> dict[str, Any]:
-    run_id = f"human_eval_dspy_direct_gepa_optimized_20260515T{run_suffix}"
+    run_prefix = (
+        "human_eval_dspy_direct_gepa"
+        if generation_type == "direct_gepa"
+        else "human_eval_dspy_encdec_gepa"
+    )
+    run_id = f"{run_prefix}_optimized_20260515T{run_suffix}"
     run_log = f"/tmp/{session_id}/raw/logs/dspy_optimized/{run_id}_run.log"
     programs = [
         program(
@@ -245,8 +339,8 @@ def parsed_report_payload(
                 "source_file": f"/tmp/{session_id}/raw/logs/dspy_optimized/{run_id}_summary.json",
                 "source_relative_path": f"raw/logs/dspy_optimized/{run_id}_summary.json",
                 "timestamp": "2026-05-15T00:00:05Z",
-                "generation_type": "direct_gepa",
-                "optimization_target": None,
+                "generation_type": generation_type,
+                "optimization_target": optimization_target,
                 "model": "openrouter/test-model",
                 "llm_config_id": "test-model",
                 "reasoning_config": None,

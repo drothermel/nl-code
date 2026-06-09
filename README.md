@@ -133,7 +133,8 @@ corpus under `data/code-comp/dspy-exps/v0/`.
   safe `gepa_state.bin` metadata scans.
 - `scripts/build_dspy_gepa_agent_bundle.py` combines the per-session GEPA
   reports into one cross-session `gepa_optimization_agent_bundle.json` for
-  downstream analysis agents or UI tooling.
+  downstream analysis agents or UI tooling. The bundle omits raw LLM request
+  payloads; treat parsed forensic reports as sensitive if shared externally.
 - `docs/dspy-log-sessions-v0.md` documents the sessionized log corpus.
 - `docs/dspy-eval-optimizer-extraction-progress.md` records extraction progress
   and the known limits of eval versus optimizer logs.

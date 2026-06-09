@@ -9,11 +9,19 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import typer
 from pydantic import BaseModel, ConfigDict, Field
 
 
-SOURCE_ROOT = Path("/Users/daniellerothermel/drotherm/repos/nl-code")
-OUTPUT_ROOT = Path("~/drotherm/data/code-comp/dspy-exps/v0").expanduser()
+SOURCE_ROOT = Path(
+    os.environ.get("SESSIONIZE_SOURCE_ROOT", Path.cwd().as_posix())
+).expanduser()
+OUTPUT_ROOT = Path(
+    os.environ.get(
+        "SESSIONIZE_OUTPUT_ROOT",
+        "~/drotherm/data/code-comp/dspy-exps/v0",
+    )
+).expanduser()
 OVERWRITE_OUTPUT = False
 OVERWRITE_ENV_VAR = "SESSIONIZE_DSPY_LOGS_OVERWRITE"
 
@@ -713,10 +721,8 @@ def role_for_optimizer_file(path: Path) -> str:
         return "optimization_events"
     if name.endswith("_run.log"):
         return "optimization_run_log"
-    if (
-        name.endswith("_optimized.json")
-        or "_optimized_" in name
-        and name.endswith(".json")
+    if name.endswith("_optimized.json") or (
+        "_optimized_" in name and name.endswith(".json")
     ):
         return "optimized_program"
     return "optimization_artifact"
@@ -808,5 +814,33 @@ def write_json_file(path: Path, value: dict[str, Any]) -> None:
     )
 
 
-if __name__ == "__main__":
+app = typer.Typer()
+
+
+@app.command()
+def cli(
+    source_root: Path = typer.Option(
+        SOURCE_ROOT,
+        "--source-root",
+        help="Repository or corpus root containing logs/ and los/.",
+    ),
+    output_root: Path = typer.Option(
+        OUTPUT_ROOT,
+        "--output-root",
+        help="Destination directory for sessionized corpus output.",
+    ),
+    overwrite: bool = typer.Option(
+        False,
+        "--overwrite",
+        help="Replace an existing non-empty output directory.",
+    ),
+) -> None:
+    global SOURCE_ROOT, OUTPUT_ROOT, OVERWRITE_OUTPUT
+    SOURCE_ROOT = source_root.expanduser().resolve()
+    OUTPUT_ROOT = output_root.expanduser().resolve()
+    OVERWRITE_OUTPUT = overwrite
     main()
+
+
+if __name__ == "__main__":
+    app()

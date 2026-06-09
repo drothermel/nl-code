@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from collections import defaultdict
 from datetime import datetime, timezone
 from enum import StrEnum
@@ -19,7 +20,10 @@ SCHEMA_VERSION = "dspy_gepa_agent_bundle_v0"
 MANIFEST_FILE_NAME = "manifest.json"
 DEFAULT_REPORTS_DIR_NAME = "parsed_gepa_reports"
 DEFAULT_DATA_REPORTS_DIR = Path(
-    "/Users/daniellerothermel/drotherm/data/code-comp/dspy-exps/v0/parsed_gepa_reports"
+    os.environ.get(
+        "DSPY_GEPA_REPORTS_DIR",
+        "data/dspy-exps/v0/parsed_gepa_reports",
+    )
 )
 DEFAULT_BUNDLE_FILE_NAME = "gepa_optimization_agent_bundle.json"
 STATE_PROMPT_SENTINEL = "prog_candidate_val_subscores"
@@ -221,7 +225,6 @@ app = typer.Typer()
 def main(
     input_path: Path = typer.Argument(
         DEFAULT_DATA_REPORTS_DIR,
-        exists=True,
         file_okay=False,
         dir_okay=True,
         help=(
@@ -258,24 +261,32 @@ def build_agent_bundle(reports_dir: Path) -> GepaAgentBundle:
 
     for report_path in report_paths:
         report = read_json_file(report_path)
-        context = session_context(report, report_path)
-        sessions.append(session_bundle(report, report_path, context))
-        session_prompt_variants = prompt_variants_for_report(report, context)
-        prompt_variants.extend(session_prompt_variants)
-        prompt_id_by_program_id = program_prompt_index(session_prompt_variants)
-        evaluations.extend(
-            evaluation_records_for_report(
-                report,
-                context,
-                prompt_id_by_program_id,
-                session_prompt_variants,
+        session_context = session_context_for_report(report, report_path)
+        sessions.append(session_bundle(report, report_path, session_context))
+        optimizer_runs = report.get("optimizer_runs") or [{}]
+        for run in optimizer_runs:
+            context = run_context(report, report_path, run)
+            scoped_report = filter_report_for_run(report, context["run_id"])
+            session_prompt_variants = prompt_variants_for_report(scoped_report, context)
+            prompt_variants.extend(session_prompt_variants)
+            prompt_id_by_program_id = program_prompt_index(session_prompt_variants)
+            evaluations.extend(
+                evaluation_records_for_report(
+                    scoped_report,
+                    context,
+                    prompt_id_by_program_id,
+                    session_prompt_variants,
+                )
             )
-        )
-        generated_outputs.extend(
-            generated_outputs_for_report(report, context, prompt_id_by_program_id)
-        )
-        state_summaries.extend(state_summaries_for_report(report, context))
-        not_present.extend(not_present_records_for_report(report, context))
+            generated_outputs.extend(
+                generated_outputs_for_report(
+                    scoped_report,
+                    context,
+                    prompt_id_by_program_id,
+                )
+            )
+            state_summaries.extend(state_summaries_for_report(scoped_report, context))
+            not_present.extend(not_present_records_for_report(scoped_report, context))
 
     metadata = BundleMetadata(
         created_at=datetime.now(timezone.utc),
@@ -306,25 +317,70 @@ def build_agent_bundle(reports_dir: Path) -> GepaAgentBundle:
     )
 
 
-def session_context(report: dict[str, Any], report_path: Path) -> dict[str, Any]:
+def session_context_for_report(
+    report: dict[str, Any],
+    report_path: Path,
+) -> dict[str, Any]:
     session = report.get("session") or {}
     session_id = str(session.get("session_id") or report_path.stem)
-    runs = report.get("optimizer_runs") or []
-    run = runs[0] if runs else {}
-    split_context = run.get("split_task_ids") or {}
-    dev_task_ids = split_context.get("dev") or []
     return {
         "session_id": session_id,
         "session_dir": str(session.get("session_dir") or ""),
         "report_path": str(report_path),
+    }
+
+
+def run_context(
+    report: dict[str, Any],
+    report_path: Path,
+    run: dict[str, Any],
+) -> dict[str, Any]:
+    session_context = session_context_for_report(report, report_path)
+    split_context = run.get("split_task_ids") or {}
+    dev_task_ids = split_context.get("dev") or []
+    run_id = str(run.get("id") or f"{session_context['session_id']}:run:unknown")
+    return {
+        **session_context,
         "run": run,
-        "run_id": str(run.get("id") or f"{session_id}:run:unknown"),
+        "run_id": run_id,
         "generation_type": run.get("generation_type"),
         "optimization_target": run.get("optimization_target"),
         "split_context": split_context,
         "dev_task_ids": dev_task_ids,
         "final_program_id": run.get("final_program_id"),
     }
+
+
+def filter_report_for_run(report: dict[str, Any], run_id: str) -> dict[str, Any]:
+    return {
+        **report,
+        "programs": report_items_for_run(report.get("programs") or [], run_id),
+        "split_evaluations": report_items_for_run(
+            report.get("split_evaluations") or [],
+            run_id,
+        ),
+        "task_scores": report_items_for_run(report.get("task_scores") or [], run_id),
+        "metric_calls": report_items_for_run(report.get("metric_calls") or [], run_id),
+        "generated_outputs": report_items_for_run(
+            report.get("generated_outputs") or [],
+            run_id,
+        ),
+        "optimizer_iterations": report_items_for_run(
+            report.get("optimizer_iterations") or [],
+            run_id,
+        ),
+        "state_files": report_items_for_run(report.get("state_files") or [], run_id),
+    }
+
+
+def report_items_for_run(
+    items: list[dict[str, Any]], run_id: str
+) -> list[dict[str, Any]]:
+    if not items:
+        return []
+    if any(item.get("run_id") is not None for item in items):
+        return [item for item in items if item.get("run_id") == run_id]
+    return items
 
 
 def session_bundle(
@@ -341,6 +397,16 @@ def session_bundle(
             if run.get("generation_type") is not None
         }
     )
+    split_contexts_by_run = {
+        str(run.get("id")): run.get("split_task_ids") or {}
+        for run in optimizer_runs
+        if run.get("id")
+    }
+    split_context = (
+        next(iter(split_contexts_by_run.values()))
+        if len(split_contexts_by_run) == 1
+        else {}
+    )
     return SessionBundle(
         session_id=context["session_id"],
         session_dir=context["session_dir"],
@@ -348,8 +414,9 @@ def session_bundle(
         source_report_file=str(report_path),
         generation_types=generation_types,
         run_ids=[str(run.get("id")) for run in optimizer_runs if run.get("id")],
-        split_context=context["split_context"],
+        split_context=split_context,
         availability={
+            "split_contexts_by_run": split_contexts_by_run,
             "optimizer_run_count": len(optimizer_runs),
             "program_count": len(report.get("programs") or []),
             "metric_call_count": len(report.get("metric_calls") or []),
@@ -503,7 +570,11 @@ def optimized_prompt_variant(
         generation_type=context["generation_type"],
         optimization_target=context["optimization_target"],
         kind=PromptVariantKind.OPTIMIZED,
-        status=PromptVariantStatus.FINAL,
+        status=(
+            PromptVariantStatus.FINAL
+            if prompt_text is not None
+            else PromptVariantStatus.MISSING
+        ),
         prompt_text=prompt_text,
         prompt_sha256=hash_text(prompt_text),
         prompt_char_count=len(prompt_text) if prompt_text is not None else None,
@@ -514,7 +585,7 @@ def optimized_prompt_variant(
         ),
         source_refs=source_refs_for_program(optimized_program),
         performance=optimized_performance(report),
-        is_final_saved_prompt=True,
+        is_final_saved_prompt=prompt_text is not None,
     )
 
 
@@ -681,12 +752,14 @@ def metric_call_record(
         error=metric_call.get("error"),
         confidence=metric_call.get("confidence"),
         source_refs=source_ref_list(metric_call.get("source")),
-        details={
-            "timestamp": metric_call.get("timestamp"),
-            "metric_call": metric_call.get("metric_call"),
-            "predictor": metric_call.get("predictor"),
-            "iteration": metric_call.get("iteration"),
-        },
+        details=sanitize_bundle_details(
+            {
+                "timestamp": metric_call.get("timestamp"),
+                "metric_call": metric_call.get("metric_call"),
+                "predictor": metric_call.get("predictor"),
+                "iteration": metric_call.get("iteration"),
+            }
+        ),
     )
 
 
@@ -710,7 +783,9 @@ def generated_outputs_for_report(
                 iteration=item.get("iteration"),
                 program_index=item.get("program_index"),
                 completed_code=item.get("completed_code"),
-                output_fields=item.get("output_fields") or {},
+                output_fields=sanitize_bundle_output_fields(
+                    item.get("output_fields") or {}
+                ),
                 source_refs=source_ref_list(item.get("source")),
                 confidence=item.get("confidence"),
             )
@@ -910,6 +985,7 @@ def build_agent_index(
     prompt_by_session: dict[str, list[str]] = defaultdict(list)
     prompt_by_kind: dict[str, list[str]] = defaultdict(list)
     final_prompt_by_session: dict[str, str] = {}
+    final_prompt_by_run: dict[str, str] = {}
     final_saved_prompts_by_session: dict[str, list[str]] = defaultdict(list)
     by_generation_type: dict[str, list[str]] = defaultdict(list)
     evaluations_by_task: dict[str, list[str]] = defaultdict(list)
@@ -925,8 +1001,14 @@ def build_agent_index(
             final_saved_prompts_by_session[prompt_variant.session_id].append(
                 prompt_variant.id
             )
-        if prompt_variant.kind == PromptVariantKind.OPTIMIZED:
+        if (
+            prompt_variant.kind == PromptVariantKind.OPTIMIZED
+            and prompt_variant.prompt_text is not None
+        ):
             final_prompt_by_session[prompt_variant.session_id] = prompt_variant.id
+            final_prompt_by_run[
+                f"{prompt_variant.session_id}:{prompt_variant.run_id}"
+            ] = prompt_variant.id
     for evaluation in evaluations:
         if evaluation.task_id is not None:
             evaluations_by_task[evaluation.task_id].append(evaluation.id)
@@ -944,6 +1026,7 @@ def build_agent_index(
         "final_prompt_variant_by_session": dict(
             sorted(final_prompt_by_session.items())
         ),
+        "final_prompt_variant_by_run": dict(sorted(final_prompt_by_run.items())),
         "final_saved_prompt_variants_by_session": sort_index(
             final_saved_prompts_by_session
         ),
@@ -982,6 +1065,22 @@ def report_paths_from_manifest(
             report_file = reports_dir / report_file
         paths.append(report_file)
     return sorted(paths)
+
+
+def sanitize_bundle_output_fields(
+    output_fields: dict[str, Any],
+) -> dict[str, Any]:
+    sanitized = dict(output_fields)
+    sanitized.pop("messages", None)
+    sanitized.pop("response", None)
+    return sanitized
+
+
+def sanitize_bundle_details(details: dict[str, Any]) -> dict[str, Any]:
+    sanitized = dict(details)
+    sanitized.pop("messages", None)
+    sanitized.pop("response", None)
+    return sanitized
 
 
 def first_program_by_phase(report: dict[str, Any], phase: str) -> dict[str, Any] | None:
