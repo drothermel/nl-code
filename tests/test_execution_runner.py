@@ -303,6 +303,20 @@ class TestRunTestCases:
         )
         assert results[0].compile_success is True
 
+    def test_syntax_errors_are_returned_not_raised(self) -> None:
+        test_cases = [TestCase(input_value=1, expected_output=1)]
+        results, rate = run_test_cases(
+            "def f(:\n",
+            "f",
+            test_cases,
+        )
+        assert rate == 0.0
+        assert results[0].passed is False
+        assert "SyntaxError" in (results[0].error or "")
+        assert results[0].compile_success is False
+        assert results[0].compile_error is not None
+        assert "SyntaxError" in results[0].compile_error
+
     def test_runtime_errors_do_not_populate_compile_error(self) -> None:
         test_cases = [TestCase(input_value=1, expected_output=1)]
         results, _ = run_test_cases(

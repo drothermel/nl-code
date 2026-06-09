@@ -255,6 +255,15 @@ def _execute_single_input(
     )
 
 
+def _compile_error_payload(exc: SyntaxError) -> dict[str, Any]:
+    error = f"{type(exc).__name__}: {exc}"
+    return _error_payload(
+        error,
+        compile_success=False,
+        compile_error=error,
+    )
+
+
 def _handle_batch_inputs(
     code: str, function_name: str, input_values: list[Any]
 ) -> dict[str, Any]:
@@ -306,14 +315,24 @@ def _handle_function_call(req: dict[str, Any]) -> dict[str, Any]:
     code = req["code"]
     function_name = req["function_name"]
 
-    _validate_code_ast(code)
-
     if "input_values" in req:
         input_values = req["input_values"]
         if not isinstance(input_values, list):
             raise TypeError("input_values must be a list")
+        try:
+            _validate_code_ast(code)
+        except SyntaxError as exc:
+            error_payload = _compile_error_payload(exc)
+            return {
+                "results": [error_payload.copy() for _ in input_values],
+                "error": None,
+            }
         return _handle_batch_inputs(code, function_name, input_values)
     else:
+        try:
+            _validate_code_ast(code)
+        except SyntaxError as exc:
+            return _compile_error_payload(exc)
         return _execute_single_input(code, function_name, req["input_value"])
 
 

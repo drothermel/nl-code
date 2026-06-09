@@ -145,6 +145,37 @@ class TestFunctionCallMode:
         assert result["results"][0]["compile_success"] is True
         assert result["results"][0]["compile_error"] is None
 
+    def test_single_input_syntax_error_is_code_failure(self) -> None:
+        result = _run_worker(
+            {
+                "code": "def f(:\n",
+                "function_name": "f",
+                "input_value": 1,
+            }
+        )
+        assert result["error"] is not None
+        assert "SyntaxError" in result["error"]
+        assert result["compile_success"] is False
+        assert result["compile_error"] is not None
+        assert "SyntaxError" in result["compile_error"]
+
+    def test_batch_syntax_error_is_per_input_code_failure(self) -> None:
+        result = _run_worker(
+            {
+                "code": "def f(:\n",
+                "function_name": "f",
+                "input_values": [1, 2],
+            }
+        )
+        assert result["error"] is None
+        assert len(result["results"]) == 2
+        for item in result["results"]:
+            assert item["error"] is not None
+            assert "SyntaxError" in item["error"]
+            assert item["compile_success"] is False
+            assert item["compile_error"] is not None
+            assert "SyntaxError" in item["compile_error"]
+
     def test_runtime_error(self) -> None:
         result = _run_worker(
             {
