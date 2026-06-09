@@ -1,5 +1,12 @@
 # AGENTS.md
 
+## JSON I/O
+
+Use Python's standard-library `json` module for JSON and JSONL I/O in this
+repo. Do not add or use `srsly`; the DSPy/HumanEval artifacts can contain very
+large integers that `srsly`'s `ujson` backend cannot reliably parse or
+serialize.
+
 ## Pre-commit checks
 
 Run all relevant checks before committing changes.

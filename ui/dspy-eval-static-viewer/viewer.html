@@ -1,0 +1,795 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DSPy GEPA / HumanEval Static Viewer</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #111827;
+      --panel2: #172033;
+      --card: #ffffff;
+      --ink: #111827;
+      --muted: #64748b;
+      --line: #cbd5e1;
+      --accent: #2563eb;
+      --accent2: #7c3aed;
+      --good: #15803d;
+      --bad: #b91c1c;
+      --warn: #b45309;
+      --softGood: #dcfce7;
+      --softBad: #fee2e2;
+      --softWarn: #fef3c7;
+      --softBlue: #dbeafe;
+      --chip: #e2e8f0;
+      --shadow: 0 10px 25px rgba(15, 23, 42, 0.18);
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #f8fafc;
+      color: var(--ink);
+      font-family: var(--sans);
+      line-height: 1.45;
+    }
+    header {
+      background: linear-gradient(135deg, #0f172a, #1e293b 55%, #312e81);
+      color: white;
+      padding: 24px 28px 18px;
+      box-shadow: var(--shadow);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+    header h1 { margin: 0; font-size: 22px; letter-spacing: .01em; }
+    header p { margin: 5px 0 0; color: #cbd5e1; font-size: 13px; }
+    .tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
+    .tab-btn {
+      border: 1px solid rgba(255,255,255,.22);
+      background: rgba(255,255,255,.08);
+      color: white;
+      border-radius: 999px;
+      padding: 8px 13px;
+      font-weight: 650;
+      cursor: pointer;
+    }
+    .tab-btn.active { background: white; color: #0f172a; }
+    main { padding: 22px 28px 80px; }
+    .section { display: none; }
+    .section.active { display: block; }
+    .toolbar, .summary, .detail-panel, .matrix-wrap, .flow-shell, .about-card {
+      background: white;
+      border: 1px solid #e2e8f0;
+      border-radius: 16px;
+      box-shadow: 0 1px 2px rgba(15,23,42,.05);
+    }
+    .toolbar { padding: 14px; margin-bottom: 14px; display: flex; gap: 12px; flex-wrap: wrap; align-items: end; }
+    label { font-size: 12px; color: #475569; font-weight: 700; display: block; margin-bottom: 5px; }
+    select, input[type="search"], input[type="text"] {
+      min-height: 36px;
+      border: 1px solid #cbd5e1;
+      border-radius: 10px;
+      padding: 8px 10px;
+      font: inherit;
+      background: white;
+      color: #0f172a;
+    }
+    select { min-width: 230px; }
+    input[type="search"] { min-width: 260px; }
+    button.action {
+      border: 1px solid #cbd5e1;
+      background: #f8fafc;
+      color: #0f172a;
+      border-radius: 10px;
+      padding: 8px 11px;
+      min-height: 36px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    button.action:hover { border-color: #94a3b8; background: #f1f5f9; }
+    .segmented { display: inline-flex; border: 1px solid #cbd5e1; border-radius: 999px; overflow: hidden; background: #f8fafc; }
+    .segmented button {
+      border: 0; border-right: 1px solid #cbd5e1; background: transparent; padding: 8px 12px; cursor: pointer; font-weight: 750; color: #475569;
+    }
+    .segmented button:last-child { border-right: 0; }
+    .segmented button.active { background: #0f172a; color: white; }
+    .summary { padding: 14px; margin-bottom: 14px; }
+    .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+    .metric {
+      border: 1px solid #e2e8f0; border-radius: 12px; padding: 10px; background: #f8fafc;
+    }
+    .metric .value { display: block; font-size: 22px; font-weight: 850; color: #0f172a; }
+    .metric .label { display: block; font-size: 12px; color: #64748b; }
+    .note { color: #64748b; font-size: 13px; margin: 8px 0 0; }
+    .flow-shell { padding: 14px; overflow: hidden; }
+    .flow-info { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
+    .legend { display: flex; gap: 8px; flex-wrap: wrap; font-size: 12px; color: #475569; }
+    .legend span { display: inline-flex; align-items: center; gap: 5px; background: #f8fafc; border: 1px solid #e2e8f0; padding: 4px 8px; border-radius: 999px; }
+    .dot { width: 10px; height: 10px; display: inline-block; border-radius: 999px; background: #94a3b8; }
+    .dot.promoted { background: var(--good); } .dot.rejected { background: var(--bad); } .dot.final { background: #f59e0b; } .dot.baseline { background: #2563eb; }
+    .flow-canvas {
+      position: relative;
+      overflow: auto;
+      border: 1px solid #e2e8f0;
+      border-radius: 14px;
+      background:
+        linear-gradient(90deg, rgba(148,163,184,.12) 1px, transparent 1px),
+        linear-gradient(rgba(148,163,184,.12) 1px, transparent 1px),
+        #f8fafc;
+      background-size: 32px 32px;
+      padding: 26px;
+      min-height: 540px;
+      max-height: none;
+    }
+    #edgeLayer { position: absolute; inset: 0; pointer-events: none; z-index: 1; overflow: visible; }
+    .flow-grid { display: flex; gap: 48px; align-items: flex-start; position: relative; z-index: 2; min-width: max-content; }
+    .flow-col { min-width: 460px; display: flex; flex-direction: column; gap: 18px; }
+    .flow-col-title { font-size: 12px; font-weight: 850; color: #64748b; text-transform: uppercase; letter-spacing: .06em; margin: 0 0 -6px 2px; }
+    .prompt-card {
+      width: 460px;
+      background: white;
+      border: 2px solid #cbd5e1;
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .prompt-card.baseline { border-color: #60a5fa; }
+    .prompt-card.promoted { border-color: #22c55e; }
+    .prompt-card.rejected { border-color: #f87171; opacity: .88; }
+    .prompt-card.final { border-color: #f59e0b; box-shadow: 0 0 0 4px rgba(245,158,11,.16), var(--shadow); }
+    .prompt-card.missing { border-style: dashed; }
+    .prompt-head { padding: 12px 13px; border-bottom: 1px solid #e2e8f0; background: #f8fafc; }
+    .prompt-title { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
+    .prompt-title strong { font-size: 15px; }
+    .badges { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+    .badge { font-size: 11px; border-radius: 999px; padding: 3px 7px; background: var(--chip); color: #334155; font-weight: 750; }
+    .badge.good { background: var(--softGood); color: #166534; }
+    .badge.bad { background: var(--softBad); color: #991b1b; }
+    .badge.warn { background: var(--softWarn); color: #92400e; }
+    .badge.blue { background: var(--softBlue); color: #1d4ed8; }
+    .perf-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin-top: 9px; font-size: 12px; }
+    .perf-grid div { background: white; border: 1px solid #e2e8f0; border-radius: 9px; padding: 5px 6px; }
+    .perf-grid b { display: block; font-size: 11px; color: #64748b; font-weight: 750; }
+    .prompt-body { padding: 12px 13px 14px; }
+    pre {
+      margin: 0;
+      font-family: var(--mono);
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+    .prompt-text {
+      background: #0b1020;
+      color: #e5e7eb;
+      border-radius: 12px;
+      padding: 12px;
+      max-height: none;
+    }
+    .empty-prompt { background: #f1f5f9; color: #64748b; border-radius: 12px; padding: 12px; font-size: 12px; border: 1px dashed #cbd5e1; }
+    details.diff { margin-top: 10px; border: 1px solid #e2e8f0; border-radius: 10px; background: #f8fafc; }
+    details.diff summary { cursor: pointer; padding: 8px 10px; font-size: 12px; color: #475569; font-weight: 800; }
+    .diff pre { padding: 0 10px 10px; color: #334155; }
+    .heatmap-mini { margin-top: 10px; display: flex; gap: 3px; flex-wrap: wrap; }
+    .heatmap-mini span { width: 14px; height: 14px; border-radius: 3px; border: 1px solid rgba(15,23,42,.12); display: inline-block; }
+    .matrix-wrap { overflow: auto; max-height: 68vh; }
+    table { border-collapse: separate; border-spacing: 0; width: max-content; min-width: 100%; font-size: 13px; }
+    th, td { border-bottom: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0; padding: 7px 8px; text-align: right; white-space: nowrap; }
+    th { background: #f1f5f9; color: #334155; position: sticky; top: 0; z-index: 5; font-size: 12px; }
+    th:first-child, td:first-child { position: sticky; left: 0; z-index: 4; text-align: left; background: white; border-left: 1px solid #e2e8f0; }
+    th:first-child { z-index: 7; background: #f1f5f9; }
+    tbody tr:hover td { background: #eff6ff; cursor: pointer; }
+    tbody tr.selected td { background: #dbeafe; }
+    td.cell-pass { background: #dcfce7; color: #166534; font-weight: 800; }
+    td.cell-fail { background: #fee2e2; color: #991b1b; font-weight: 800; }
+    td.cell-mixed { background: #fef3c7; color: #92400e; font-weight: 800; }
+    td.cell-na { color: #94a3b8; background: #f8fafc; }
+    .detail-panel { margin-top: 16px; padding: 16px; }
+    .detail-header { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; align-items: flex-start; margin-bottom: 12px; }
+    .detail-header h2 { margin: 0; font-size: 19px; }
+    .task-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 12px; }
+    .condition-card { border: 1px solid #e2e8f0; border-radius: 14px; background: #f8fafc; padding: 11px; }
+    .condition-card h3 { margin: 0 0 8px; font-size: 14px; display: flex; justify-content: space-between; gap: 8px; }
+    .repeats { display: flex; flex-wrap: wrap; gap: 6px; }
+    .repeat-btn {
+      width: 38px; height: 34px; border-radius: 9px; border: 1px solid #cbd5e1; font-weight: 850; cursor: pointer; background: white;
+    }
+    .repeat-btn.pass { background: #dcfce7; color: #166534; border-color: #86efac; }
+    .repeat-btn.fail { background: #fee2e2; color: #991b1b; border-color: #fecaca; }
+    .repeat-btn.skip { background: #f1f5f9; color: #64748b; }
+    .repeat-btn.active { outline: 3px solid rgba(37,99,235,.28); border-color: #2563eb; }
+    .attempt-view { margin-top: 16px; display: grid; grid-template-columns: minmax(350px, .9fr) minmax(420px, 1.1fr); gap: 12px; align-items: start; }
+    @media (max-width: 1100px) { .attempt-view { grid-template-columns: 1fr; } }
+    .code-card, .prompt-msg-card { border: 1px solid #e2e8f0; border-radius: 14px; background: white; overflow: hidden; }
+    .code-card h3, .prompt-msg-card h3 { margin: 0; padding: 10px 12px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; font-size: 14px; }
+    .code-card pre, .prompt-msg-card pre { padding: 12px; max-height: 520px; overflow: auto; background: #0b1020; color: #e5e7eb; }
+    .msg { border-bottom: 1px solid #e2e8f0; }
+    .msg-role { padding: 8px 12px; font-weight: 850; font-size: 12px; color: #475569; background: #f8fafc; }
+    .failures { padding: 10px 12px; background: #fff7ed; border-top: 1px solid #fed7aa; }
+    .failures h4 { margin: 0 0 6px; font-size: 13px; color: #9a3412; }
+    .about-card { padding: 18px; max-width: 980px; }
+    .about-card h2 { margin-top: 0; }
+    .about-card code { background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 5px; padding: 1px 4px; }
+    .small { font-size: 12px; color: #64748b; }
+    .pill { border-radius: 999px; padding: 3px 8px; background: #e2e8f0; font-size: 12px; font-weight: 800; color: #334155; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>DSPy GEPA / HumanEval Static Viewer</h1>
+    <p id="subtitle">Loading compact eval data…</p>
+    <div class="tabs">
+      <button type="button" class="tab-btn active" data-tab="flow">Prompt flow</button>
+      <button type="button" class="tab-btn" data-tab="matrix">Sample variation matrix</button>
+      <button type="button" class="tab-btn" data-tab="about">About / usage</button>
+    </div>
+  </header>
+
+  <main>
+    <section id="flow" class="section active">
+      <div class="summary" id="topSummary"></div>
+      <div class="toolbar">
+        <div>
+          <label for="sessionSelect">GEPA session</label>
+          <select id="sessionSelect"></select>
+        </div>
+        <div>
+          <label>Prompt flow mode</label>
+          <div class="segmented" id="flowModeButtons">
+            <button type="button" data-flow-mode="lineage" class="active">Final lineage</button>
+            <button type="button" data-flow-mode="promoted">Promoted only</button>
+            <button type="button" data-flow-mode="all">All candidates</button>
+          </div>
+        </div>
+        <div>
+          <label for="promptSearch">Search prompt text / label</label>
+          <input id="promptSearch" type="search" placeholder="e.g. executable Python, edge cases" />
+        </div>
+        <button type="button" class="action" id="fitPromptCards">Jump to top-left</button>
+      </div>
+      <div class="flow-shell">
+        <div class="flow-info">
+          <div>
+            <strong id="flowTitle">Prompt flow</strong>
+            <div class="note" id="flowNote"></div>
+          </div>
+          <div class="legend">
+            <span><i class="dot baseline"></i>baseline</span>
+            <span><i class="dot promoted"></i>promoted</span>
+            <span><i class="dot rejected"></i>rejected</span>
+            <span><i class="dot final"></i>final/saved</span>
+          </div>
+        </div>
+        <div class="flow-canvas" id="flowCanvas">
+          <svg id="edgeLayer"></svg>
+          <div class="flow-grid" id="flowGrid"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="matrix" class="section">
+      <div class="toolbar">
+        <div>
+          <label for="taskSearch">Task search</label>
+          <input id="taskSearch" type="search" placeholder="HumanEval/91 or keyword from prompt" />
+        </div>
+        <div>
+          <label for="matrixFilter">Filter</label>
+          <select id="matrixFilter">
+            <option value="all">All full 5x tasks</option>
+            <option value="variable">Variable across prompts</option>
+            <option value="stable">Stable / invariant</option>
+            <option value="always_pass">Always pass</option>
+            <option value="always_fail">Always fail</option>
+            <option value="high_variance">High variance (range ≥ 0.8)</option>
+            <option value="mixed_repeats">Mixed repeats within at least one prompt</option>
+          </select>
+        </div>
+        <div>
+          <label for="matrixSort">Sort</label>
+          <select id="matrixSort">
+            <option value="range">Range desc</option>
+            <option value="stddev">Std dev desc</option>
+            <option value="mean_asc">Mean asc</option>
+            <option value="mean_desc">Mean desc</option>
+            <option value="task_id">Task id</option>
+          </select>
+        </div>
+        <button type="button" class="action" data-download="matrix">Download matrix CSV</button>
+        <button type="button" class="action" data-download="stable">Download stable CSV</button>
+        <button type="button" class="action" data-download="unstable">Download unstable CSV</button>
+      </div>
+      <div class="summary" id="matrixSummary"></div>
+      <div class="matrix-wrap">
+        <table id="matrixTable"></table>
+      </div>
+      <div class="detail-panel" id="taskDetail"></div>
+    </section>
+
+    <section id="about" class="section">
+      <div class="about-card">
+        <h2>How to use this viewer</h2>
+        <p>This is a fully local static viewer generated from the uploaded <code>Eval Reports.zip</code>. It does not call any external APIs and it does not require a server.</p>
+        <p><strong>Prompt flow:</strong> choose a GEPA session, then use <em>Final lineage</em>, <em>Promoted only</em>, or <em>All candidates</em>. Every card shows the full prompt text inline so you can compare prompt-to-prompt changes side by side while horizontally scrolling the flow chart. Solid arrows are parent-child optimization edges; dashed arrows mean the saved optimized prompt has the same SHA as a candidate prompt.</p>
+        <p><strong>Sample variation matrix:</strong> rows are HumanEval tasks and columns are the full 5x eval conditions. Cells show pass count over evaluated attempts. Click a row to inspect all repeats, generated code, prompts/messages, prompt fingerprints, and failure summaries.</p>
+        <p>This repo copy commits the static viewer, browser-loadable data bundle, and CSV exports. The one-off preprocessing script from the original Desktop bundle is intentionally not included here.</p>
+      </div>
+    </section>
+  </main>
+
+  <script src="data/viewer_data.js"></script>
+  <script>
+  (function () {
+    const DATA = window.EVAL_VIEWER_DATA;
+    const state = {
+      tab: 'flow',
+      sessionId: null,
+      flowMode: 'lineage',
+      promptSearch: '',
+      taskSearch: '',
+      matrixFilter: 'all',
+      matrixSort: 'range',
+      selectedTaskId: null,
+      selectedAttempt: null,
+      visibleEdges: []
+    };
+
+    const $ = (sel, root = document) => root.querySelector(sel);
+    const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
+    const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    const fmt = (v, digits = 3) => (v === null || v === undefined || Number.isNaN(v)) ? '—' : Number(v).toFixed(digits).replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1');
+    const percent = (v) => (v === null || v === undefined || Number.isNaN(v)) ? '—' : `${(Number(v) * 100).toFixed(1)}%`;
+    const shortSha = (s) => s ? String(s).slice(0, 8) : '—';
+    const taskNum = (taskId) => Number(String(taskId || '').split('/').pop());
+
+    function nodeClass(n) {
+      const parts = ['prompt-card'];
+      if (n.kind === 'baseline') parts.push('baseline');
+      if (n.status === 'promoted') parts.push('promoted');
+      if (n.status === 'rejected') parts.push('rejected');
+      if (n.is_final_saved_prompt || n.kind === 'optimized') parts.push('final');
+      if (!n.prompt_text) parts.push('missing');
+      return parts.join(' ');
+    }
+
+    function init() {
+      if (!DATA) {
+        document.body.innerHTML = '<main><h1>Could not load data/viewer_data.js</h1><p>Make sure this HTML file is next to the data/ directory generated by the preprocessing script.</p></main>';
+        return;
+      }
+      $('#subtitle').textContent = `${DATA.source_zip_name || 'Eval Reports.zip'} • ${DATA.summary.gepa_prompt_count} GEPA prompts • ${DATA.summary.full5x_task_count} full 5x tasks`;
+      setupTabs();
+      populateSessionSelect();
+      bindControls();
+      renderTopSummary();
+      renderFlow();
+      renderMatrixSummary();
+      renderMatrix();
+    }
+
+    function setupTabs() {
+      $$('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          state.tab = btn.dataset.tab;
+          $$('.tab-btn').forEach(b => b.classList.toggle('active', b === btn));
+          $$('.section').forEach(sec => sec.classList.toggle('active', sec.id === state.tab));
+          if (state.tab === 'flow') setTimeout(drawEdges, 50);
+          if (state.tab === 'matrix') renderMatrix();
+        });
+      });
+    }
+
+    function populateSessionSelect() {
+      const sessions = DATA.gepa.sessions || [];
+      const nodesBy = DATA.gepa.nodes_by_session || {};
+      const sorted = sessions.slice().sort((a, b) => {
+        const na = (nodesBy[a.session_id] || []).length;
+        const nb = (nodesBy[b.session_id] || []).length;
+        return nb - na || String(a.session_id).localeCompare(String(b.session_id));
+      });
+      const select = $('#sessionSelect');
+      select.innerHTML = sorted.map(s => {
+        const nodes = nodesBy[s.session_id] || [];
+        const opt = (s.optimizer_runs || [])[0] || {};
+        const target = opt.optimization_target || 'direct';
+        const model = opt.model ? ` • ${opt.model}` : '';
+        return `<option value="${esc(s.session_id)}">${esc(s.session_id)} • ${esc(opt.generation_type || (s.generation_types || []).join(','))}/${esc(target)} • ${nodes.length} prompts${esc(model)}</option>`;
+      }).join('');
+      const defaultSession = sorted[0] || sessions[0];
+      state.sessionId = defaultSession ? defaultSession.session_id : null;
+      select.value = state.sessionId;
+    }
+
+    function bindControls() {
+      $('#sessionSelect').addEventListener('change', e => { state.sessionId = e.target.value; renderFlow(); });
+      $('#promptSearch').addEventListener('input', e => { state.promptSearch = e.target.value.trim().toLowerCase(); renderFlow(); });
+      $('#fitPromptCards').addEventListener('click', () => { const c = $('#flowCanvas'); c.scrollTo({left:0, top:0, behavior:'smooth'}); });
+      $$('#flowModeButtons button').forEach(btn => {
+        btn.addEventListener('click', () => {
+          state.flowMode = btn.dataset.flowMode;
+          $$('#flowModeButtons button').forEach(b => b.classList.toggle('active', b === btn));
+          renderFlow();
+        });
+      });
+      $('#taskSearch').addEventListener('input', e => { state.taskSearch = e.target.value.trim().toLowerCase(); renderMatrix(); });
+      $('#matrixFilter').addEventListener('change', e => { state.matrixFilter = e.target.value; renderMatrix(); });
+      $('#matrixSort').addEventListener('change', e => { state.matrixSort = e.target.value; renderMatrix(); });
+      $$('[data-download]').forEach(btn => btn.addEventListener('click', () => downloadRows(btn.dataset.download)));
+      $('#flowCanvas').addEventListener('scroll', () => window.requestAnimationFrame(drawEdges));
+      window.addEventListener('resize', () => window.requestAnimationFrame(drawEdges));
+    }
+
+    function renderTopSummary() {
+      const s = DATA.summary || {};
+      $('#topSummary').innerHTML = `<div class="summary-grid">
+        <div class="metric"><span class="value">${s.gepa_session_count ?? '—'}</span><span class="label">GEPA sessions</span></div>
+        <div class="metric"><span class="value">${s.gepa_prompt_count ?? '—'}</span><span class="label">GEPA prompt nodes</span></div>
+        <div class="metric"><span class="value">${s.gepa_edge_count ?? '—'}</span><span class="label">Prompt edges</span></div>
+        <div class="metric"><span class="value">${s.full5x_task_count ?? '—'}</span><span class="label">Full 5x tasks</span></div>
+        <div class="metric"><span class="value">${s.variable_task_count ?? '—'}</span><span class="label">Variable tasks</span></div>
+        <div class="metric"><span class="value">${s.stable_task_count ?? '—'}</span><span class="label">Invariant tasks</span></div>
+      </div>`;
+    }
+
+    function renderFlow() {
+      const sid = state.sessionId;
+      const nodesAll = (DATA.gepa.nodes_by_session || {})[sid] || [];
+      const edgesAll = (DATA.gepa.edges_by_session || {})[sid] || [];
+      const session = (DATA.gepa.sessions || []).find(s => s.session_id === sid) || {};
+      const opt = (session.optimizer_runs || [])[0] || {};
+      const defaultPath = ((DATA.gepa.default_path_by_session || {})[sid] || []).filter(Boolean);
+      const defaultSet = new Set(defaultPath);
+      let nodes = [];
+      if (state.flowMode === 'lineage') {
+        nodes = defaultPath.map(id => nodesAll.find(n => n.id === id)).filter(Boolean);
+        if (nodes.length <= 1) nodes = nodesAll.filter(n => n.kind === 'baseline' || n.status === 'promoted' || n.is_final_saved_prompt || n.kind === 'optimized');
+      } else if (state.flowMode === 'promoted') {
+        nodes = nodesAll.filter(n => n.kind === 'baseline' || n.status === 'promoted' || n.is_final_saved_prompt || n.kind === 'optimized');
+      } else {
+        nodes = nodesAll.slice();
+      }
+      if (state.promptSearch) {
+        const q = state.promptSearch;
+        nodes = nodes.filter(n => `${n.label} ${n.short_id} ${n.kind} ${n.status} ${n.prompt_text}`.toLowerCase().includes(q));
+      }
+      const visible = new Set(nodes.map(n => n.id));
+      state.visibleEdges = edgesAll.filter(e => visible.has(e.source) && visible.has(e.target));
+      $('#flowTitle').textContent = `${sid || 'GEPA'} prompt flow`;
+      const split = session.split_counts ? `splits train/dev/eval: ${session.split_counts.train ?? 0}/${session.split_counts.dev ?? 0}/${session.split_counts.eval ?? 0}` : '';
+      $('#flowNote').innerHTML = `${esc(opt.generation_type || '')} ${opt.optimization_target ? '• target ' + esc(opt.optimization_target) : ''} ${opt.model ? '• model ' + esc(opt.model) : ''} ${split ? '• ' + esc(split) : ''}. Showing ${nodes.length} of ${nodesAll.length} prompt nodes. Prompt text is fully expanded inline.`;
+      const grid = $('#flowGrid');
+      grid.innerHTML = '';
+      if (!nodes.length) {
+        grid.innerHTML = '<div class="empty-prompt">No prompt nodes match the current filters.</div>';
+        $('#edgeLayer').innerHTML = '';
+        return;
+      }
+      if (state.flowMode === 'lineage' && !state.promptSearch) {
+        nodes.forEach((n, idx) => {
+          const col = document.createElement('div');
+          col.className = 'flow-col';
+          col.innerHTML = `<div class="flow-col-title">Step ${idx + 1}</div>` + promptCardHTML(n, defaultSet);
+          grid.appendChild(col);
+        });
+      } else {
+        const groups = new Map();
+        nodes.forEach(n => {
+          const d = Number(n.depth || 0);
+          if (!groups.has(d)) groups.set(d, []);
+          groups.get(d).push(n);
+        });
+        Array.from(groups.keys()).sort((a,b)=>a-b).forEach(d => {
+          const col = document.createElement('div');
+          col.className = 'flow-col';
+          const colNodes = groups.get(d).sort((a,b) => (a.iteration ?? -1) - (b.iteration ?? -1) || (a.candidate_index ?? 9999) - (b.candidate_index ?? 9999) || String(a.label).localeCompare(String(b.label)));
+          col.innerHTML = `<div class="flow-col-title">Depth ${d}</div>` + colNodes.map(n => promptCardHTML(n, defaultSet)).join('');
+          grid.appendChild(col);
+        });
+      }
+      setTimeout(drawEdges, 80);
+    }
+
+    function promptCardHTML(n, defaultSet) {
+      const perf = n.performance || {};
+      const score = n.score;
+      const valsetScores = n.per_valset_task_scores || [];
+      const heat = valsetScores.slice(0, 48).map(s => {
+        const r = Number(s.pass_rate ?? 0);
+        const bg = r >= 1 ? '#22c55e' : r <= 0 ? '#ef4444' : '#f59e0b';
+        return `<span title="${esc(s.task_id)}: ${percent(r)}" style="background:${bg}"></span>`;
+      }).join('');
+      const diff = n.diff_from_parent || {};
+      const prompt = n.prompt_text ? `<pre class="prompt-text">${esc(n.prompt_text)}</pre>` : `<div class="empty-prompt">No prompt text was extractable for this node.</div>`;
+      const finalBadge = n.is_final_saved_prompt ? '<span class="badge warn">final saved</span>' : '';
+      const pathBadge = defaultSet.has(n.id) ? '<span class="badge blue">default path</span>' : '';
+      const aliasBadge = n.alias_of_prompt_id ? `<span class="badge warn">same SHA as ${esc(shortNode(n.alias_of_prompt_id))}</span>` : '';
+      const diffBlock = diff.changed ? `<details class="diff"><summary>Diff from parent: +${diff.added || 0} / -${diff.removed || 0} lines</summary><pre>${esc(diff.preview || '')}</pre></details>` : '';
+      return `<article class="${nodeClass(n)}" data-node-id="${esc(n.id)}">
+        <div class="prompt-head">
+          <div class="prompt-title"><strong>${esc(n.label)}</strong><span class="pill">${esc(n.status || n.kind || '')}</span></div>
+          <div class="badges">
+            <span class="badge">${esc(n.short_id)}</span>
+            ${n.iteration !== null && n.iteration !== undefined ? `<span class="badge">iter ${esc(n.iteration)}</span>` : ''}
+            ${n.candidate_index !== null && n.candidate_index !== undefined ? `<span class="badge">candidate ${String(n.candidate_index).padStart(3,'0')}</span>` : ''}
+            ${finalBadge}${pathBadge}${aliasBadge}
+            <span class="badge">sha ${esc(shortSha(n.prompt_sha256))}</span>
+            <span class="badge">${esc(n.prompt_char_count || 0)} chars</span>
+          </div>
+          <div class="perf-grid">
+            <div><b>score</b>${fmt(score)}</div>
+            <div><b>valset</b>${percent(perf.valset_score)}</div>
+            <div><b>selected</b>${fmt(perf.selected_score)}</div>
+            <div><b>coverage</b>${esc(perf.valset_coverage || '—')}</div>
+          </div>
+          ${heat ? `<div class="heatmap-mini" title="Per-valset task pass rates">${heat}</div>` : ''}
+        </div>
+        <div class="prompt-body">
+          ${prompt}
+          ${diffBlock}
+        </div>
+      </article>`;
+    }
+
+    function shortNode(id) {
+      if (!id) return '';
+      const bits = String(id).split(':prompt:');
+      return bits.length > 1 ? bits[1] : String(id).split(':').slice(-2).join(':');
+    }
+
+    function drawEdges() {
+      if (state.tab !== 'flow') return;
+      const canvas = $('#flowCanvas');
+      const svg = $('#edgeLayer');
+      if (!canvas || !svg) return;
+      svg.innerHTML = '<defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#64748b"></path></marker><marker id="arrowAlias" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#7c3aed"></path></marker></defs>';
+      const width = Math.max(canvas.scrollWidth, canvas.clientWidth);
+      const height = Math.max(canvas.scrollHeight, canvas.clientHeight);
+      svg.setAttribute('width', width);
+      svg.setAttribute('height', height);
+      svg.style.width = width + 'px';
+      svg.style.height = height + 'px';
+      const wrap = canvas.getBoundingClientRect();
+      state.visibleEdges.forEach(e => {
+        const src = $(`[data-node-id="${cssEscape(e.source)}"]`);
+        const dst = $(`[data-node-id="${cssEscape(e.target)}"]`);
+        if (!src || !dst) return;
+        const a = src.getBoundingClientRect();
+        const b = dst.getBoundingClientRect();
+        const x1 = a.right - wrap.left + canvas.scrollLeft;
+        const y1 = a.top - wrap.top + canvas.scrollTop + a.height / 2;
+        const x2 = b.left - wrap.left + canvas.scrollLeft;
+        const y2 = b.top - wrap.top + canvas.scrollTop + b.height / 2;
+        const dx = Math.max(40, (x2 - x1) / 2);
+        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        path.setAttribute('d', `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`);
+        path.setAttribute('fill', 'none');
+        path.setAttribute('stroke', e.type === 'same_prompt_as_final' ? '#7c3aed' : '#64748b');
+        path.setAttribute('stroke-width', e.type === 'same_prompt_as_final' ? '2.5' : '2');
+        if (e.type === 'same_prompt_as_final') path.setAttribute('stroke-dasharray', '6 5');
+        path.setAttribute('marker-end', e.type === 'same_prompt_as_final' ? 'url(#arrowAlias)' : 'url(#arrow)');
+        svg.appendChild(path);
+      });
+    }
+
+    function cssEscape(s) {
+      if (window.CSS && CSS.escape) return CSS.escape(s);
+      return String(s).replace(/"/g, '\\"').replace(/\\/g, '\\\\');
+    }
+
+    function renderMatrixSummary() {
+      const s = DATA.eval.stats || {};
+      $('#matrixSummary').innerHTML = `<div class="summary-grid">
+        <div class="metric"><span class="value">${s.full5x_run_count ?? '—'}</span><span class="label">Full 5x conditions</span></div>
+        <div class="metric"><span class="value">${s.full5x_task_count ?? '—'}</span><span class="label">Tasks in matrix</span></div>
+        <div class="metric"><span class="value">${s.variable_task_count ?? '—'}</span><span class="label">Variable tasks</span></div>
+        <div class="metric"><span class="value">${s.stable_task_count ?? '—'}</span><span class="label">Stable tasks</span></div>
+        <div class="metric"><span class="value">${s.always_pass_task_count ?? '—'}</span><span class="label">Always pass</span></div>
+        <div class="metric"><span class="value">${s.always_fail_task_count ?? '—'}</span><span class="label">Always fail</span></div>
+        <div class="metric"><span class="value">${s.mixed_repeat_task_count ?? '—'}</span><span class="label">Mixed repeats somewhere</span></div>
+      </div>`;
+    }
+
+    function filteredMatrixRows() {
+      let rows = (DATA.eval.matrix_rows || []).slice();
+      const q = state.taskSearch;
+      if (q) rows = rows.filter(r => `${r.task_id} ${r.problem_prompt || ''}`.toLowerCase().includes(q));
+      rows = rows.filter(r => {
+        const m = r.metrics || {};
+        if (state.matrixFilter === 'variable') return !!m.variable;
+        if (state.matrixFilter === 'stable') return !!m.stable;
+        if (state.matrixFilter === 'always_pass') return !!m.always_pass;
+        if (state.matrixFilter === 'always_fail') return !!m.always_fail;
+        if (state.matrixFilter === 'high_variance') return (m.range || 0) >= 0.8;
+        if (state.matrixFilter === 'mixed_repeats') return (m.within_mixed_count || 0) > 0;
+        return true;
+      });
+      const sort = state.matrixSort;
+      rows.sort((a,b) => {
+        const am = a.metrics || {}, bm = b.metrics || {};
+        if (sort === 'stddev') return (bm.stddev || 0) - (am.stddev || 0) || taskNum(a.task_id) - taskNum(b.task_id);
+        if (sort === 'mean_asc') return (am.mean ?? 999) - (bm.mean ?? 999) || taskNum(a.task_id) - taskNum(b.task_id);
+        if (sort === 'mean_desc') return (bm.mean ?? -1) - (am.mean ?? -1) || taskNum(a.task_id) - taskNum(b.task_id);
+        if (sort === 'task_id') return taskNum(a.task_id) - taskNum(b.task_id);
+        return (bm.range || 0) - (am.range || 0) || (bm.stddev || 0) - (am.stddev || 0) || taskNum(a.task_id) - taskNum(b.task_id);
+      });
+      return rows;
+    }
+
+    function renderMatrix() {
+      const labels = DATA.eval.full_labels || [];
+      const rows = filteredMatrixRows();
+      if (!state.selectedTaskId && rows.length) state.selectedTaskId = rows[0].task_id;
+      const table = $('#matrixTable');
+      const header = `<thead><tr>
+        <th>Task</th><th>Range</th><th>Std</th><th>Mean</th><th>Mixed</th>
+        ${labels.map(l => `<th title="${esc(l)}">${esc(l)}</th>`).join('')}
+      </tr></thead>`;
+      const body = rows.map(r => {
+        const m = r.metrics || {};
+        const cells = r.cells || {};
+        const tds = labels.map(l => {
+          const c = cells[l];
+          if (!c) return '<td class="cell-na">—</td>';
+          const rate = c.attempt_pass_rate;
+          const cls = rate === 1 ? 'cell-pass' : rate === 0 ? 'cell-fail' : 'cell-mixed';
+          return `<td class="${cls}" title="${esc(l)}: ${percent(rate)}; repeats ${(c.repeats || []).map(x => x.passed === true ? 'P' : x.passed === false ? 'F' : 'S').join('')}">${esc(c.pass_count)}/${esc(c.evaluated_attempt_count)}</td>`;
+        }).join('');
+        return `<tr data-task-id="${esc(r.task_id)}" class="${state.selectedTaskId === r.task_id ? 'selected' : ''}">
+          <td><strong>${esc(r.task_id)}</strong><div class="small">dataset ${esc(r.dataset_index)}</div></td>
+          <td>${percent(m.range)}</td><td>${fmt(m.stddev)}</td><td>${percent(m.mean)}</td><td>${esc(m.within_mixed_count || 0)}</td>${tds}
+        </tr>`;
+      }).join('');
+      table.innerHTML = header + `<tbody>${body}</tbody>`;
+      $$('tbody tr', table).forEach(tr => tr.addEventListener('click', () => {
+        state.selectedTaskId = tr.dataset.taskId;
+        state.selectedAttempt = null;
+        renderMatrix();
+        renderTaskDetail();
+      }));
+      if (state.selectedTaskId) renderTaskDetail();
+    }
+
+    function getTaskRow(taskId) {
+      return (DATA.eval.matrix_rows || []).find(r => r.task_id === taskId);
+    }
+
+    function renderTaskDetail() {
+      const row = getTaskRow(state.selectedTaskId);
+      const panel = $('#taskDetail');
+      if (!row) {
+        panel.innerHTML = '<p class="note">Select a task row to inspect attempts.</p>';
+        return;
+      }
+      const labels = DATA.eval.full_labels || [];
+      const m = row.metrics || {};
+      const attemptsByLabel = ((DATA.eval.attempts_by_task || {})[row.task_id]) || {};
+      if (!state.selectedAttempt) {
+        let picked = null;
+        for (const label of labels) {
+          const attempts = attemptsByLabel[label] || [];
+          picked = attempts.find(a => a.passed === false) || picked || attempts[0];
+          if (picked && picked.passed === false) { state.selectedAttempt = {label, repeat: picked.repeat_index}; break; }
+        }
+        if (!state.selectedAttempt && picked) {
+          const label = labels.find(l => (attemptsByLabel[l] || []).includes(picked));
+          state.selectedAttempt = {label, repeat: picked.repeat_index};
+        }
+      }
+      const conditionCards = labels.map(label => {
+        const cell = (row.cells || {})[label] || {};
+        const attempts = attemptsByLabel[label] || [];
+        const reps = attempts.map(a => {
+          const cls = a.passed === true ? 'pass' : a.passed === false ? 'fail' : 'skip';
+          const active = state.selectedAttempt && state.selectedAttempt.label === label && Number(state.selectedAttempt.repeat) === Number(a.repeat_index);
+          return `<button type="button" class="repeat-btn ${cls} ${active ? 'active' : ''}" data-label="${esc(label)}" data-repeat="${esc(a.repeat_index)}" title="repeat ${esc(a.repeat_index)} • ${percent(a.test_pass_rate)}">${esc(a.repeat_index)}</button>`;
+        }).join('');
+        return `<div class="condition-card">
+          <h3><span>${esc(label)}</span><span>${esc(cell.pass_count ?? '—')}/${esc(cell.evaluated_attempt_count ?? '—')}</span></h3>
+          <div class="small">rate ${percent(cell.attempt_pass_rate)} • avg tests ${percent(cell.average_test_pass_rate)}</div>
+          <div class="repeats" style="margin-top:8px">${reps || '<span class="small">No attempts</span>'}</div>
+        </div>`;
+      }).join('');
+      panel.innerHTML = `<div class="detail-header">
+        <div>
+          <h2>${esc(row.task_id)}</h2>
+          <div class="small">dataset index ${esc(row.dataset_index)} • range ${percent(m.range)} • std ${fmt(m.stddev)} • mean ${percent(m.mean)} • mixed prompt-repeat groups ${esc(m.within_mixed_count || 0)}</div>
+        </div>
+        <div class="badges">
+          ${m.stable ? '<span class="badge good">stable</span>' : '<span class="badge warn">variable</span>'}
+          ${m.always_pass ? '<span class="badge good">always pass</span>' : ''}
+          ${m.always_fail ? '<span class="badge bad">always fail</span>' : ''}
+          ${m.encdec_minus_direct !== null && m.encdec_minus_direct !== undefined ? `<span class="badge blue">encdec-direct ${percent(m.encdec_minus_direct)}</span>` : ''}
+        </div>
+      </div>
+      ${row.problem_prompt ? `<details class="diff"><summary>Problem / user prompt text</summary><pre>${esc(row.problem_prompt)}</pre></details>` : ''}
+      <div class="task-grid">${conditionCards}</div>
+      <div id="attemptDetail"></div>`;
+      $$('.repeat-btn', panel).forEach(btn => btn.addEventListener('click', () => {
+        state.selectedAttempt = {label: btn.dataset.label, repeat: Number(btn.dataset.repeat)};
+        renderTaskDetail();
+      }));
+      renderAttemptDetail();
+    }
+
+    function renderAttemptDetail() {
+      const target = $('#attemptDetail');
+      if (!target) return;
+      const row = getTaskRow(state.selectedTaskId);
+      const attemptsByLabel = ((DATA.eval.attempts_by_task || {})[state.selectedTaskId]) || {};
+      if (!row || !state.selectedAttempt) {
+        target.innerHTML = '';
+        return;
+      }
+      const attempts = attemptsByLabel[state.selectedAttempt.label] || [];
+      const attempt = attempts.find(a => Number(a.repeat_index) === Number(state.selectedAttempt.repeat)) || attempts[0];
+      if (!attempt) {
+        target.innerHTML = '<p class="note">No attempt selected.</p>';
+        return;
+      }
+      const passBadge = attempt.passed === true ? '<span class="badge good">passed</span>' : attempt.passed === false ? '<span class="badge bad">failed</span>' : '<span class="badge">skipped/unknown</span>';
+      const failures = attempt.test_summary && attempt.test_summary.failures && attempt.test_summary.failures.length ? `<div class="failures"><h4>First failure summaries</h4>${attempt.test_summary.failures.map((f, i) => `<details ${i === 0 ? 'open' : ''}><summary>Failure ${i + 1}</summary><pre>${esc(`input: ${f.input}\nexpected: ${f.expected}\nactual: ${f.actual}\nerror: ${f.error}`)}</pre></details>`).join('')}</div>` : '';
+      const calls = attempt.calls || [];
+      const msgHtml = calls.map((call, idx) => `<div class="prompt-msg-card" style="margin-bottom:12px">
+        <h3>Call ${idx + 1}: ${esc(call.prompt_kind || 'unknown')} <span class="small">${esc(call.model || '')}</span></h3>
+        <div class="small" style="padding:8px 12px;border-bottom:1px solid #e2e8f0">fingerprint ${esc(call.prompt_fingerprint || '—')} • tokens ${esc((call.usage || {}).total_tokens ?? '—')} • cost ${esc((call.usage || {}).cost ?? '—')}</div>
+        ${(call.messages || []).map(msg => `<div class="msg"><div class="msg-role">${esc(msg.role)}</div><pre>${esc(msg.content)}</pre></div>`).join('')}
+        ${call.outputs && Object.keys(call.outputs).length ? `<details class="diff"><summary>Output fields</summary><pre>${esc(JSON.stringify(call.outputs, null, 2))}</pre></details>` : ''}
+      </div>`).join('');
+      target.innerHTML = `<div class="attempt-view">
+        <div class="code-card">
+          <h3>${esc(state.selectedAttempt.label)} • repeat ${esc(attempt.repeat_index)} ${passBadge}</h3>
+          <div class="badges" style="padding:10px 12px;border-bottom:1px solid #e2e8f0">
+            <span class="badge">test pass rate ${percent(attempt.test_pass_rate)}</span>
+            <span class="badge">prompt kinds ${(attempt.prompt_kinds || []).map(esc).join(', ') || '—'}</span>
+            <span class="badge">fingerprints ${(attempt.prompt_fingerprints || []).map(shortSha).join(', ') || '—'}</span>
+          </div>
+          ${attempt.error ? `<div class="failures"><h4>Error</h4><pre>${esc(attempt.error)}</pre></div>` : ''}
+          ${attempt.code_spec ? `<details class="diff" open><summary>Encoded code spec</summary><pre>${esc(attempt.code_spec)}</pre></details>` : ''}
+          <h3>Extracted code</h3>
+          <pre>${esc(attempt.extracted_code || attempt.raw_completed_code || '')}</pre>
+          ${attempt.raw_completed_code && attempt.raw_completed_code !== attempt.extracted_code ? `<details class="diff"><summary>Raw completed code</summary><pre>${esc(attempt.raw_completed_code)}</pre></details>` : ''}
+          ${failures}
+        </div>
+        <div>
+          ${msgHtml || '<div class="prompt-msg-card"><h3>No generation calls were linked to this attempt</h3></div>'}
+        </div>
+      </div>`;
+    }
+
+    function downloadRows(kind) {
+      let rows = DATA.eval.matrix_rows || [];
+      if (kind === 'stable') rows = rows.filter(r => (r.metrics || {}).stable);
+      if (kind === 'unstable') rows = rows.filter(r => (r.metrics || {}).variable);
+      const labels = DATA.eval.full_labels || [];
+      const fields = ['task_id','dataset_index','mean','range','stddev','stable','always_pass','always_fail','within_mixed_count','direct_mean','encdec_mean','encdec_minus_direct','gepa_minus_baseline','mipro_minus_baseline'];
+      labels.forEach(l => fields.push(`${l}_pass_count`, `${l}_evaluated`, `${l}_pass_rate`));
+      const lines = [fields.join(',')];
+      rows.forEach(r => {
+        const m = r.metrics || {}, cells = r.cells || {};
+        const obj = {
+          task_id: r.task_id, dataset_index: r.dataset_index, mean: m.mean, range: m.range, stddev: m.stddev, stable: m.stable, always_pass: m.always_pass, always_fail: m.always_fail, within_mixed_count: m.within_mixed_count,
+          direct_mean: m.direct_mean, encdec_mean: m.encdec_mean, encdec_minus_direct: m.encdec_minus_direct, gepa_minus_baseline: m.gepa_minus_baseline, mipro_minus_baseline: m.mipro_minus_baseline
+        };
+        labels.forEach(l => { const c = cells[l] || {}; obj[`${l}_pass_count`] = c.pass_count; obj[`${l}_evaluated`] = c.evaluated_attempt_count; obj[`${l}_pass_rate`] = c.attempt_pass_rate; });
+        lines.push(fields.map(f => csvCell(obj[f])).join(','));
+      });
+      const blob = new Blob([lines.join('\n')], {type:'text/csv;charset=utf-8'});
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = kind === 'stable' ? 'stable_tasks_full5x.csv' : kind === 'unstable' ? 'unstable_tasks_full5x.csv' : 'task_variation_full5x.csv';
+      document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href);
+    }
+
+    function csvCell(v) {
+      const s = String(v ?? '');
+      return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    }
+
+    init();
+  })();
+  </script>
+</body>
+</html>
