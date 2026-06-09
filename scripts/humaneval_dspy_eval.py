@@ -5,16 +5,18 @@ from pathlib import Path
 
 import typer
 
-from nl_code.optim.humaneval_dspy_eval import (
-    GenerationType,
-    HumanEvalDspyEvalConfig,
-    HumanEvalDspyEvalSummary,
-    run_humaneval_dspy_eval,
-)
 from nl_code.optim.dspy_generators import (
     DEFAULT_DSPY_MODEL,
     DEFAULT_OPENROUTER_BASE_URL,
     DEFAULT_REASONING_EFFORT,
+    resolve_openrouter_llm_config,
+)
+from nl_code.optim.humaneval_dspy_eval import (
+    EncoderInputMode,
+    GenerationType,
+    HumanEvalDspyEvalConfig,
+    HumanEvalDspyEvalSummary,
+    run_humaneval_dspy_eval,
 )
 
 
@@ -54,12 +56,23 @@ def main(
     model: str = typer.Option(
         DEFAULT_DSPY_MODEL,
         "--model",
-        help="DSPy/LiteLLM model name.",
+        help="DSPy/LiteLLM model name. Overridden by --llm-config-id.",
+    ),
+    llm_config_id: str | None = typer.Option(
+        None,
+        "--llm-config-id",
+        help="Supported OpenRouter catalog config id. Overrides --model and --reasoning-effort.",
     ),
     reasoning_effort: str | None = typer.Option(
         DEFAULT_REASONING_EFFORT,
         "--reasoning-effort",
         help="Reasoning effort value, or 'none' to omit reasoning settings.",
+    ),
+    encoder_input: EncoderInputMode = typer.Option(
+        "stub",
+        "--encoder-input",
+        case_sensitive=False,
+        help="Encoder input for ENCDEC eval: stub uses the task prompt, oracle uses gt_solution.",
     ),
     api_base: str = typer.Option(
         os.getenv("OPENROUTER_API_BASE", DEFAULT_OPENROUTER_BASE_URL),
@@ -126,6 +139,16 @@ def main(
     if not api_key:
         raise typer.BadParameter("OPENROUTER_API_KEY must be set")
 
+    reasoning_config = None
+    if llm_config_id:
+        try:
+            lm_catalog_config = resolve_openrouter_llm_config(llm_config_id)
+        except ValueError as exc:
+            raise typer.BadParameter(str(exc)) from exc
+        model = lm_catalog_config.model
+        reasoning_effort = None
+        reasoning_config = lm_catalog_config.reasoning
+
     config = HumanEvalDspyEvalConfig(
         generation_type=generation_type,
         n_samples=n_samples,
@@ -134,7 +157,10 @@ def main(
         task_ids=_parse_task_ids(task_ids),
         num_repeats=num_repeats,
         model=model,
+        llm_config_id=llm_config_id,
         reasoning_effort=reasoning_effort,
+        reasoning_config=reasoning_config,
+        encoder_input=encoder_input,
         api_base=api_base,
         output_dir=output_dir,
         direct_program_path=direct_program_path,

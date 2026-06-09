@@ -257,8 +257,47 @@ def test_run_both_eval_uses_same_selected_samples(
     assert set(run.summaries) == {"direct", "encdec"}
     assert len(direct_generator.calls) == 1
     assert encoder_decoder_generator.calls == [
-        ("def add_one(x):\n    return x + 1\n", "def add_one(x):\n")
+        ("def add_one(x):\n", "def add_one(x):\n")
     ]
+
+
+def test_encdec_eval_oracle_input_uses_gt_solution(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(eval_mod, "run_test_cases", _fake_run_test_cases)
+    encoder_decoder_generator = FakeEncoderDecoderGenerator()
+    dataset = _fake_dataset()
+
+    eval_mod.run_humaneval_dspy_eval(
+        HumanEvalDspyEvalConfig(
+            generation_type=GenerationType.ENCDEC,
+            sample_indices=[0],
+            encoder_input="oracle",
+            output_dir=tmp_path,
+        ),
+        dataset=dataset,
+        direct_generator=FakeDirectGenerator(),
+        encoder_decoder_generator=encoder_decoder_generator,
+        lm=FakeLm(),
+    )
+
+    sample = dataset.get_raw_sample_at_index(0)
+    assert encoder_decoder_generator.calls == [
+        (sample.gt_solution, sample.function_stub)
+    ]
+
+
+def test_eval_config_resolves_llm_catalog_id() -> None:
+    config = HumanEvalDspyEvalConfig(
+        llm_config_id="openrouter/openai/gpt-oss-20b/low/v1",
+        model="unused",
+        reasoning_effort="minimal",
+        reasoning_config={"effort": "low"},
+    )
+
+    assert config.llm_config_id == "openrouter/openai/gpt-oss-20b/low/v1"
+    assert config.reasoning_config == {"effort": "low"}
 
 
 def test_fenced_code_is_extracted_before_eval(

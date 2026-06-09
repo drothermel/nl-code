@@ -6,7 +6,7 @@ from collections.abc import Callable, Sequence
 from datetime import datetime, timezone
 from enum import StrEnum
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -38,6 +38,9 @@ class GenerationType(StrEnum):
     BOTH = "both"
 
 
+EncoderInputMode = Literal["stub", "oracle"]
+
+
 class HumanEvalDspyEvalConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -48,7 +51,10 @@ class HumanEvalDspyEvalConfig(BaseModel):
     task_ids: list[str] = Field(default_factory=list)
     num_repeats: int = 1
     model: str = DEFAULT_DSPY_MODEL
+    llm_config_id: str | None = None
     reasoning_effort: str | None = DEFAULT_REASONING_EFFORT
+    reasoning_config: dict[str, Any] | None = None
+    encoder_input: EncoderInputMode = "stub"
     api_base: str = DEFAULT_OPENROUTER_BASE_URL
     output_dir: Path = Path("logs")
     generation_log_file: Path | None = None
@@ -224,6 +230,7 @@ def run_humaneval_dspy_eval(
             api_key=api_key,
             api_base=config.api_base,
             reasoning_effort=config.reasoning_effort,
+            reasoning=config.reasoning_config,
         )
     if needs_direct_generator and direct_generator is None:
         direct_generator = load_direct_generator(config.direct_program_path)
@@ -480,6 +487,7 @@ def _run_attempt(
     prediction = _generate_prediction(
         sample=sample,
         generation_type=generation_type,
+        encoder_input=config.encoder_input,
         direct_generator=direct_generator,
         encoder_decoder_generator=encoder_decoder_generator,
     )
@@ -491,6 +499,7 @@ def _run_attempt(
         start_index=history_start_index,
         attempt_metadata={
             "generation_type": generation_type.value,
+            "encoder_input": config.encoder_input,
             "dataset_index": dataset_index,
             "task_id": sample.task_id,
             "repeat_index": repeat_index,
@@ -539,14 +548,18 @@ def _generate_prediction(
     *,
     sample: Any,
     generation_type: GenerationType,
+    encoder_input: EncoderInputMode,
     direct_generator: GeneratorCallable,
     encoder_decoder_generator: GeneratorCallable,
 ) -> Any:
     if generation_type == GenerationType.DIRECT:
         return direct_generator(code_stub=sample.source__prompt)
     if generation_type == GenerationType.ENCDEC:
+        input_code = (
+            sample.gt_solution if encoder_input == "oracle" else sample.source__prompt
+        )
         return encoder_decoder_generator(
-            input_code=sample.gt_solution,
+            input_code=input_code,
             function_stub=sample.function_stub,
         )
     raise ValueError(f"cannot generate prediction for {generation_type!r}")

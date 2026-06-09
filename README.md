@@ -80,6 +80,8 @@ generation against an encoder-decoder setup on HumanEval.
 
 - `scripts/humaneval_dspy_eval.py` runs the evaluation from the command line.
   It writes a run JSON plus generation-history JSONL records under `logs/`.
+  ENCDEC eval defaults to stub encoder input (`source__prompt`); pass
+  `--encoder-input oracle` to feed `gt_solution` for oracle round-trip checks.
 - `scripts/optimize_humaneval_dspy_direct.py` and
   `scripts/optimize_humaneval_dspy_encdec.py` run MIPRO optimization for the
   direct and encoder-decoder HumanEval programs.

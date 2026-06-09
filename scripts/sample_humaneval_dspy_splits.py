@@ -7,9 +7,7 @@ from pathlib import Path
 import typer
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-
-DEFAULT_DIRECT_LOG = Path("logs/human_eval_dspy_direct_eval_20260515T051718Z.json")
-DEFAULT_ENCDEC_LOG = Path("logs/human_eval_dspy_encdec_eval_20260515T052743Z.json")
+from nl_code.optim.humaneval_dspy_optimize import SplitTaskIds, validate_disjoint_splits
 
 
 class SplitTargets(BaseModel):
@@ -72,21 +70,29 @@ SPLIT_TARGETS = {
 
 def main(
     seed: int = typer.Option(42, "--seed", help="Random seed for split sampling."),
-    direct_log: Path = typer.Option(
-        DEFAULT_DIRECT_LOG,
+    direct_log: Path | None = typer.Option(
+        None,
         "--direct-log",
         exists=True,
         file_okay=True,
         dir_okay=False,
         help="Direct-generation full eval JSON log.",
     ),
-    encdec_log: Path = typer.Option(
-        DEFAULT_ENCDEC_LOG,
+    encdec_log: Path | None = typer.Option(
+        None,
         "--encdec-log",
         exists=True,
         file_okay=True,
         dir_okay=False,
         help="Encoder-decoder full eval JSON log.",
+    ),
+    logs_dir: Path = typer.Option(
+        Path("logs"),
+        "--logs-dir",
+        exists=True,
+        file_okay=False,
+        dir_okay=True,
+        help="Directory used to discover eval logs when --direct-log/--encdec-log are omitted.",
     ),
     eval_passed_both: int = typer.Option(
         SPLIT_TARGETS["eval"].passed_both,
@@ -95,8 +101,10 @@ def main(
         help="Number of passed-by-both tasks to sample into the eval split.",
     ),
 ) -> None:
-    direct_results = load_task_results(direct_log)
-    encdec_results = load_task_results(encdec_log)
+    resolved_direct_log = direct_log or discover_eval_log(logs_dir, "direct")
+    resolved_encdec_log = encdec_log or discover_eval_log(logs_dir, "encdec")
+    direct_results = load_task_results(resolved_direct_log, generation_type="direct")
+    encdec_results = load_task_results(resolved_encdec_log, generation_type="encdec")
     common_task_ids = set(direct_results) & set(encdec_results)
 
     buckets = build_buckets(
@@ -110,13 +118,40 @@ def main(
         )
     }
     sample = sample_splits(buckets, split_targets, seed=seed)
+    validate_disjoint_splits(
+        SplitTaskIds(train=sample.train, dev=sample.dev, eval=sample.eval)
+    )
 
     print_summary(buckets, sample)
     print_csv_lists(sample)
 
 
-def load_task_results(path: Path) -> dict[str, TaskResult]:
+def discover_eval_log(logs_dir: Path, generation_type: str) -> Path:
+    pattern = f"human_eval_dspy_{generation_type}_eval_*.json"
+    matches = sorted(logs_dir.glob(pattern))
+    if not matches:
+        raise typer.BadParameter(
+            f"no {generation_type} eval log found under {logs_dir} matching {pattern}"
+        )
+    return matches[-1]
+
+
+def load_task_results(
+    path: Path,
+    *,
+    generation_type: str | None = None,
+) -> dict[str, TaskResult]:
     data = json.loads(path.read_text())
+    if "outputs" in data:
+        return _load_legacy_task_results(data)
+    if "attempts" in data:
+        return _load_package_task_results(data, generation_type=generation_type)
+    raise typer.BadParameter(
+        f"{path} must contain either legacy outputs or package attempts"
+    )
+
+
+def _load_legacy_task_results(data: dict[str, object]) -> dict[str, TaskResult]:
     results = {}
     for item in data["outputs"]:
         output = item["output"]
@@ -125,6 +160,29 @@ def load_task_results(path: Path) -> dict[str, TaskResult]:
             dataset_index=item["dataset_index"],
             task_id=task_id,
             failed=output.get("skipped") is True or output["pass_rate"] < 1,
+        )
+    return results
+
+
+def _load_package_task_results(
+    data: dict[str, object],
+    *,
+    generation_type: str | None,
+) -> dict[str, TaskResult]:
+    if generation_type is None:
+        raise typer.BadParameter(
+            "generation_type is required when loading package-format eval logs"
+        )
+    results: dict[str, TaskResult] = {}
+    for attempt in data["attempts"]:
+        if attempt.get("generation_type") != generation_type:
+            continue
+        task_id = attempt["task_id"]
+        results[task_id] = TaskResult(
+            dataset_index=attempt["dataset_index"],
+            task_id=task_id,
+            failed=attempt.get("skipped") is True
+            or attempt.get("test_pass_rate", 0.0) < 1,
         )
     return results
 
