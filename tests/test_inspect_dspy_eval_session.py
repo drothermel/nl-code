@@ -65,6 +65,58 @@ def test_cli_writes_output_file(tmp_path: Path) -> None:
     assert runs[0]["id"] == "human_eval_dspy_run_20260515T000001Z"
 
 
+def test_unresolved_generation_log_source_does_not_false_match_calls(
+    tmp_path: Path,
+) -> None:
+    module = load_script_module()
+    session_dir = base_session(tmp_path)
+    logs_dir = session_dir / "raw" / "logs"
+    logs_dir.mkdir(parents=True)
+    write_jsonl(
+        logs_dir / "human_eval_dspy_other_20260515T000000Z.jsonl",
+        [generation_record(task_id="HumanEval/9", dataset_index=9)],
+    )
+    write_json(
+        logs_dir / "human_eval_dspy_run_20260515T000001Z.json",
+        {
+            "timestamp": "2026-05-15T00:00:01+00:00",
+            "config": {"generation_type": "direct", "n_samples": 1},
+            "selected_dataset_indices": [0],
+            "attempts": [
+                {
+                    "generation_type": "direct",
+                    "dataset_index": 0,
+                    "task_id": "HumanEval/0",
+                    "repeat_index": 0,
+                    "skipped": False,
+                    "raw_completed_code": "def f(x):\n    return 1\n",
+                    "extracted_code": "def f(x):\n    return 1\n",
+                    "test_case_results": [passing_result()],
+                    "test_pass_rate": 1.0,
+                    "generation_log_file": "logs/missing_generations.jsonl",
+                }
+            ],
+            "summaries": {
+                "direct": {
+                    "total_attempts": 1,
+                    "evaluated_attempts": 1,
+                    "skipped_count": 0,
+                    "attempt_pass_count": 1,
+                    "attempt_pass_rate": 1.0,
+                    "sample_best_pass_count": 1,
+                    "sample_best_pass_rate": 1.0,
+                    "average_test_pass_rate": 1.0,
+                }
+            },
+        },
+    )
+
+    report = module.build_session_report(session_dir)
+
+    assert report.attempts[0].generation_call_ids == []
+    assert "generation_log_source_unresolved" in report.attempts[0].parse_notes
+
+
 def test_cli_walk_writes_one_report_per_eval_session(tmp_path: Path) -> None:
     module = load_script_module()
     corpus_dir = tmp_path / "v0"

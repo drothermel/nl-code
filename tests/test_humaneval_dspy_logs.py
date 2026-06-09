@@ -56,6 +56,24 @@ def test_parse_legacy_eval_log_and_generation_history(tmp_path: Path) -> None:
     assert [call.attempt.call_index for call in attempt_calls if call.attempt] == [0]
 
 
+def test_parse_generation_history_skips_optimization_event_jsonl(
+    tmp_path: Path,
+) -> None:
+    generation_log = tmp_path / "human_eval_dspy_20260515T000000Z.jsonl"
+    generation_log.write_text(json.dumps(_generation_record()) + "\n")
+    events_log = (
+        tmp_path / "human_eval_dspy_direct_optimized_20260515T000001Z_events.jsonl"
+    )
+    events_log.write_text(
+        json.dumps({"event": "run_start", "payload": {"ok": True}}) + "\n"
+    )
+
+    snapshot = parse_humaneval_dspy_logs(tmp_path)
+
+    assert len(snapshot.generation_calls) == 1
+    assert snapshot.generation_calls[0].source_file == generation_log.resolve()
+
+
 def test_parse_package_run_log_round_trips_snapshot(tmp_path: Path) -> None:
     run_log = tmp_path / "human_eval_dspy_run_20260515T000001Z.json"
     run_log.write_text(

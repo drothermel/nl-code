@@ -395,6 +395,8 @@ def parse_generation_history_files(
 ) -> dict[Path, list[HumanEvalDspyGenerationCall]]:
     calls_by_file: dict[Path, list[HumanEvalDspyGenerationCall]] = {}
     for path in sorted(logs_dir.glob("human_eval_dspy*.jsonl")):
+        if path.name.endswith("_events.jsonl"):
+            continue
         calls: list[HumanEvalDspyGenerationCall] = []
         parse_error = None
         for record_index, line in enumerate(

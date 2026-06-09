@@ -91,6 +91,7 @@ class AttemptReport(BaseModel):
     generation_log_file: str | None = None
     generation_log_source_relative_path: str | None = None
     generation_call_ids: list[str] = Field(default_factory=list)
+    parse_notes: list[str] = Field(default_factory=list)
 
     @property
     def evaluated(self) -> bool:
@@ -713,14 +714,10 @@ def package_attempt(
         generation_log_file=generation_log_file,
         generation_log_source_relative_path=generation_log_source,
     )
-    return attempt.model_copy(
-        update={
-            "generation_call_ids": matched_generation_call_ids(
-                attempt,
-                generation_log_source,
-                generation_calls_by_source,
-            )
-        }
+    return _attach_generation_call_links(
+        attempt,
+        generation_log_source=generation_log_source,
+        generation_calls_by_source=generation_calls_by_source,
     )
 
 
@@ -765,13 +762,30 @@ def legacy_attempt(
         generation_log_file=generation_log_file,
         generation_log_source_relative_path=generation_log_source,
     )
+    return _attach_generation_call_links(
+        attempt,
+        generation_log_source=generation_log_source,
+        generation_calls_by_source=generation_calls_by_source,
+    )
+
+
+def _attach_generation_call_links(
+    attempt: AttemptReport,
+    *,
+    generation_log_source: str | None,
+    generation_calls_by_source: dict[str, list[GenerationCallReport]],
+) -> AttemptReport:
+    parse_notes = list(attempt.parse_notes)
+    if attempt.generation_log_file and generation_log_source is None:
+        parse_notes.append("generation_log_source_unresolved")
     return attempt.model_copy(
         update={
             "generation_call_ids": matched_generation_call_ids(
                 attempt,
                 generation_log_source,
                 generation_calls_by_source,
-            )
+            ),
+            "parse_notes": parse_notes,
         }
     )
 
@@ -843,11 +857,8 @@ def matched_generation_call_ids(
     generation_calls_by_source: dict[str, list[GenerationCallReport]],
 ) -> list[str]:
     if generation_log_source is None:
-        candidate_calls = [
-            call for calls in generation_calls_by_source.values() for call in calls
-        ]
-    else:
-        candidate_calls = generation_calls_by_source.get(generation_log_source, [])
+        return []
+    candidate_calls = generation_calls_by_source.get(generation_log_source, [])
     return [
         call.id
         for call in candidate_calls
