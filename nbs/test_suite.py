@@ -1,8 +1,7 @@
 """Validate HumanEval-Plus ground truth solutions.
 
-Loads the HumanEval-Plus dataset from HuggingFace, runs each ground
-truth solution against its test cases, and reports pass/fail status
-for every task.
+Loads the HumanEval-Plus dataset from cache, inspects v3 raw-task shape,
+and runs the first parsed test case against the ground-truth solution.
 """
 
 import marimo
@@ -32,26 +31,6 @@ def _():
         ]
     )
     return (ds,)
-
-
-@app.function(hide_code=True)
-def render_sample_fields(sample, *, prefix=None, suppress_prefix=None):
-    return mo.vstack(
-        [
-            mo.accordion(
-                {
-                    field: (
-                        mo.plain_text(str(value))
-                        if field in sample.non_code_fields
-                        else mo.ui.code_editor(str(value))
-                    )
-                }
-            )
-            for field, value in sample.model_dump().items()
-            if (prefix is None or field.startswith(prefix))
-            and (suppress_prefix is None or not field.startswith(suppress_prefix))
-        ]
-    )
 
 
 @app.function(hide_code=True)
@@ -89,7 +68,24 @@ def _(sample):
     mo.vstack(
         [
             mo.md("## Source Fields"),
-            render_sample_fields(sample, prefix="source__"),
+            mo.ui.code_editor(
+                value=sample.source.prompt,
+                language="python",
+                disabled=True,
+                min_height=1,
+            ),
+            mo.ui.code_editor(
+                value=sample.source.canonical_solution,
+                language="python",
+                disabled=True,
+                min_height=1,
+            ),
+            mo.ui.code_editor(
+                value=sample.source.test,
+                language="python",
+                disabled=True,
+                min_height=1,
+            ),
         ]
     )
     return
@@ -100,7 +96,15 @@ def _(sample):
     mo.vstack(
         [
             mo.md("## Derived Fields"),
-            render_sample_fields(sample, suppress_prefix="source__"),
+            mo.md("Ground-truth code (stripped)"),
+            mo.ui.code_editor(
+                value=sample.gt_solution.code,
+                language="python",
+                disabled=True,
+                min_height=1,
+            ),
+            mo.md(f"Test suite shape: `{sample.test_suite.shape}`"),
+            mo.md(f"Test case count: {sample.test_suite.case_count}"),
         ]
     )
     return
@@ -116,7 +120,7 @@ def _(ds, val_ids):
 def _(ex):
     mo.md(f"""
     ```
-    {ex.source__prompt}
+    {ex.source.prompt}
     ```
     """)
     return
@@ -126,7 +130,7 @@ def _(ex):
 def _(ex):
     mo.md(f"""
     ```
-    {ex.gt_solution}
+    {ex.gt_solution.code}
     ```
     """)
     return
@@ -134,10 +138,7 @@ def _(ex):
 
 @app.cell(hide_code=True)
 def _(ex):
-    first_test_case = TestCase(
-        input_value=ex.test_inputs[0],
-        expected_output=ex.test_results[0],
-    )
+    first_test_case = ex.test_suite.case_at_index(0)
 
     mo.md(f"""
     ### First parsed test case
@@ -152,14 +153,14 @@ def _(ex):
 @app.cell(hide_code=True)
 def _(ex, first_test_case):
     gt_solution_for_single_case = build_single_test_case_solution(
-        ex.gt_solution,
+        ex.gt_solution.code,
         ex.entry_point,
     )
 
     gt_first_test_results, gt_first_test_pass_rate = run_test_cases(
         code=gt_solution_for_single_case,
         function_name="run_single_test_case",
-        test_cases=[first_test_case],
+        test_cases=[TestCase.model_validate(first_test_case.model_dump())],
     )
     gt_first_test_result = gt_first_test_results[0]
 
@@ -170,7 +171,7 @@ def _(ex, first_test_case):
 
     ```python
     gt_solution_for_single_case = build_single_test_case_solution(
-        ex.gt_solution,
+        ex.gt_solution.code,
         ex.entry_point,
     )
 

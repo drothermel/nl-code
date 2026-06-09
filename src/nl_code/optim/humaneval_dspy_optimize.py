@@ -26,7 +26,9 @@ from nl_code.optim.dspy_generators import (
     EncoderDecoderCodeGenerator,
     configure_dspy_lm,
 )
+from nl_code.datasets.humaneval_task import RawHumanEvalTask
 from nl_code.optim.humaneval_dspy_eval import evaluate_completed_code
+from nl_code.optim.humaneval_dspy_sample import code_stub, function_stub, gt_code
 
 logger = logging.getLogger(__name__)
 
@@ -464,36 +466,36 @@ def normalize_auto(value: str | None) -> AutoMode | None:
 
 
 def direct_examples(
-    samples_by_task_id: dict[str, Any],
+    samples_by_task_id: dict[str, RawHumanEvalTask],
     task_ids: Sequence[str],
 ) -> list[dspy.Example]:
     return [
         dspy.Example(
             task_id=task_id,
-            code_stub=samples_by_task_id[task_id].source__prompt,
-            completed_code=samples_by_task_id[task_id].gt_solution,
+            code_stub=code_stub(samples_by_task_id[task_id]),
+            completed_code=gt_code(samples_by_task_id[task_id]),
         ).with_inputs("code_stub")
         for task_id in task_ids
     ]
 
 
 def encoder_examples(
-    samples_by_task_id: dict[str, Any],
+    samples_by_task_id: dict[str, RawHumanEvalTask],
     task_ids: Sequence[str],
 ) -> list[dspy.Example]:
     return [
         dspy.Example(
             task_id=task_id,
-            input_code=samples_by_task_id[task_id].gt_solution,
-            function_stub=samples_by_task_id[task_id].function_stub,
-            completed_code=samples_by_task_id[task_id].gt_solution,
+            input_code=gt_code(samples_by_task_id[task_id]),
+            function_stub=function_stub(samples_by_task_id[task_id]),
+            completed_code=gt_code(samples_by_task_id[task_id]),
         ).with_inputs("input_code")
         for task_id in task_ids
     ]
 
 
 def decoder_examples(
-    samples_by_task_id: dict[str, Any],
+    samples_by_task_id: dict[str, RawHumanEvalTask],
     code_specs_by_task_id: dict[str, str],
     task_ids: Sequence[str],
 ) -> list[dspy.Example]:
@@ -501,23 +503,23 @@ def decoder_examples(
         dspy.Example(
             task_id=task_id,
             code_spec=code_specs_by_task_id[task_id],
-            function_stub=samples_by_task_id[task_id].function_stub,
-            completed_code=samples_by_task_id[task_id].gt_solution,
+            function_stub=function_stub(samples_by_task_id[task_id]),
+            completed_code=gt_code(samples_by_task_id[task_id]),
         ).with_inputs("code_spec", "function_stub")
         for task_id in task_ids
     ]
 
 
 def encdec_examples(
-    samples_by_task_id: dict[str, Any],
+    samples_by_task_id: dict[str, RawHumanEvalTask],
     task_ids: Sequence[str],
 ) -> list[dspy.Example]:
     return [
         dspy.Example(
             task_id=task_id,
-            input_code=samples_by_task_id[task_id].gt_solution,
-            function_stub=samples_by_task_id[task_id].function_stub,
-            completed_code=samples_by_task_id[task_id].gt_solution,
+            input_code=gt_code(samples_by_task_id[task_id]),
+            function_stub=function_stub(samples_by_task_id[task_id]),
+            completed_code=gt_code(samples_by_task_id[task_id]),
         ).with_inputs("input_code", "function_stub")
         for task_id in task_ids
     ]
@@ -736,7 +738,7 @@ def precompute_code_specs(
             f"Precomputing code spec {index}/{len(task_ids)} task_id={task_id}",
             verbose=verbose,
         )
-        prediction = encoder(input_code=samples_by_task_id[task_id].gt_solution)
+        prediction = encoder(input_code=gt_code(samples_by_task_id[task_id]))
         code_specs[task_id] = prediction_field(prediction, "code_spec")
     return code_specs
 

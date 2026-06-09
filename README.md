@@ -56,15 +56,21 @@ uv run nl-code-test docker -q tests/test_execution_runner.py
 
 Loaders for HumanEval, HumanEval-Pro, MBPP-Pro, BigCodeBench Lite Pro, and ClassEval. Datasets are fetched from HuggingFace, parsed into `Task` objects, and cached locally.
 
-The corresponding raw task models preserve the original dataset inputs as `source__...` fields and expose richer derived artifacts such as:
-- official prompt fields
-- stripped and comment-preserving ground-truth code
+Derived `Task` objects use schema version `v3`:
+- `target: TaskTarget` with `name` and `kind` (`"function"` or `"class"`)
+- `source: TaskSource` with runnable ground-truth code in `source.code`
 
-Across task families, `new_official_prompt` provides a consistent interface for prompt access even when the underlying dataset-specific field names differ.
+Raw task models preserve the original dataset inputs in a nested `source` object. Derived artifacts such as ground-truth code, parsed test suites, and official prompts are exposed as `@cached_property` helpers (`gt_solution`, `test_suite`, `prompts`, and family-specific views) and are not serialized into cache payloads.
 
-`DatasetSlice` supports filtering, seeded shuffling, limits, and parallel accessors for common raw-task artifacts:
-- `get_source_code(task_id)`
-- `get_official_prompt(task_id)`
+`DatasetSlice` supports filtering, seeded shuffling, limits, and accessors for common artifacts:
+- `get_source_code(task_id)` — normalized runnable code from the derived `Task`
+- `get_official_prompt(task_id)` — dataset-specific official prompt (HumanEval returns the raw HuggingFace prompt)
+
+Parsed dataset caches use schema version 3. Rebuild after upgrading:
+
+```bash
+uv run python -m nl_code.datasets.cache_cli rebuild all
+```
 
 ## Dataset Explorer
 
@@ -77,8 +83,8 @@ generation against an encoder-decoder setup on HumanEval.
 
 - `scripts/humaneval_dspy_eval.py` runs the evaluation from the command line.
   It writes a run JSON plus generation-history JSONL records under `logs/`.
-  ENCDEC eval defaults to stub encoder input (`source__prompt`); pass
-  `--encoder-input oracle` to feed `gt_solution` for oracle round-trip checks.
+  ENCDEC eval defaults to stub encoder input (`raw.source.prompt`); pass
+  `--encoder-input oracle` to feed `raw.gt_solution.code` for oracle round-trip checks.
 - `scripts/optimize_humaneval_dspy_direct.py` and
   `scripts/optimize_humaneval_dspy_encdec.py` run MIPRO optimization for the
   direct and encoder-decoder HumanEval programs.

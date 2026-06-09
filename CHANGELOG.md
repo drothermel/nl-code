@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.7.0 - 2026-05-17
+
+This release formalizes the current task schema as `v3` and bumps parsed dataset caches to schema version 3.
+
+- Redesigned derived `Task` objects around `target: TaskTarget` and `source: TaskSource` instead of flat `entry_point_name`, `description`, and `gt_solution` fields.
+- Nested raw-task `source` objects replace flat `source__...` serialized fields across HumanEval, Pro, and ClassEval task families.
+- Added HumanEval serialized test suites (`HumanEvalTest`, `HumanEvalTestCase`) with per-case source rewriting and `HumanEvalDataset.get_test_cases_at_index()`.
+- Added shared Pro-task modeling in `pro_task.py` and `GTSolution` for HumanEval ground-truth execution.
+- Expanded `code_parsing.py` with AST span editing and test-list parsing helpers.
+- Migrated HumanEval DSPy eval/optimize workflows to v3 sample accessors in `humaneval_dspy_sample.py`.
+- Removed `Task.description`, `DatasetSlice.get_code_stub()`, and `DatasetSlice.get_code_stub_with_comments()`.
+- Rebuilt dataset caches against schema version 3.
+
 ## 0.6.0 - 2026-04-16
 
 This release formalizes the current task schema as `v2` and defines the prior raw-task/task design as `v1`.
