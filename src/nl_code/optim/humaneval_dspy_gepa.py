@@ -33,6 +33,7 @@ from nl_code.optim.humaneval_dspy_optimize import (
     decoder_examples,
     direct_examples,
     encoder_examples,
+    encoder_metric,
     encdec_examples,
     evaluate_splits,
     log_optimization_event,
@@ -92,14 +93,7 @@ class HumanEvalGepaFeedbackMetric:
                 pass_rate=0.0,
                 error=str(exc),
             )
-            return ScoreWithFeedback(
-                score=0.0,
-                feedback=(
-                    f"{self._prefix(task_id, pred_name)} Execution infrastructure "
-                    f"failed before tests could run: {exc}. Treat this as a "
-                    "failed generated program and produce simpler terminating code."
-                ),
-            )
+            raise
 
         self._log_score(
             task_id=task_id,
@@ -543,7 +537,15 @@ def _optimize_encoder_gepa(
     docker_image: str | None,
     verbose: bool,
 ) -> tuple[Any, dict[str, SplitScore], dict[str, SplitScore]]:
-    eval_metric = encoder_gepa_metric(
+    eval_metric = encoder_metric(
+        decoder=baseline.decoder,
+        samples_by_task_id=samples_by_task_id,
+        timeout_seconds=timeout_seconds,
+        docker_image=docker_image,
+        verbose=verbose,
+        label="encoder/gepa-eval",
+    )
+    gepa_metric = encoder_gepa_metric(
         decoder=baseline.decoder,
         samples_by_task_id=samples_by_task_id,
         timeout_seconds=timeout_seconds,
@@ -563,7 +565,7 @@ def _optimize_encoder_gepa(
         student=baseline.encoder,
         trainset=encoder_examples(samples_by_task_id, task_ids.train),
         valset=encoder_examples(samples_by_task_id, task_ids.dev),
-        metric=eval_metric,
+        metric=gepa_metric,
         reflection_lm=reflection_lm,
         output_dir=output_dir,
         auto=auto,
@@ -610,7 +612,14 @@ def _optimize_decoder_gepa(
     def examples_for_ids(ids: Sequence[str]) -> list[dspy.Example]:
         return decoder_examples(samples_by_task_id, code_specs, ids)
 
-    eval_metric = direct_gepa_metric(
+    eval_metric = completed_code_metric(
+        samples_by_task_id=samples_by_task_id,
+        timeout_seconds=timeout_seconds,
+        docker_image=docker_image,
+        verbose=verbose,
+        label="encdec_decoder/gepa-eval",
+    )
+    gepa_metric = direct_gepa_metric(
         samples_by_task_id=samples_by_task_id,
         timeout_seconds=timeout_seconds,
         docker_image=docker_image,
@@ -629,7 +638,7 @@ def _optimize_decoder_gepa(
         student=baseline.decoder,
         trainset=examples_for_ids(task_ids.train),
         valset=examples_for_ids(task_ids.dev),
-        metric=eval_metric,
+        metric=gepa_metric,
         reflection_lm=reflection_lm,
         output_dir=output_dir,
         auto=auto,
@@ -665,7 +674,14 @@ def _optimize_both_gepa(
     docker_image: str | None,
     verbose: bool,
 ) -> tuple[Any, dict[str, SplitScore], dict[str, SplitScore]]:
-    eval_metric = direct_gepa_metric(
+    eval_metric = completed_code_metric(
+        samples_by_task_id=samples_by_task_id,
+        timeout_seconds=timeout_seconds,
+        docker_image=docker_image,
+        verbose=verbose,
+        label="encdec/gepa-eval",
+    )
+    gepa_metric = direct_gepa_metric(
         samples_by_task_id=samples_by_task_id,
         timeout_seconds=timeout_seconds,
         docker_image=docker_image,
@@ -684,7 +700,7 @@ def _optimize_both_gepa(
         student=baseline,
         trainset=encdec_examples(samples_by_task_id, task_ids.train),
         valset=encdec_examples(samples_by_task_id, task_ids.dev),
-        metric=eval_metric,
+        metric=gepa_metric,
         reflection_lm=reflection_lm,
         output_dir=output_dir,
         auto=auto,

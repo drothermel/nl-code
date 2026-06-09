@@ -16,7 +16,9 @@ from nl_code.optim.dspy_generators import (
     resolve_openrouter_llm_config,
     supported_openrouter_llm_config_ids,
 )
+from nl_code.code_execution.models import CodeExecutionInfrastructureError
 from nl_code.optim.humaneval_dspy_optimize import (
+    OptimizationEventLogger,
     SplitTaskIds,
     api_key_from_env,
     direct_examples,
@@ -24,6 +26,7 @@ from nl_code.optim.humaneval_dspy_optimize import (
     parse_task_ids,
     require_task_ids,
     score_value,
+    validate_disjoint_splits,
 )
 
 
@@ -48,6 +51,85 @@ def test_parse_task_ids_accepts_repeated_and_csv_values() -> None:
 def test_require_task_ids_rejects_empty_splits() -> None:
     with pytest.raises(ValueError, match="--dev-task-ids"):
         require_task_ids(SplitTaskIds(train=["HumanEval/1"], dev=[], eval=[]))
+
+
+def test_validate_disjoint_splits_rejects_overlapping_task_ids() -> None:
+    with pytest.raises(ValueError, match="disjoint"):
+        validate_disjoint_splits(
+            SplitTaskIds(
+                train=["HumanEval/1"],
+                dev=["HumanEval/1"],
+                eval=["HumanEval/2"],
+            )
+        )
+
+
+def test_validate_disjoint_splits_rejects_duplicate_ids_within_split() -> None:
+    with pytest.raises(ValueError, match="duplicate task IDs in train"):
+        validate_disjoint_splits(
+            SplitTaskIds(
+                train=["HumanEval/1", "HumanEval/1"],
+                dev=["HumanEval/2"],
+                eval=["HumanEval/3"],
+            )
+        )
+
+
+def test_default_dspy_model_resolves_via_catalog() -> None:
+    config = resolve_openrouter_llm_config(gen_mod.DEFAULT_DSPY_MODEL)
+    assert config.model == "openrouter/openai/gpt-oss-20b"
+    assert config.reasoning == {"effort": "low"}
+
+
+def test_metric_raises_on_infrastructure_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def raise_infra(**_kwargs: Any) -> tuple[str, list[TestCaseResult], float]:
+        raise CodeExecutionInfrastructureError(
+            stage="run",
+            execution_mode="function_call",
+            detail="docker unavailable",
+        )
+
+    monkeypatch.setattr(opt_mod, "evaluate_completed_code", raise_infra)
+    metric = opt_mod.direct_metric(
+        samples_by_task_id=_samples_by_task_id(),
+        timeout_seconds=1.0,
+        docker_image=None,
+        verbose=False,
+        label="test",
+    )
+    example = dspy.Example(task_id="HumanEval/0").with_inputs()
+    prediction = dspy.Prediction(completed_code="def add_one(x):\n    return x + 1\n")
+
+    with pytest.raises(CodeExecutionInfrastructureError, match="docker unavailable"):
+        metric(example, prediction)
+
+
+def test_nested_optimization_log_context_restores_event_logger(
+    tmp_path: Path,
+) -> None:
+    outer_events = tmp_path / "outer.jsonl"
+    inner_events = tmp_path / "inner.jsonl"
+    outer_logger = OptimizationEventLogger(outer_events)
+    inner_logger = OptimizationEventLogger(inner_events)
+
+    with outer_logger:
+        token = opt_mod._event_logger_var.set(outer_logger)
+        try:
+            with inner_logger:
+                inner_token = opt_mod._event_logger_var.set(inner_logger)
+                try:
+                    opt_mod.log_optimization_event("inner_event")
+                finally:
+                    opt_mod._event_logger_var.reset(inner_token)
+            opt_mod.log_optimization_event("outer_event")
+        finally:
+            opt_mod._event_logger_var.reset(token)
+
+    assert "inner_event" in inner_events.read_text()
+    assert "outer_event" in outer_events.read_text()
+    assert "inner_event" not in outer_events.read_text()
 
 
 def test_api_key_from_env_rejects_placeholder(

@@ -93,6 +93,8 @@ generation against an encoder-decoder setup on HumanEval.
 - `src/nl_code/optim/humaneval_dspy_optimize.py` and
   `src/nl_code/optim/humaneval_dspy_gepa.py` contain reusable optimizer
   orchestration, split handling, artifact writing, and summary models.
+  Optimization event logging uses a per-context logger; `dspy.configure(lm=...)`
+  remains process-global, so run one optimization or eval job per process.
 - `src/nl_code/optim/humaneval_dspy_logs.py` parses eval logs into a nested
   Pydantic snapshot for notebook analysis. It preserves run stats, per-attempt
   results, and individual LM calls, including both encoder and decoder calls

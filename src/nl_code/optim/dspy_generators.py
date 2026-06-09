@@ -15,7 +15,7 @@ DEFAULT_ENCODER_INSTRUCTIONS = (
     "Do not output anything else."
 )
 DEFAULT_OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-DEFAULT_DSPY_MODEL = "openrouter/openai/gpt-5-nano"
+DEFAULT_DSPY_MODEL = "openrouter/openai/gpt-oss-20b/low/v1"
 DEFAULT_REASONING_EFFORT = "minimal"
 
 

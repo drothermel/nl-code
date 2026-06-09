@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextvars
 import json
 import logging
 import os
@@ -153,7 +154,9 @@ class OptimizationEventLogger:
             self._file.flush()
 
 
-_event_logger: OptimizationEventLogger | None = None
+_event_logger_var: contextvars.ContextVar[OptimizationEventLogger | None] = (
+    contextvars.ContextVar("_event_logger", default=None)
+)
 
 
 class HumanEvalPassRateMetric:
@@ -194,12 +197,10 @@ class HumanEvalPassRateMetric:
                 docker_image=self.docker_image,
             )
         except CodeExecutionInfrastructureError as exc:
-            pass_rate = 0.0
-            error = str(exc)
-        else:
-            error = None
+            self._log_score(task_id=task_id, pass_rate=0.0, error=str(exc))
+            raise
 
-        self._log_score(task_id=task_id, pass_rate=pass_rate, error=error)
+        self._log_score(task_id=task_id, pass_rate=pass_rate, error=None)
         return pass_rate
 
     def _log_score(
@@ -411,6 +412,35 @@ def parse_task_ids(values: Sequence[str] | None) -> list[str]:
     ]
 
 
+def validate_disjoint_splits(task_ids: SplitTaskIds) -> None:
+    split_names = ("train", "dev", "eval")
+    for split_name in split_names:
+        split_values = getattr(task_ids, split_name)
+        duplicates = {
+            task_id for task_id in split_values if split_values.count(task_id) > 1
+        }
+        if duplicates:
+            joined = ", ".join(sorted(duplicates))
+            raise ValueError(f"duplicate task IDs in {split_name} split: {joined}")
+
+    task_id_to_splits: dict[str, list[str]] = {}
+    for split_name in split_names:
+        for task_id in getattr(task_ids, split_name):
+            task_id_to_splits.setdefault(task_id, []).append(split_name)
+
+    overlaps = {
+        task_id: splits
+        for task_id, splits in task_id_to_splits.items()
+        if len(splits) > 1
+    }
+    if overlaps:
+        details = ", ".join(
+            f"{task_id} in {', '.join(splits)}"
+            for task_id, splits in sorted(overlaps.items())
+        )
+        raise ValueError(f"task IDs must be disjoint across splits: {details}")
+
+
 def require_task_ids(task_ids: SplitTaskIds) -> None:
     missing = [
         split_name
@@ -420,6 +450,7 @@ def require_task_ids(task_ids: SplitTaskIds) -> None:
     if missing:
         joined = ", ".join(f"--{split_name}-task-ids" for split_name in missing)
         raise ValueError(f"missing required split task IDs: {joined}")
+    validate_disjoint_splits(task_ids)
 
 
 def normalize_auto(value: str | None) -> AutoMode | None:
@@ -795,15 +826,12 @@ def optimization_log_context(
     run_log_path: Path,
     event_log_path: Path,
 ) -> Iterator[None]:
-    global _event_logger
-
     run_log_path.parent.mkdir(parents=True, exist_ok=True)
-    previous_event_logger = _event_logger
     with (
         run_log_path.open("w", encoding="utf-8") as run_log_file,
         OptimizationEventLogger(event_log_path) as event_logger,
     ):
-        _event_logger = event_logger
+        event_logger_token = _event_logger_var.set(event_logger)
         try:
             with (
                 redirect_stdout(TeeTextIO(sys.stdout, run_log_file)),
@@ -831,13 +859,14 @@ def optimization_log_context(
                 finally:
                     log_optimization_event("run_end")
         finally:
-            _event_logger = previous_event_logger
+            _event_logger_var.reset(event_logger_token)
             logging.basicConfig(level=logging.WARNING, force=True)
 
 
 def log_optimization_event(event: str, **payload: Any) -> None:
-    if _event_logger is not None:
-        _event_logger.write(event, **payload)
+    event_logger = _event_logger_var.get()
+    if event_logger is not None:
+        event_logger.write(event, **payload)
 
 
 def json_ready(value: Any) -> Any:
